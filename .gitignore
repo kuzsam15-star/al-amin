@@ -1,0 +1,78 @@
+node_modules
+.next
+.env
+.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.bak
+*.log
+
+# Generated build and test output
+out/
+dist/
+coverage/
+.turbo/
+.vercel/
+playwright-report/
+test-results/
+outputs/
+ux-audit-*/
+*.tsbuildinfo
+next-env.d.ts
+.eslintcache
+.cache/
+.pnpm-store/
+
+# Debug logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log.*
+
+# OS, IDE, and temporary files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.vs/
+.fleet/
+.history/
+*.swp
+*.swo
+*.tmp
+*.temp
+*~
+
+# Local secrets and private keys
+.secrets/
+secrets.local.*
+*.ppk
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+
+# Database dumps, backups, and local databases
+*.backup
+*.dump.*
+*.pgdump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+backups/
+dumps/
+
+# Local user-generated data
+uploads/
+user-uploads/
+user-exports/
+
+# Supabase CLI state
+supabase/.temp/
