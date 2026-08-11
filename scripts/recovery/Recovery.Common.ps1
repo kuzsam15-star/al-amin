@@ -7,7 +7,7 @@ $script:AgePath = Join-Path $script:RecoveryRoot 'tools\age-1.3.1\age.exe'
 $script:RclonePath = Join-Path $script:RecoveryRoot 'tools\rclone-1.74.3\rclone.exe'
 $script:SupabasePath = Join-Path $env:LOCALAPPDATA 'Programs\SupabaseCLI\2.113.0\supabase.exe'
 $script:DockerPath = Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin\docker.exe'
-$script:PostgresImage = 'postgres:17.6-alpine'
+$script:PostgresImage = 'public.ecr.aws/supabase/postgres@sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459'
 
 function Get-RecoveryRepositoryRoot {
   return (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path

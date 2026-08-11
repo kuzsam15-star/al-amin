@@ -16,7 +16,7 @@ production-derived artifact was restored.
 | --- | --- | --- |
 | Supabase CLI | 2.113.0 | Installed executable/version check |
 | Docker Engine | 29.7.2, Linux | `desktop-linux`, daemon and container health checks |
-| PostgreSQL client | 17.6 in official container | `pg_dump`, `pg_dumpall`, `pg_restore`, `psql` exercised locally |
+| PostgreSQL client | 17.6 in pinned Supabase container | `pg_dump`, `pg_dumpall`, `pg_restore`, `psql`; image digest `sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459` |
 | age | 1.3.1 | Official release archive SHA-256 `c56e8ce22f7e80cb85ad946cc82d198767b056366201d3e1a2b93d865be38154` |
 | rclone | 1.74.3 | Official archive SHA-256 `ecb0ed9006e0d1a693757007716a11dab6c2cde6dac3f2fd87da962eaa73d11d` |
 

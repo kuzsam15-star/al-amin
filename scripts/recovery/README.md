@@ -24,6 +24,8 @@ Tools live outside Git at `%LOCALAPPDATA%\AL-AMIN-Recovery\tools`:
   `c56e8ce22f7e80cb85ad946cc82d198767b056366201d3e1a2b93d865be38154`;
 - `rclone` v1.74.3, official rclone archive SHA-256
   `ecb0ed9006e0d1a693757007716a11dab6c2cde6dac3f2fd87da962eaa73d11d`.
+- PostgreSQL client image `public.ecr.aws/supabase/postgres:17.6.1.158`, pinned
+  by digest `sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459`.
 
 The age binary carries an Authenticode signer (`Up in the Air Consulting LLC`),
 but Windows returned `UnknownError` for chain status; rclone is `NotSigned`.
