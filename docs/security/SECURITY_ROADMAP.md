@@ -219,6 +219,8 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-01: перенести этот audit baseline в canonical Git worktree, зафиксировать исходный commit и добавить review-only CI gates плюс жёсткий запрет remote QA scripts для production project ref.**
+**Выполнить только P0-02B-B4 — verified no-data bootstrap baseline generation and clean-room replay.**
 
-На этом шаге не создавать и не менять remote environment, не менять production и не переносить данные. После доказанного provenance отдельным следующим этапом выполнить P0-02 в явно allowlisted disposable Supabase staging; первым функциональным исправлением после этого будет P0-03 — immutable server-only media boundary.
+Кандидат Strategy C создаётся только в disposable detached worktree и применяется только к allowlisted локальному Docker/Supabase environment. Он должен содержать no-data target contract, отдельный post-cutover forward track и fail-closed запрет применения bootstrap к существующему production project. Historical 18 migrations остаются immutable archive и не replay-ятся как bootstrap.
+
+Выходной gate: два чистых replay, normalized catalog/ACL comparison с approved manifest, отсутствие production data/secrets и неизменный canonical worktree. После принятия baseline отдельным этапом создаётся P0-02C role-matrix harness; первым finding-scoped functional fix остаётся P0-03 — immutable server-only media boundary.
