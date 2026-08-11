@@ -1,0 +1,109 @@
+{
+  "format_version": 1,
+  "generated_at": "2026-08-11",
+  "scope": "redacted-non-secret-recovery-metadata",
+  "recovery_level": 0,
+  "status": "MANUAL_OWNER_APPROVAL_REQUIRED",
+  "source_alias": "AL_AMIN_PRODUCTION",
+  "auth": {
+    "enabled_providers": {
+      "value": ["email", "google"],
+      "status": "CAPTURED_READ_ONLY"
+    },
+    "email_confirmation_required": {
+      "value": true,
+      "status": "CAPTURED_READ_ONLY"
+    },
+    "redirect_urls": {
+      "value": null,
+      "status": "MUST_REENTER"
+    },
+    "mfa": {
+      "totp_enrollment_enabled": true,
+      "verification_enabled": false,
+      "status": "CAPTURED_READ_ONLY_OPEN_SECURITY_GAP"
+    },
+    "sessions": {
+      "single_session_enforced": false,
+      "maximum_lifetime": "never",
+      "inactivity_timeout": "never",
+      "status": "CAPTURED_READ_ONLY_OPEN_SECURITY_GAP"
+    },
+    "smtp": {
+      "configuration": "MUST_REENTER",
+      "secret": "MUST_REENTER"
+    },
+    "google_oauth": {
+      "client_configuration": "MUST_REENTER",
+      "secret": "MUST_REENTER"
+    }
+  },
+  "storage": {
+    "buckets": [
+      {
+        "id": "avatars",
+        "public": true,
+        "size_limit_bytes": 2097152,
+        "allowed_mime_types": ["image/jpeg", "image/png", "image/webp"],
+        "metadata_status": "CAPTURED_READ_ONLY",
+        "object_bytes": "ABSENT"
+      },
+      {
+        "id": "profile-media",
+        "public": false,
+        "size_limit_bytes": 5242880,
+        "allowed_mime_types": ["image/jpeg", "image/png", "image/webp"],
+        "metadata_status": "CAPTURED_READ_ONLY_LIVE_DRIFT",
+        "object_bytes": "ABSENT"
+      }
+    ],
+    "policies": {
+      "source": "database_catalog_restore",
+      "expected_application_policy_count": 7,
+      "status": "CAPTURED_READ_ONLY"
+    },
+    "s3_access_secret": "ABSENT"
+  },
+  "realtime": {
+    "publications": "MUST_REENTER",
+    "settings": "MUST_REENTER"
+  },
+  "database": {
+    "engine": "PostgreSQL",
+    "major_version": 17,
+    "observed_version": "17.6.1.147",
+    "installed_extensions": [
+      {"name": "plpgsql", "observed_version": "1.0"},
+      {"name": "pgcrypto", "observed_version": "1.3"},
+      {"name": "pg_stat_statements", "observed_version": "1.11"},
+      {"name": "supabase_vault", "observed_version": "0.3.1"},
+      {"name": "uuid-ossp", "observed_version": "1.1"}
+    ],
+    "critical_settings": "MUST_REENTER",
+    "ssl_requirements": "MUST_REENTER",
+    "network_restrictions": "MUST_REENTER",
+    "database_password": "MUST_REENTER"
+  },
+  "edge_functions": {
+    "deployed_names": [],
+    "status": "CAPTURED_READ_ONLY_NONE_DEPLOYED",
+    "function_secrets": "ABSENT"
+  },
+  "project": {
+    "plan": "free",
+    "region": "eu-west-2",
+    "compute_class": "MUST_REENTER",
+    "custom_domains": "MUST_REENTER",
+    "network_restrictions": "MUST_REENTER",
+    "api_configuration": "MUST_REENTER",
+    "api_keys": "MUST_REENTER",
+    "project_reference": "ABSENT"
+  },
+  "validation": {
+    "production_identifiers_stored": false,
+    "secret_values_stored": false,
+    "production_rows_stored": false,
+    "storage_paths_or_bytes_stored": false,
+    "isolated_restore_performed": false
+  }
+}

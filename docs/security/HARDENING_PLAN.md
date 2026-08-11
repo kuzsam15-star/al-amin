@@ -309,7 +309,10 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Backup changes additive; старые copies сохраняются до многократной проверки новой chain; restore только в isolated target.
 - **Risk of fixing:** Средний — retention/custody mistake может уничтожить единственную рабочую copy.
 - **Dependencies:** P0-01/P0-02, isolated restore project, admin backup access, approved RPO/RTO и secret custody.
-- **Status:** Open — evidence gap; no restore test run.
+- **Status:** Open — P0-11 Level 0 policy/runbook evidence prepared. The current
+  Free plan has no managed daily recovery point or PITR; no owner-approved
+  logical DB/Storage artifacts or paid isolated target exist, so DB+Storage+config
+  restore and reconciliation remain unproved. `MANUAL_OWNER_APPROVAL_REQUIRED`.
 
 ### SEC-014 — Supabase SSR Proxy/session lifecycle
 

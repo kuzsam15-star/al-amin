@@ -175,6 +175,10 @@
 - **Доказательство выхода:** датированный restore report с row/object/hash reconciliation, временем, RPO/RTO и найденными gaps; quarterly schedule.
 - **Rollback/forward-fix:** новые backups additive; старую цепочку не удалять до двух успешных restore cycles.
 - **Зависимости:** P0-01/02; никаких restore в production.
+- **Статус (2026-08-11):** BLOCKED at Recovery Level 0. Current plan is Free:
+  no managed daily recovery point, PITR, or eligible Restore to a New Project.
+  Owner approval is required for RPO/RTO, encrypted logical DB/Storage exports,
+  and a separate costed target. No rehearsal was run and SEC-013 remains open.
 
 ### P0-12 — Минимальный detection/response baseline
 
@@ -241,11 +245,11 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-11 — isolated DB+Storage+config recovery readiness
-proof.**
+**Выполнить только P0-11A — owner-operated encrypted DB and Storage backup
+export plus isolated restore approval.**
 
-P0-03C не разрешил production deployment: SEC-013/OP-09/ST-12 recovery
-evidence отсутствует, а migration/source/backfill operational commands ещё не
-имеют утверждённой production provenance. P0-11 должен дать датированный
-isolated restore report без изменения production; затем P0-03C повторно
-проверяет остальные release gates.
+P0-11 зафиксировал Free-plan и cost/credential gates, recovery policy,
+configuration manifest и separate Storage contract, но достиг только Level 0.
+P0-11A должен получить owner-approved artifacts и отдельную цель без передачи
+credentials Codex; затем возможны два Level 3 rehearsal. До этого SEC-013 и
+P0-03C recovery gate остаются открыты.
