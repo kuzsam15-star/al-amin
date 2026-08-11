@@ -28,7 +28,8 @@ not been approved.
 7. Create an evidence directory outside the repository. Raw dumps, object paths,
    credentials, and object bytes must never be copied into Git.
 
-Current stop condition: these prerequisites are not satisfied.
+Current stop condition: the toolkit and synthetic preflight are complete, but
+Owner Gate 1 has not authorized reading production rows or Storage bytes.
 
 ## 3. Database recovery
 
@@ -41,23 +42,25 @@ project is billable and still needs separate Storage/config recovery.
 
 ### 3.2 Logical fallback
 
-The installed Supabase CLI 2.113.0 supports `db dump` using an explicit database
-URL and a dry-run. A future reviewed wrapper must pass the connection value from
-ephemeral process state, not a command argument stored in shell history. It must:
+The reviewed owner-operated wrapper is now available at
+`scripts/recovery/START_RECOVERY_PROOF.bat`. It uses PostgreSQL 17 clients in an
+official local container and passes connection material through an ACL-protected
+temporary libpq service/password file, never a credential-bearing argument. It:
 
-1. validate that the source is the approved read-only endpoint;
-2. run the CLI dry-run and archive the redacted command plan;
-3. create schema/roles and data artifacts outside the repository;
-4. encrypt and authenticate each artifact immediately;
-5. calculate SHA-256 on ciphertext and record tool/PostgreSQL versions;
-6. destroy plaintext as soon as encrypted verification succeeds;
-7. restore only into the isolated target using version-compatible PostgreSQL
-   tools;
-8. keep credentials and row contents out of logs.
+1. validates that the operator explicitly confirms a non-local read-only source;
+2. creates roles-without-passwords and custom-format schema/data artifacts
+   outside the repository with version-compatible PostgreSQL 17 tools;
+3. exports aggregate-only catalog and row-count inventory without row output;
+4. encrypts and authenticates the complete payload immediately;
+5. calculates SHA-256 on ciphertext and records tool/PostgreSQL versions;
+6. destroys plaintext as soon as encrypted verification succeeds;
+7. restores only into a prefix-validated loopback disposable target;
+8. keeps credentials, row contents, and object paths out of logs.
 
-This stage did not create the wrapper because no owner-approved source credential
-or backup artifact exists and the required PostgreSQL client tools are not
-installed on PATH. Installing tools is outside scope.
+Pinned age/rclone tools live outside Git. The complete workflow passed a
+synthetic local source/export/encrypt/destroy/restore/reconcile/cleanup test.
+Production execution remains blocked until Owner Gate 1; the operator never
+shares connection data or keys with Codex.
 
 ### 3.3 Database reconciliation
 

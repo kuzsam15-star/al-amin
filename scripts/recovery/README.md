@@ -1,0 +1,71 @@
+# AL-AMIN owner-operated recovery tooling
+
+This toolkit creates an encrypted, owner-controlled database + Storage backup
+and verifies it only in disposable local Supabase targets. It never links a
+project, uses a service-role value from production, or restores into production.
+
+## Nontechnical entry point
+
+Run `START_RECOVERY_PROOF.bat`. The launcher checks the clean
+`security/hardening` repository, pinned tools, Docker `desktop-linux`, and local
+safety boundary before presenting three plain-language choices.
+
+Production export remains owner-gated. Never paste a database password, S3 key,
+archive passphrase, URL containing credentials, or token into chat. Enter them
+only into the local hidden prompt after the workstream explicitly opens the
+gate. The export stops after encryption and requires deletion of the temporary
+S3 key before any production-derived restore.
+
+## Pinned portable tools
+
+Tools live outside Git at `%LOCALAPPDATA%\AL-AMIN-Recovery\tools`:
+
+- `age` / `age-keygen` v1.3.1, official GitHub release archive SHA-256
+  `c56e8ce22f7e80cb85ad946cc82d198767b056366201d3e1a2b93d865be38154`;
+- `rclone` v1.74.3, official rclone archive SHA-256
+  `ecb0ed9006e0d1a693757007716a11dab6c2cde6dac3f2fd87da962eaa73d11d`.
+
+The age binary carries an Authenticode signer (`Up in the Air Consulting LLC`),
+but Windows returned `UnknownError` for chain status; rclone is `NotSigned`.
+Neither result is treated as publisher proof. The pinned official archive
+checksums above are the fail-closed supply-source boundary. No installer,
+download archive, binary, credential, or backup artifact is stored in Git.
+
+## Artifact contract
+
+The authenticated `age` ciphertext contains one ZIP payload:
+
+- `database/database.backup`: PostgreSQL 17 custom-format dump of `public`,
+  optional `private`, `auth`, `storage`, and `supabase_migrations`; `storage.objects` rows are
+  excluded because object metadata is reconstructed by byte restoration;
+- `database/roles.sql`: roles without password hashes;
+- `database/database_inventory.json`: safe counts/version/catalog hash only;
+- `storage/storage_objects/`: object bytes, plaintext only inside protected
+  temporary storage until encryption succeeds;
+- `storage/storage_manifest.raw.json`: paths, sizes, and content hashes, kept
+  only inside ciphertext;
+- `storage/storage_manifest.redacted.json`: aggregate counts/hashes only;
+- `config/CONFIG_RECOVERY_MANIFEST.json`: values classified as captured,
+  absent, or `MUST_REENTER` without secrets.
+
+## Safety and interruption
+
+- Production database access uses an ACL-protected temporary libpq service and
+  password file mounted read-only into an official PostgreSQL 17 container.
+  The password and connection URL never appear in process arguments.
+- Production Storage uses process-scoped rclone configuration and only `copy`
+  from the two fixed source buckets. No sync, move, upload, overwrite, or delete
+  command exists.
+- Raw paths and rows are never printed. Errors are redacted.
+- Targets must be loopback-only and use an `alamin-recovery-target-*` project ID.
+- Cleanup is exact-path and project-specific. Broad Docker or filesystem prune
+  is never used.
+- An interruption leaves the protected working directory for fail-closed owner
+  review; rerun cleanup only through the named cleanup script. A retained raw
+  directory is a blocker, never silently ignored.
+
+For the autonomous local preflight only:
+
+```text
+powershell.exe -NoProfile -File scripts/recovery/Invoke-AlAminRecoveryProof.ps1 -Mode SyntheticPreflight
+```
