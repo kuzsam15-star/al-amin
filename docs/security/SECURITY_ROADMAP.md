@@ -87,6 +87,13 @@
   два final role-matrix run: 73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
   Статус: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`;
   production по-прежнему не изменён.
+- **P0-03C readiness status (2026-08-11):**
+  `BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`. Локальные bytes заморожены и
+  deployment order/compatibility/stop/forward-fix gates сформированы, но
+  отсутствуют датированный isolated DB+Storage/config restore proof, точный
+  version-recording production migration runner, signed source release
+  artifact/command, production backfill wrapper и active monitoring window.
+  Production execution не разрешён.
 
 ### P0-04 — Закрыть owner column leak applications
 
@@ -234,10 +241,11 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-03C — SEC-001 controlled production deployment
-readiness gate.**
+**Выполнить только P0-11 — isolated DB+Storage+config recovery readiness
+proof.**
 
-P0-03B имеет статус
-`INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`. P0-03C должен
-проверить live compatibility, backup/restore readiness, approved identities,
-change ownership, monitoring и exit gates без выполнения deployment.
+P0-03C не разрешил production deployment: SEC-013/OP-09/ST-12 recovery
+evidence отсутствует, а migration/source/backfill operational commands ещё не
+имеют утверждённой production provenance. P0-11 должен дать датированный
+isolated restore report без изменения production; затем P0-03C повторно
+проверяет остальные release gates.

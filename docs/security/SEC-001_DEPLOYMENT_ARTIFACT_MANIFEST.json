@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "stage": "P0-03C",
+  "status": "LOCAL_CANDIDATE_FROZEN_PRODUCTION_DEPLOYMENT_BLOCKED",
+  "generated_on": "2026-08-11",
+  "source_commit": "d498bbbb5a2d3cc7c675add9cb68c424b8406387",
+  "hash_algorithm": "SHA-256",
+  "authorization": "This manifest freezes reviewed local bytes and does not authorize production access or mutation.",
+  "artifacts": [
+    {
+      "path": "supabase/forward-migrations/202608110001_sec001_immutable_published_media.sql",
+      "purpose": "Phase A forward migration",
+      "sha256": "28CD011096257C6203A2E77464E338F8C769B79743DEBE1099091034E55A1A0A"
+    },
+    {
+      "path": "supabase/forward-migrations/202608110002_sec001_enforce_canonical_published_media.sql",
+      "purpose": "Phase B enforcement migration",
+      "sha256": "25D8667718DD26AA20DA3C41088B3D5FC21FE4298CF4F5451AAA0D4982597282"
+    },
+    {
+      "path": "tests/security/helpers/sec001-backfill.mjs",
+      "purpose": "Dry-run-first backfill core",
+      "sha256": "B19FF33FF0B5A3F11F0A3FC4A031EFE4F27AFE2D4E2D7D68016260B624E81B35"
+    },
+    {
+      "path": "tests/security/sec001-deployment-rehearsal.mjs",
+      "purpose": "Disposable deployment rehearsal",
+      "sha256": "BA5F8ABC0C4A4F105AEAA14A21C077B854FB7D0DA9C391F9FD0EC439586698D2"
+    },
+    {
+      "path": "src/app/admin/actions.ts",
+      "purpose": "Controlled application and revision publication",
+      "sha256": "DBC4975636B240386E0784DF3C294A079CB7AB49638C1A782AE3D11BF1099A66"
+    },
+    {
+      "path": "src/app/admin/page.tsx",
+      "purpose": "Reviewed application version propagation",
+      "sha256": "46CFF14B3B3AD54070038948901132D4E9F76D9F988156BE08DAFFA206755526"
+    },
+    {
+      "path": "src/components/RevisionModeration.tsx",
+      "purpose": "Reviewed revision version propagation",
+      "sha256": "C9428A3B930138495B782F9BA1F675C0D2F27EDF6D5AD54876B7CB96437EB816"
+    },
+    {
+      "path": "src/lib/media-paths.ts",
+      "purpose": "Strict submission/canonical path contract",
+      "sha256": "51CAF80792CFAA0C5DEDA5BB41E1B41FB5F010BE8F0B51FD298E8824A2CA12DA"
+    },
+    {
+      "path": "src/lib/published-media.d.mts",
+      "purpose": "Canonical publisher type contract",
+      "sha256": "79C0A4F3D0C22F717DE905C971CBC57CDEDC5BF91BA255E912DC4E53F5FBD95C"
+    },
+    {
+      "path": "src/lib/published-media.mjs",
+      "purpose": "Canonical media validation, transform, hash, and upload",
+      "sha256": "0EA060D7B2BA209554990A7F5B6E5F1E997EEF8CC917D8E34ED9E84D27D3AAEE"
+    },
+    {
+      "path": "src/lib/published-media.ts",
+      "purpose": "Server-only canonical publisher export",
+      "sha256": "321E78F5A67943E60EFD002DFCE82F2F42B00DA17C397643CA22AA4E764063C2"
+    },
+    {
+      "path": "src/lib/supabase/server.ts",
+      "purpose": "Server-only controlled Supabase client",
+      "sha256": "AEA108ED7EDAF197BE2117F7B8E483D587A07D2C91A917A457F3AADF66D08177"
+    },
+    {
+      "path": "src/app/api/media/route.ts",
+      "purpose": "Submission upload gateway",
+      "sha256": "0121B3A7B1F1E93FD093F7F38CD265491EA2A114696EE91610A4FC96F97999C1"
+    },
+    {
+      "path": "src/app/api/media/source/route.ts",
+      "purpose": "Moderation source-serving boundary",
+      "sha256": "F6A0CBCB8D87C755499040C8BB7675F7A2A6F3EA4887C8048B5290851B7081DD"
+    },
+    {
+      "path": "src/app/api/media/view/route.ts",
+      "purpose": "Published media-serving boundary",
+      "sha256": "8AC1048BF030EEEFF27D0DAE947E9722CD19ADAC58912D50D474FB5102651080"
+    },
+    {
+      "path": "docs/security/SEC-001_DEPLOYMENT_RUNBOOK.md",
+      "purpose": "Controlled deployment order and operational gates",
+      "sha256": "33575D261D0EEAD63E32DA07B12C4C291468C76341F9AD420A296270A3DB502F"
+    }
+  ],
+  "protected_pre_hardening_artifacts": [
+    {
+      "path": "supabase/bootstrap/baseline.sql",
+      "sha256": "CF61CDB37D9B82B3AFFFF035A0EAF68B1FABC2022C261F87027AE95583C153E1"
+    },
+    {
+      "path": "supabase/bootstrap/manifest.json",
+      "sha256": "C863F0DA00F144837C22ACD14390668B344A233D71539AB030AE677C43E7E55D"
+    },
+    {
+      "path": "supabase/schema.sql",
+      "sha256": "ECAB0A21F27CCD152C5C99226FF6D0894ED2B4E57EDA114FD428DA98E323B74A"
+    }
+  ],
+  "historical_migrations": {
+    "count": 18,
+    "ordered_name_and_file_hash_manifest_sha256": "DD8C28723DA2E88AE3104E787DDBDC8C49223CD58A8A89195DC49E27E732F888",
+    "must_remain_unchanged": true
+  }
+}
