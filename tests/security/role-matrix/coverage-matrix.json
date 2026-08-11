@@ -1,0 +1,36 @@
+{
+  "format_version": 1,
+  "legend": {
+    "AUTOMATED": "An active case exercises this boundary through API behavior or catalog evidence.",
+    "NOT_AUTOMATED": "The boundary is relevant but outside this local harness; reason is mandatory.",
+    "NOT_APPLICABLE": "The action has no defined contract for this resource."
+  },
+  "entries": [
+    {"role":"ROLE-ANON","resource":"account_profiles","action":"SELECT","coverage":"AUTOMATED","cases":["PROFILE-003"]},
+    {"role":"ROLE-USER-A/USER-B","resource":"account_profiles","action":"UPDATE","coverage":"AUTOMATED","cases":["PROFILE-001","PROFILE-002"]},
+    {"role":"ROLE-USER-A/USER-B/OWNER","resource":"applications","action":"SELECT/UPDATE/DELETE","coverage":"AUTOMATED","cases":["READ-002","READ-003","READ-004","READ-005","APP-001","APP-002","APP-003","APP-004","APP-005"]},
+    {"role":"ROLE-MODERATOR-AAL1","resource":"applications","action":"STATUS_CHANGE/AAL1_SENSITIVE_ACTION","coverage":"AUTOMATED","cases":["ROLE-003"]},
+    {"role":"ROLE-OWNER","resource":"application_events","action":"SELECT","coverage":"AUTOMATED","cases":["EVENT-001","EVENT-002"]},
+    {"role":"ROLE-USER-A/MODERATOR","resource":"audit_log","action":"INSERT","coverage":"AUTOMATED","cases":["AUDIT-002","AUDIT-003"]},
+    {"role":"ROLE-ANON/MODERATOR","resource":"categories","action":"SELECT/UPDATE","coverage":"AUTOMATED","cases":["CONTENT-001","CONTENT-005"]},
+    {"role":"ROLE-ADMIN-AAL2","resource":"categories","action":"UPDATE","coverage":"NOT_AUTOMATED","reason":"The positive AAL2 path is exercised on site_content; category mutations would duplicate the same missing/present gate."},
+    {"role":"ROLE-ANON/AUTHENTICATED","resource":"complaints","action":"INSERT","coverage":"AUTOMATED","cases":["FEEDBACK-002"]},
+    {"role":"ROLE-OWNER/MODERATOR","resource":"email_notifications","action":"SELECT","coverage":"AUTOMATED","cases":["AUDIT-001","AUDIT-004"]},
+    {"role":"ROLE-USER/MODERATOR","resource":"moderators","action":"SELECT/ROLE_CHANGE","coverage":"AUTOMATED","cases":["ROLE-001","ROLE-002","ROLE-006"]},
+    {"role":"ROLE-ANON/AUTHENTICATED","resource":"reviews","action":"SELECT/INSERT","coverage":"AUTOMATED","cases":["READ-007","FEEDBACK-001","FEEDBACK-003","VIEW-002"]},
+    {"role":"ROLE-ANON/USER/MODERATOR/ADMIN","resource":"site_content","action":"SELECT/UPDATE/AAL1_SENSITIVE_ACTION/AAL2_SENSITIVE_ACTION","coverage":"AUTOMATED","cases":["ROLE-004","ROLE-005","CONTENT-002","CONTENT-004"]},
+    {"role":"ROLE-OWNER/USER-B/MODERATOR/ADMIN","resource":"specialist_revisions","action":"SELECT/RPC/MODERATE","coverage":"AUTOMATED","cases":["SPEC-002","RPC-001","RPC-002","RPC-003"]},
+    {"role":"ROLE-ANON/MODERATOR","resource":"specialist_trust_badges","action":"SELECT/DELETE","coverage":"AUTOMATED","cases":["VIEW-004","CONTENT-006"]},
+    {"role":"ROLE-ANON/OWNER/MODERATOR","resource":"specialists","action":"SELECT/UPDATE/PUBLISH/STATUS_CHANGE","coverage":"AUTOMATED","cases":["READ-006","SPEC-001","SPEC-003","SPEC-004","VIEW-001"]},
+    {"role":"ROLE-ANON/MODERATOR","resource":"trust_badges","action":"SELECT/UPDATE","coverage":"AUTOMATED","cases":["CONTENT-003","VIEW-004"]},
+    {"role":"ROLE-ANON/MODERATOR","resource":"verifications","action":"SELECT/UPDATE","coverage":"AUTOMATED","cases":["READ-008","SPEC-005","VIEW-003"]},
+    {"role":"ROLE-ANON","resource":"published views","action":"SELECT","coverage":"AUTOMATED","cases":["CAT-002","VIEW-001","VIEW-002","VIEW-003","VIEW-004","VIEW-005"]},
+    {"role":"ROLE-ANON/AUTHENTICATED","resource":"RPC surface","action":"RPC","coverage":"AUTOMATED","cases":["CAT-003","CAT-004","RPC-001","RPC-002","RPC-003"]},
+    {"role":"ROLE-ANON/MODERATOR","resource":"avatars bucket","action":"STORAGE_READ/STORAGE_UPLOAD","coverage":"AUTOMATED","cases":["STORAGE-013","STORAGE-014"]},
+    {"role":"ROLE-OWNER/USER-B/ANON","resource":"profile-media bucket","action":"STORAGE_UPLOAD/STORAGE_READ/STORAGE_UPDATE/STORAGE_DELETE","coverage":"AUTOMATED","cases":["CAT-008","STORAGE-001","STORAGE-002","STORAGE-003","STORAGE-004","STORAGE-005","STORAGE-006","STORAGE-007","STORAGE-008","STORAGE-009","STORAGE-010","STORAGE-011","STORAGE-012"]},
+    {"role":"ROLE-ALL","resource":"applications","action":"concurrent INSERT/idempotency","coverage":"NOT_AUTOMATED","reason":"SEC-007 requires an approved idempotency invariant and a dedicated race harness."},
+    {"role":"ROLE-MODERATOR/ADMIN","resource":"moderation state machine","action":"concurrent STATUS_CHANGE","coverage":"NOT_AUTOMATED","reason":"SEC-008 requires the future transactional state-machine design."},
+    {"role":"ROLE-ALL","resource":"deployed headers/Auth dashboard/monitoring/backups","action":"external controls","coverage":"NOT_AUTOMATED","reason":"Local role matrix cannot prove SEC-011/013/014/020/021/024 production controls."},
+    {"role":"ROLE-ALL","resource":"dependency and release provenance","action":"supply chain","coverage":"NOT_AUTOMATED","reason":"Covered by separate SEC-009/012/019 CI and dependency workstreams."}
+  ]
+}

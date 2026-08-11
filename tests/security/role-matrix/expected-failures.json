@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "baseline": "alamin-no-data-v1-pre-hardening",
+  "entries": {
+    "CAT-002": ["SEC-015"],
+    "CAT-003": ["SEC-016"],
+    "CAT-004": ["SEC-016"],
+    "CAT-005": ["SEC-016"],
+    "CAT-006": ["SEC-025"],
+    "CAT-007": ["SEC-004"],
+    "CAT-008": ["SEC-001", "SEC-017"],
+    "READ-005": ["SEC-002"],
+    "SPEC-003": ["SEC-003"],
+    "SPEC-004": ["SEC-003"],
+    "SPEC-005": ["SEC-003"],
+    "FEEDBACK-001": ["SEC-004"],
+    "FEEDBACK-002": ["SEC-004"],
+    "FEEDBACK-003": ["SEC-004"],
+    "PROFILE-001": ["SEC-025"],
+    "ROLE-004": ["SEC-010"],
+    "RPC-002": ["SEC-010"],
+    "STORAGE-007": ["SEC-001", "SEC-017"],
+    "STORAGE-008": ["SEC-001", "SEC-017"],
+    "STORAGE-009": ["SEC-017"],
+    "STORAGE-010": ["SEC-001"],
+    "CONTENT-004": ["SEC-026"],
+    "AUDIT-003": ["SEC-018"],
+    "AUDIT-004": ["SEC-010", "SEC-018"]
+  }
+}

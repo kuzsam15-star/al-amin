@@ -63,6 +63,10 @@
 - **Доказательство выхода:** пустой disposable project разворачивается без ручных шагов; schema/table/column/index/grant/RLS/view/function/trigger diff совпадает с утверждённым contract; anon writes отсутствуют.
 - **Rollback/forward-fix:** previous baseline artefact сохраняется; production получает только отдельные forward migrations после approval.
 - **Зависимости:** P0-01.
+- **Фактический enabling status (2026-08-11):** verified no-data bootstrap и
+  local role-matrix harness готовы. Два независимых harness run совпали:
+  49 PASS / 24 approved XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; cleanup PASS.
+  P0-02C не исправляет findings: XFAIL сохраняют pre-hardening SEC boundaries.
 
 ### P0-03 — Сделать опубликованные media immutable и server-only
 
@@ -219,8 +223,10 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-02B-B4 — verified no-data bootstrap baseline generation and clean-room replay.**
+**Выполнить только P0-03A — SEC-001 immutable canonical published media:
+threat analysis and test-first fix.**
 
-Кандидат Strategy C создаётся только в disposable detached worktree и применяется только к allowlisted локальному Docker/Supabase environment. Он должен содержать no-data target contract, отдельный post-cutover forward track и fail-closed запрет применения bootstrap к существующему production project. Historical 18 migrations остаются immutable archive и не replay-ятся как bootstrap.
-
-Выходной gate: два чистых replay, normalized catalog/ACL comparison с approved manifest, отсутствие production data/secrets и неизменный canonical worktree. После принятия baseline отдельным этапом создаётся P0-02C role-matrix harness; первым finding-scoped functional fix остаётся P0-03 — immutable server-only media boundary.
+Verified Strategy C bootstrap и P0-02C role-matrix harness приняты как local
+enabling controls. Historical 18 migrations остаются immutable archive и не
+replay-ятся как fresh bootstrap. Следующий этап начинается с threat analysis,
+фиксирует current XFAIL для SEC-001 и только затем разрешает узкий forward fix.

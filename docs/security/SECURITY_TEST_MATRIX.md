@@ -221,3 +221,29 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 10. Dependency/secret/SBOM/clean-build gates и isolated DB+Storage restore.
 
 Эти тесты должны выполняться только на явно allowlisted disposable/limited-staging environment с отдельными keys, synthetic data и автоматической cleanup verification.
+
+## 10. P0-02C local role-matrix execution
+
+Дата: 2026-08-11.
+
+Verified no-data bootstrap теперь имеет executable local role matrix:
+`tests/security/role-matrix/`. Два независимых disposable прогона дали
+одинаковый результат: **49 PASS / 24 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**;
+cleanup обоих проектов — PASS.
+
+Динамически закрыты прежние `NOT RUN` gaps для cross-owner application/profile,
+revision read, direct owner/moderator writes, four public views, actual Storage
+API, allowlisted RPC, role revocation и real local TOTP AAL2. XFAIL не меняют
+статус findings: они кодируют безопасное ожидание и указывают на открытые
+SEC-001/002/003/004/010/015/016/017/018/025/026.
+
+Полный stable case ledger и resource/action coverage находятся в:
+
+- `tests/security/role-matrix/cases.json`;
+- `tests/security/role-matrix/expected-failures.json`;
+- `tests/security/role-matrix/coverage-matrix.json`;
+- `docs/security/ROLE_MATRIX_BASELINE_RESULTS.md`.
+
+Concurrency, production Auth/headers/monitoring, dependency/provenance,
+backup/restore и sustained abuse остаются `NOT_AUTOMATED`; это не PASS и не
+понижение release-blocker severity.

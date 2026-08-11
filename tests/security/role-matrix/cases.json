@@ -1,0 +1,90 @@
+{
+  "format_version": 1,
+  "cases": [
+    {"id":"LOCAL-001","role":"ROLE-SERVICE-BACKEND","resource":"bootstrap","action":"REPLAY","expected":"verified baseline only"},
+    {"id":"CAT-001","role":"ROLE-SERVICE-BACKEND","resource":"public tables","action":"RLS","expected":"RLS enabled on every application table"},
+    {"id":"CAT-002","role":"ROLE-ANON","resource":"published views","action":"SELECT","expected":"all public projections use security_invoker"},
+    {"id":"CAT-003","role":"ROLE-ANON/AUTHENTICATED","resource":"RPC surface","action":"RPC","expected":"internal and trigger functions are not executable"},
+    {"id":"CAT-004","role":"ROLE-ANON/AUTHENTICATED","resource":"SECURITY DEFINER functions","action":"RPC","expected":"every definer function has a fixed safe search_path"},
+    {"id":"CAT-005","role":"ROLE-ANON/AUTHENTICATED","resource":"default privileges","action":"DDL inheritance","expected":"future objects do not inherit broad client privileges"},
+    {"id":"CAT-006","role":"ROLE-USER-A","resource":"account_profiles","action":"UPDATE","expected":"no owner UPDATE policy on Auth-mirrored profile"},
+    {"id":"CAT-007","role":"ROLE-ANON","resource":"reviews/complaints","action":"INSERT","expected":"no direct feedback INSERT policies"},
+    {"id":"CAT-008","role":"ROLE-OWNER","resource":"profile-media bucket","action":"STORAGE_UPLOAD","expected":"canonical profile media accepts WebP only"},
+
+    {"id":"READ-001","role":"ROLE-ANON","resource":"applications","action":"SELECT","expected":"no private rows"},
+    {"id":"READ-002","role":"ROLE-USER-A","resource":"applications","action":"SELECT","expected":"cannot read user B row"},
+    {"id":"READ-003","role":"ROLE-USER-B","resource":"applications","action":"SELECT","expected":"cannot read user A row"},
+    {"id":"READ-004","role":"ROLE-OWNER","resource":"applications","action":"SELECT","expected":"can read own intended row"},
+    {"id":"READ-005","role":"ROLE-OWNER","resource":"applications","action":"SELECT","expected":"internal_notes and call_at unavailable through direct Data API"},
+    {"id":"READ-006","role":"ROLE-ANON","resource":"specialists","action":"SELECT","expected":"no direct base-table rows"},
+    {"id":"READ-007","role":"ROLE-ANON","resource":"reviews","action":"SELECT","expected":"no direct base-table rows"},
+    {"id":"READ-008","role":"ROLE-ANON","resource":"verifications","action":"SELECT","expected":"no direct base-table rows"},
+
+    {"id":"APP-001","role":"ROLE-USER-A","resource":"applications","action":"UPDATE","expected":"cannot update user B row"},
+    {"id":"APP-002","role":"ROLE-USER-A","resource":"applications","action":"DELETE","expected":"cannot delete user B row"},
+    {"id":"APP-003","role":"ROLE-OWNER","resource":"applications.owner_id","action":"UPDATE","expected":"cannot transfer ownership"},
+    {"id":"APP-004","role":"ROLE-OWNER","resource":"applications.internal_notes","action":"UPDATE","expected":"cannot change moderator field"},
+    {"id":"APP-005","role":"ROLE-OWNER","resource":"applications.status","action":"STATUS_CHANGE","expected":"cannot approve or reject"},
+
+    {"id":"SPEC-001","role":"ROLE-OWNER","resource":"specialists","action":"UPDATE","expected":"cannot directly change published profile"},
+    {"id":"SPEC-002","role":"ROLE-USER-B","resource":"specialist_revisions","action":"SELECT","expected":"cannot read user A private revision"},
+    {"id":"SPEC-003","role":"ROLE-MODERATOR-AAL1","resource":"specialists.owner_id","action":"ROLE_CHANGE","expected":"cannot assign another owner"},
+    {"id":"SPEC-004","role":"ROLE-MODERATOR-AAL1","resource":"specialists.status","action":"STATUS_CHANGE","expected":"cannot perform admin lifecycle directly"},
+    {"id":"SPEC-005","role":"ROLE-MODERATOR-AAL1","resource":"verifications","action":"UPDATE","expected":"cannot change admin-only verification facts"},
+
+    {"id":"FEEDBACK-001","role":"ROLE-ANON","resource":"reviews","action":"INSERT","expected":"direct insert denied"},
+    {"id":"FEEDBACK-002","role":"ROLE-ANON","resource":"complaints","action":"INSERT","expected":"direct insert denied"},
+    {"id":"FEEDBACK-003","role":"ROLE-USER-A","resource":"reviews","action":"INSERT","expected":"direct insert denied outside controlled server path"},
+
+    {"id":"PROFILE-001","role":"ROLE-USER-A","resource":"account_profiles.email","action":"UPDATE","expected":"mirrored email immutable"},
+    {"id":"PROFILE-002","role":"ROLE-USER-A","resource":"account_profiles","action":"UPDATE","expected":"cannot update user B profile"},
+    {"id":"PROFILE-003","role":"ROLE-ANON","resource":"account_profiles","action":"SELECT","expected":"no account profile rows"},
+
+    {"id":"EVENT-001","role":"ROLE-OWNER","resource":"application_events","action":"SELECT","expected":"can read own non-internal event"},
+    {"id":"EVENT-002","role":"ROLE-OWNER","resource":"application_events","action":"SELECT","expected":"cannot read internal or foreign events"},
+
+    {"id":"ROLE-001","role":"ROLE-USER-A","resource":"moderators","action":"SELECT","expected":"ordinary user has no privileged membership"},
+    {"id":"ROLE-002","role":"ROLE-MODERATOR-AAL1","resource":"moderators.role","action":"ROLE_CHANGE","expected":"moderator cannot promote self"},
+    {"id":"ROLE-003","role":"ROLE-MODERATOR-AAL1","resource":"applications.status","action":"AAL1_SENSITIVE_ACTION","expected":"privileged status write requires AAL2"},
+    {"id":"ROLE-004","role":"ROLE-ADMIN-AAL1","resource":"site_content","action":"AAL1_SENSITIVE_ACTION","expected":"admin content write requires AAL2"},
+    {"id":"ROLE-005","role":"ROLE-ADMIN-AAL2","resource":"site_content","action":"AAL2_SENSITIVE_ACTION","expected":"approved AAL2 admin action succeeds"},
+    {"id":"ROLE-006","role":"ROLE-MODERATOR-AAL1","resource":"moderators","action":"ROLE_CHANGE","expected":"revoked membership stops privileged access"},
+
+    {"id":"RPC-001","role":"ROLE-USER-A","resource":"apply_specialist_revision","action":"RPC","expected":"ordinary user cannot decide revision"},
+    {"id":"RPC-002","role":"ROLE-MODERATOR-AAL1","resource":"apply_specialist_revision","action":"AAL1_SENSITIVE_ACTION","expected":"revision decision requires AAL2"},
+    {"id":"RPC-003","role":"ROLE-ADMIN-AAL2","resource":"apply_specialist_revision","action":"AAL2_SENSITIVE_ACTION","expected":"approved AAL2 decision succeeds"},
+
+    {"id":"VIEW-001","role":"ROLE-ANON","resource":"published_specialists","action":"SELECT","expected":"published projection readable with exact columns"},
+    {"id":"VIEW-002","role":"ROLE-ANON","resource":"published_reviews","action":"SELECT","expected":"published projection readable with exact columns"},
+    {"id":"VIEW-003","role":"ROLE-ANON","resource":"published_specialist_verification_facts","action":"SELECT","expected":"published projection readable with exact columns"},
+    {"id":"VIEW-004","role":"ROLE-ANON","resource":"published_specialist_trust_badges","action":"SELECT","expected":"published projection readable with exact columns"},
+    {"id":"VIEW-005","role":"ROLE-ANON","resource":"published views","action":"SELECT","expected":"unpublished rows excluded"},
+
+    {"id":"STORAGE-001","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"own WebP draft upload allowed"},
+    {"id":"STORAGE-002","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"foreign folder upload denied"},
+    {"id":"STORAGE-003","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_READ","expected":"owner file unreadable"},
+    {"id":"STORAGE-004","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_UPDATE","expected":"owner file immutable to foreign user"},
+    {"id":"STORAGE-005","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_DELETE","expected":"owner file undeletable by foreign user"},
+    {"id":"STORAGE-006","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"SVG rejected"},
+    {"id":"STORAGE-007","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"direct PNG rejected for canonical media"},
+    {"id":"STORAGE-008","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"direct JPEG rejected for canonical media"},
+    {"id":"STORAGE-009","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"invalid bytes rejected despite allowed MIME label"},
+    {"id":"STORAGE-010","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPDATE","expected":"referenced canonical object cannot be replaced"},
+    {"id":"STORAGE-011","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"body above bucket limit rejected"},
+    {"id":"STORAGE-012","role":"ROLE-ANON","resource":"profile-media","action":"STORAGE_READ","expected":"private bucket object unreadable"},
+    {"id":"STORAGE-013","role":"ROLE-ANON","resource":"avatars","action":"STORAGE_READ","expected":"public avatar readable"},
+    {"id":"STORAGE-014","role":"ROLE-MODERATOR-AAL1","resource":"avatars","action":"STORAGE_UPLOAD","expected":"approved moderator avatar upload allowed"},
+
+    {"id":"CONTENT-001","role":"ROLE-ANON","resource":"categories","action":"SELECT","expected":"active categories readable"},
+    {"id":"CONTENT-002","role":"ROLE-USER-A","resource":"site_content","action":"UPDATE","expected":"ordinary user cannot manage content"},
+    {"id":"CONTENT-003","role":"ROLE-MODERATOR-AAL1","resource":"trust_badges","action":"UPDATE","expected":"moderator cannot manage admin-only badges"},
+    {"id":"CONTENT-004","role":"ROLE-ANON","resource":"site_content.updated_by","action":"SELECT","expected":"public contract excludes operational actor UUID"},
+    {"id":"CONTENT-005","role":"ROLE-MODERATOR-AAL1","resource":"categories","action":"UPDATE","expected":"moderator cannot manage admin-only categories"},
+    {"id":"CONTENT-006","role":"ROLE-MODERATOR-AAL1","resource":"specialist_trust_badges","action":"DELETE","expected":"moderator cannot delete admin-only badge assignments"},
+
+    {"id":"AUDIT-001","role":"ROLE-USER-A","resource":"email_notifications","action":"SELECT","expected":"cannot read user B notification"},
+    {"id":"AUDIT-002","role":"ROLE-USER-A","resource":"audit_log","action":"INSERT","expected":"ordinary user cannot write audit"},
+    {"id":"AUDIT-003","role":"ROLE-MODERATOR-AAL1","resource":"audit_log","action":"INSERT","expected":"direct client audit writes denied"},
+    {"id":"AUDIT-004","role":"ROLE-MODERATOR-AAL1","resource":"email_notifications","action":"SELECT","expected":"privileged queue read requires AAL2"}
+  ]
+}
