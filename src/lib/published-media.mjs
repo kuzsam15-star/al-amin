@@ -6,7 +6,7 @@ export const MAX_CANONICAL_MEDIA_BYTES = 5 * 1024 * 1024;
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = new RegExp(`^${uuidPattern}$`, "i");
-const entityTypes = new Set(["applications", "revisions"]);
+const entityTypes = new Set(["applications", "revisions", "backfill-applications", "backfill-specialists"]);
 const supportedFormats = new Set(["jpeg", "png", "webp", "heif"]);
 
 function sha256(value) {
@@ -30,7 +30,7 @@ export function isCanonicalPublishedMediaPath(ownerId, path) {
   if (typeof ownerId !== "string" || typeof path !== "string") return false;
   const escapedOwner = ownerId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(
-    `^published/${escapedOwner}/(?:applications|revisions)/${uuidPattern}/(?:avatar|gallery-[0-9]{1,2})/[0-9a-f]{64}\\.webp$`,
+    `^published/${escapedOwner}/(?:applications|revisions|backfill-applications|backfill-specialists)/${uuidPattern}/(?:avatar|gallery-[0-9]{1,2})/[0-9a-f]{64}\\.webp$`,
     "i",
   ).test(path);
 }
@@ -69,17 +69,32 @@ async function validatedCanonicalBytes(source, slot) {
   return output;
 }
 
-export async function publishCanonicalMedia({ storage, ownerId, entityType, entityId, slot, sourcePath }) {
+async function prepareCanonicalMedia({ storage, ownerId, slot, sourcePath }) {
   requireUuid(ownerId, "Media owner");
-  requireUuid(entityId, "Media source entity");
-  if (!entityTypes.has(entityType)) throw new Error("Media source entity type is invalid");
   if (slot !== "avatar" && !/^gallery-[0-9]{1,2}$/u.test(slot)) throw new Error("Media slot is invalid");
   assertSourcePath(ownerId, sourcePath);
-
   const source = await downloadBytes(storage, sourcePath, "Reviewed media source");
-  const sourceHash = sha256(source);
   const canonical = await validatedCanonicalBytes(source, slot);
-  const canonicalHash = sha256(canonical);
+  return {
+    sourceHash: sha256(source),
+    canonical,
+    canonicalHash: sha256(canonical),
+  };
+}
+
+export async function validatePublicationSource({ storage, ownerId, slot, sourcePath }) {
+  const prepared = await prepareCanonicalMedia({ storage, ownerId, slot, sourcePath });
+  return {
+    source_sha256: prepared.sourceHash,
+    canonical_sha256: prepared.canonicalHash,
+    canonical_bytes: prepared.canonical.length,
+  };
+}
+
+export async function publishCanonicalMedia({ storage, ownerId, entityType, entityId, slot, sourcePath }) {
+  requireUuid(entityId, "Media source entity");
+  if (!entityTypes.has(entityType)) throw new Error("Media source entity type is invalid");
+  const { sourceHash, canonical, canonicalHash } = await prepareCanonicalMedia({ storage, ownerId, slot, sourcePath });
   const path = canonicalPath({ ownerId, entityType, entityId, slot, hash: canonicalHash });
   const bucket = storage.from(PROFILE_MEDIA_BUCKET);
   const uploaded = await bucket.upload(path, canonical, {

@@ -168,7 +168,7 @@ async function insertFixture(service, table, value) {
 async function buildFixtures(stack, service, users, toolchain, env) {
   const ids = Object.fromEntries([
     'category', 'appA', 'appB', 'specialistA', 'specialistB', 'verificationA',
-    'reviewPublished', 'reviewUnpublished', 'revisionA', 'revisionB', 'revisionAdmin', 'revisionMedia', 'badge', 'badgeAssignment',
+    'reviewPublished', 'reviewUnpublished', 'revisionA', 'revisionB', 'revisionAdmin', 'revisionMedia', 'revisionRace', 'badge', 'badgeAssignment',
     'emailA', 'emailB', 'eventPublicA', 'eventInternalA', 'eventPublicB',
   ].map((name) => [name, randomUUID()]));
   const sourcePath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
@@ -633,7 +633,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
 
   recorder.record('SPEC-001', await attemptUpdate({ actor: users.userA.client, service, table: 'specialists', id: ids.specialistA, changes: { full_name: 'Synthetic direct owner edit' }, verifyField: 'full_name', restoreValue: 'Synthetic Specialist A' }), 'owner direct published-profile update did not persist');
   recorder.record('SPEC-002', deniedOrEmpty(await users.userB.client.from('specialist_revisions').select('id').eq('id', ids.revisionA)), 'user B cannot read user A revision');
-  recorder.record('SPEC-003', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistA, changes: { owner_id: users.moderator.id }, verifyField: 'owner_id', restoreValue: users.userA.id }), 'moderator owner reassignment boundary evaluated');
+  recorder.record('SPEC-003', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistB, changes: { owner_id: users.moderator.id }, verifyField: 'owner_id', restoreValue: users.userB.id }), 'moderator owner reassignment boundary evaluated on a non-published profile; SEC-001 canonical constraints do not adjudicate this broader privilege finding');
   recorder.record('SPEC-004', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistA, changes: { status: 'blocked' }, verifyField: 'status', restoreValue: 'published' }), 'moderator lifecycle boundary evaluated');
   recorder.record('SPEC-005', await attemptUpdate({ actor: users.moderator.client, service, table: 'verifications', id: ids.verificationA, changes: { qualifications_checked: true }, verifyField: 'qualifications_checked', restoreValue: false }), 'moderator protected verification boundary evaluated');
 
@@ -759,7 +759,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const traversalPath = `submissions/${users.userA.id}/avatar/${randomUUID()}/../../published/escape.webp`;
   const traversalUpload = await users.userA.client.storage.from('profile-media').upload(traversalPath, webp, { contentType: 'image/webp', upsert: false });
   recorder.record('MEDIA-017', Boolean(traversalUpload.error) && (await storageBytes(service, 'profile-media', traversalPath)) === null, 'non-contract traversal-shaped upload path denied');
-  const publishedPathPattern = /^published\/[a-f0-9-]{36}\/(?:applications|revisions)\/[a-f0-9-]{36}\/(?:avatar|gallery-[0-9]+)\/[a-f0-9]{64}\.webp$/iu;
+  const publishedPathPattern = /^published\/[a-f0-9-]{36}\/(?:applications|revisions|backfill-applications|backfill-specialists)\/[a-f0-9-]{36}\/(?:avatar|gallery-[0-9]+)\/[a-f0-9]{64}\.webp$/iu;
   const specialistAvatar = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
   recorder.record('MEDIA-002', publishedPathPattern.test(String(specialistAvatar ?? '')), 'published specialist media namespace evaluated');
   const publicSpecialist = await anon.from('published_specialists').select('avatar_path').eq('id', ids.specialistA).maybeSingle();
@@ -786,7 +786,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     select exists (
       select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='public' and p.proname='approve_application_with_canonical_media'
-        and oidvectortypes(p.proargtypes)='uuid, uuid, text, jsonb, jsonb'
+        and oidvectortypes(p.proargtypes)='uuid, uuid, timestamp with time zone, text, jsonb, jsonb'
         and not has_function_privilege('anon',p.oid,'EXECUTE')
         and not has_function_privilege('authenticated',p.oid,'EXECUTE')
     );
@@ -798,16 +798,33 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     entityId: ids.appA,
     avatarPath: sourcePath,
   });
+  const applicationReviewedAt = await rowValue(service, 'applications', ids.appA, 'updated_at');
+  await service.from('applications').update({ internal_notes: 'Synthetic owner-visible review race marker' }).eq('id', ids.appA);
   const applicationPublish = await service.rpc('approve_application_with_canonical_media', {
     application_uuid: ids.appA,
     reviewer_uuid: users.moderator.id,
+    expected_updated_at: applicationReviewedAt,
     note: null,
     avatar_descriptor: applicationPublication.avatar,
     gallery_descriptors: applicationPublication.gallery,
   });
   const applicationStatus = await rowValue(service, 'applications', ids.appA, 'status');
+  const applicationPathAfterStale = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  recorder.record('MEDIA-019', Boolean(applicationPublish.error) && applicationStatus !== 'approved' && Boolean(applicationReviewedAt), 'stale application review rejected after the reviewed row changed');
+  const applicationFreshUpdatedAt = await rowValue(service, 'applications', ids.appA, 'updated_at');
+  const applicationFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('approve_application_with_canonical_media', {
+      application_uuid: ids.appA,
+      reviewer_uuid: users.moderator.id,
+      expected_updated_at: applicationFreshUpdatedAt,
+      note: null,
+      avatar_descriptor: applicationPublication.avatar,
+      gallery_descriptors: applicationPublication.gallery,
+    })));
+  const applicationSuccessCount = applicationFreshAttempts.filter((attempt) => !attempt.error).length;
+  const applicationFreshStatus = await rowValue(service, 'applications', ids.appA, 'status');
   const applicationPublishedPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
-  recorder.record('MEDIA-009', applicationPublisherAcl && !applicationPublish.error && applicationStatus === 'approved' && applicationPublishedPath === applicationPublication.avatar.canonical_path, 'service-only application publication completed after canonical copy');
+  recorder.record('MEDIA-009', applicationPublisherAcl && applicationSuccessCount === 1 && applicationFreshStatus === 'approved' && applicationPublishedPath === applicationPublication.avatar.canonical_path && applicationPathAfterStale === specialistAvatar, 'service-only application publication completed only for the reviewed row version');
+  recorder.record('MEDIA-021', applicationSuccessCount === 1 && applicationFreshStatus === 'approved' && applicationPublishedPath === applicationPublication.avatar.canonical_path, 'concurrent application publication replay serialized to one decision');
 
   const publishedBeforeDelete = applicationPublishedPath;
   const publishedBytesBeforeDelete = await storageBytes(service, 'profile-media', String(publishedBeforeDelete ?? ''));
@@ -820,7 +837,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     select exists (
       select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='public' and p.proname='apply_specialist_revision_with_canonical_media'
-        and oidvectortypes(p.proargtypes)='uuid, uuid, text, jsonb, jsonb'
+        and oidvectortypes(p.proargtypes)='uuid, uuid, timestamp with time zone, text, jsonb, jsonb'
         and not has_function_privilege('anon',p.oid,'EXECUTE')
         and not has_function_privilege('authenticated',p.oid,'EXECUTE')
     );
@@ -840,23 +857,85 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const afterDirectRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
   const directRevisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
   recorder.record('MEDIA-008', Boolean(directRevisionApproval.error) && directRevisionStatus === 'pending' && afterDirectRevisionPath === beforeRevisionPath, 'client approval of changed mutable media failed closed');
-  const revisionPublication = await publishCanonicalMediaSet({
+  const revisionReviewedAt = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'updated_at');
+  const replacementRevisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const replacementRevisionUpload = await users.userA.client.storage.from('profile-media').upload(replacementRevisionSource, webp, { contentType: 'image/webp', upsert: false });
+  if (replacementRevisionUpload.error) throw new Error('Synthetic replacement revision media upload failed');
+  await service.from('specialist_revisions').update({ payload: fixtures.revisionPayload(users.userA.id, 'Media replacement', replacementRevisionSource) }).eq('id', ids.revisionMedia);
+  const replacementRevisionPublication = await publishCanonicalMediaSet({
     storage: service.storage,
     ownerId: users.userA.id,
     entityType: 'revisions',
     entityId: ids.revisionMedia,
-    avatarPath: revisionSource,
+    avatarPath: replacementRevisionSource,
   });
   const revisionPublish = await service.rpc('apply_specialist_revision_with_canonical_media', {
     revision_uuid: ids.revisionMedia,
     reviewer_uuid: users.moderator.id,
+    expected_updated_at: revisionReviewedAt,
     note: null,
-    avatar_descriptor: revisionPublication.avatar,
-    gallery_descriptors: revisionPublication.gallery,
+    avatar_descriptor: replacementRevisionPublication.avatar,
+    gallery_descriptors: replacementRevisionPublication.gallery,
   });
   const afterRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
   const revisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
-  recorder.record('MEDIA-010', revisionPublisherAcl && !revisionPublish.error && revisionStatus === 'approved' && afterRevisionPath === revisionPublication.avatar.canonical_path && afterRevisionPath !== beforeRevisionPath, 'service-only revision publication changed the canonical reference after approval');
+  recorder.record('MEDIA-020', Boolean(revisionPublish.error) && revisionStatus === 'pending' && afterRevisionPath === beforeRevisionPath && Boolean(revisionReviewedAt), 'stale revision review rejected after owner media changed');
+  const revisionFreshUpdatedAt = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'updated_at');
+  const revisionFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('apply_specialist_revision_with_canonical_media', {
+      revision_uuid: ids.revisionMedia,
+      reviewer_uuid: users.moderator.id,
+      expected_updated_at: revisionFreshUpdatedAt,
+      note: null,
+      avatar_descriptor: replacementRevisionPublication.avatar,
+      gallery_descriptors: replacementRevisionPublication.gallery,
+    })));
+  const revisionSuccessCount = revisionFreshAttempts.filter((attempt) => !attempt.error).length;
+  const afterFreshRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const freshRevisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
+  recorder.record('MEDIA-010', revisionPublisherAcl && revisionSuccessCount === 1 && freshRevisionStatus === 'approved' && afterFreshRevisionPath === replacementRevisionPublication.avatar.canonical_path && afterFreshRevisionPath !== beforeRevisionPath, 'service-only revision publication changed the canonical reference only for the reviewed row version');
+  recorder.record('MEDIA-022', revisionSuccessCount === 1 && freshRevisionStatus === 'approved' && afterFreshRevisionPath === replacementRevisionPublication.avatar.canonical_path, 'concurrent revision publication replay serialized to one decision');
+
+  const raceRevisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const raceRevisionUpload = await users.userA.client.storage.from('profile-media').upload(raceRevisionSource, webpReplacement, { contentType: 'image/webp', upsert: false });
+  if (raceRevisionUpload.error) throw new Error('Synthetic decision-race source upload failed');
+  await insertFixture(service, 'specialist_revisions', {
+    id: ids.revisionRace,
+    specialist_id: ids.specialistA,
+    owner_id: users.userA.id,
+    payload: fixtures.revisionPayload(users.userA.id, 'Decision race', raceRevisionSource),
+    status: 'pending',
+  });
+  const raceReviewedAt = await rowValue(service, 'specialist_revisions', ids.revisionRace, 'updated_at');
+  const racePathBefore = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const racePublication = await publishCanonicalMediaSet({
+    storage: service.storage,
+    ownerId: users.userA.id,
+    entityType: 'revisions',
+    entityId: ids.revisionRace,
+    avatarPath: raceRevisionSource,
+  });
+  const raceAttempts = await Promise.all([
+    service.rpc('apply_specialist_revision_with_canonical_media', {
+      revision_uuid: ids.revisionRace,
+      reviewer_uuid: users.moderator.id,
+      expected_updated_at: raceReviewedAt,
+      note: null,
+      avatar_descriptor: racePublication.avatar,
+      gallery_descriptors: racePublication.gallery,
+    }),
+    users.moderator.client.rpc('apply_specialist_revision', {
+      revision_uuid: ids.revisionRace,
+      approve: false,
+      note: 'Synthetic concurrent rejection',
+    }),
+  ]);
+  const raceSuccessCount = raceAttempts.filter((attempt) => !attempt.error).length;
+  const raceStatus = await rowValue(service, 'specialist_revisions', ids.revisionRace, 'status');
+  const racePathAfter = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const raceStateValid = raceStatus === 'approved'
+    ? racePathAfter === racePublication.avatar.canonical_path
+    : raceStatus === 'rejected' && racePathAfter === racePathBefore;
+  recorder.record('MEDIA-023', raceSuccessCount === 1 && raceStateValid, 'overlapping revision approval and rejection serialized to one internally consistent decision');
   const unusedPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
   const unusedUpload = await users.userA.client.storage.from('profile-media').upload(unusedPath, webp, { contentType: 'image/webp', upsert: false });
   const unusedDelete = await users.userA.client.storage.from('profile-media').remove([unusedPath]);

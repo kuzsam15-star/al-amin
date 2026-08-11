@@ -100,9 +100,9 @@ function assertLoopbackUrl(value, label) {
   }
 }
 
-export async function createLocalStack({ runNumber, repoRoot, supabaseBin, dockerBin, env }) {
+export async function createLocalStack({ runNumber, repoRoot, supabaseBin, dockerBin, env, projectPrefix = 'alamin-role-matrix', forwardMigrationNames }) {
   const random = randomUUID().slice(0, 8);
-  const projectId = `alamin-role-matrix-r${runNumber}-${random}`;
+  const projectId = `${projectPrefix}-r${runNumber}-${random}`;
   const workdir = await mkdtemp(join(tmpdir(), `${projectId}-`));
   const values = await freePorts(8);
   const ports = {
@@ -177,16 +177,19 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
     }
 
     const forwardDirectory = join(repoRoot, 'supabase', 'forward-migrations');
-    const forwardMigrations = (await readdir(forwardDirectory))
+    const availableForwardMigrations = (await readdir(forwardDirectory))
       .filter((name) => /^\d+_[a-z0-9_]+\.sql$/u.test(name))
       .sort((left, right) => left.localeCompare(right));
+    const forwardMigrations = forwardMigrationNames === undefined
+      ? availableForwardMigrations
+      : forwardMigrationNames;
     for (const name of forwardMigrations) {
-      const sql = await readFile(join(forwardDirectory, name));
-      await runCommand(
-        dockerBin,
-        ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', 'postgres'],
-        { env, input: sql, timeoutMs: 300_000 },
-      );
+      if (!availableForwardMigrations.includes(name)) {
+        throw new Error(`Requested forward migration is not tracked: ${name}`);
+      }
+    }
+    for (const name of forwardMigrations) {
+      await applyForwardMigration({ stack: { container }, repoRoot, dockerBin, env, name });
     }
 
     return {
@@ -212,6 +215,18 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
     error.partialStack = partialStack;
     throw error;
   }
+}
+
+export async function applyForwardMigration({ stack, repoRoot, dockerBin, env, name, allowFailure = false }) {
+  if (!/^\d+_[a-z0-9_]+\.sql$/u.test(name)) {
+    throw new Error('Forward migration filename is invalid');
+  }
+  const sql = await readFile(join(repoRoot, 'supabase', 'forward-migrations', name));
+  return await runCommand(
+    dockerBin,
+    ['exec', '-i', stack.container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', 'postgres'],
+    { env, input: sql, timeoutMs: 300_000, allowFailure },
+  );
 }
 
 export async function queryLocalSql(stack, dockerBin, env, sql) {

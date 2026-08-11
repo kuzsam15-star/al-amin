@@ -248,12 +248,16 @@ SEC-001/002/003/004/010/015/016/017/018/025/026.
 
 Verified baseline evidence above remains historical. After applying the two
 SEC-001 forward migrations, two new independent disposable runs matched:
-**68 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**; cleanup PASS.
+**73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**; cleanup PASS.
 
-`STORAGE-010` and `MEDIA-001`–`MEDIA-018` are PASS. SEC-001 has no entry in
+`STORAGE-010` and `MEDIA-001`–`MEDIA-023` are PASS. `MEDIA-019/020` bind the
+decision to the reviewed row version; `MEDIA-021/022/023` verify concurrent
+replay and overlapping decisions. SEC-001 has no entry in
 the expected-failure ledger. The 23 remaining XFAIL mappings are unchanged and
 no other finding produced XPASS. Live deployment/backfill was not performed.
-Evidence: `docs/security/SEC-001_LOCAL_VERIFICATION.md`.
+Evidence: `docs/security/SEC-001_LOCAL_VERIFICATION.md`,
+`docs/security/SEC-001_ADVERSARIAL_REVIEW.md`, and
+`docs/security/SEC-001_DEPLOYMENT_REHEARSAL.md`.
 
 Concurrency, production Auth/headers/monitoring, dependency/provenance,
 backup/restore и sustained abuse остаются `NOT_AUTOMATED`; это не PASS и не

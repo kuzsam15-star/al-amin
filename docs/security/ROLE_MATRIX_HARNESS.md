@@ -135,5 +135,7 @@ be silently added to the expected-failure ledger.
 
 For SEC-001, the ledger transition has been adjudicated: the historical
 pre-hardening result remains in `ROLE_MATRIX_BASELINE_RESULTS.md`, while the
-post-fix result is recorded in `SEC-001_LOCAL_VERIFICATION.md`. Fresh runs now
-produce 68 PASS and 23 non-SEC-001 XFAIL with no XPASS, FAIL, or SKIP.
+post-fix result is recorded in `SEC-001_LOCAL_VERIFICATION.md`. Independent
+fresh runs now produce 73 PASS and 23 non-SEC-001 XFAIL with no XPASS, FAIL,
+or SKIP. SEC-001 adds reviewed-version and concurrent-decision cases through
+`MEDIA-023`.

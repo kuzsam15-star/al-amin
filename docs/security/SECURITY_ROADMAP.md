@@ -81,6 +81,12 @@
   68 PASS / 23 approved XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; SEC-001 XFAIL = 0;
   cleanup PASS. SEC-017 и все остальные findings остаются открыты. Production
   rollout, existing-media backfill и Phase B не выполнялись.
+- **P0-03B independent status (2026-08-11):** candidate review обнаружил и
+  исправил два stale-review TOCTOU bypass, усилил owner/provenance Phase B и
+  добавил dry-run-first backfill core. Два deployment rehearsal: 19/19 PASS;
+  два final role-matrix run: 73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
+  Статус: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`;
+  production по-прежнему не изменён.
 
 ### P0-04 — Закрыть owner column leak applications
 
@@ -228,10 +234,10 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-03B — SEC-001 independent adversarial review and
-deployment rehearsal.**
+**Выполнить только P0-03C — SEC-001 controlled production deployment
+readiness gate.**
 
-P0-03A имеет статус `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`.
-Independent review должен проверить threat model, Phase A/source order,
-dry-run/backfill contract, Phase B preconditions и forward-fix без доступа к
-production на этапе review.
+P0-03B имеет статус
+`INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`. P0-03C должен
+проверить live compatibility, backup/restore readiness, approved identities,
+change ownership, monitoring и exit gates без выполнения deployment.

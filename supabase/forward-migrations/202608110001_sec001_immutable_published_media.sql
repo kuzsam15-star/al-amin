@@ -8,7 +8,7 @@ create table if not exists private.published_media_assets (
   canonical_path text primary key,
   owner_id uuid not null references auth.users(id) on delete restrict,
   specialist_id uuid references public.specialists(id) on delete restrict,
-  source_entity_type text not null check (source_entity_type in ('applications', 'revisions')),
+  source_entity_type text not null check (source_entity_type in ('applications', 'revisions', 'backfill-applications', 'backfill-specialists')),
   source_entity_id uuid not null,
   slot text not null check (slot = 'avatar' or slot ~ '^gallery-[0-9]{1,2}$'),
   source_path text not null,
@@ -30,7 +30,7 @@ strict
 set search_path = pg_catalog
 as $$
   select p_path ~ (
-    '^published/' || p_owner::text || '/(applications|revisions)/' ||
+    '^published/' || p_owner::text || '/(applications|revisions|backfill-applications|backfill-specialists)/' ||
     '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/' ||
     '(avatar|gallery-[0-9]{1,2})/[0-9a-f]{64}\.webp$'
   );
@@ -46,7 +46,7 @@ strict
 set search_path = pg_catalog
 as $$
   select p_path ~ (
-    '^published/[0-9a-f-]{36}/(applications|revisions)/' ||
+    '^published/[0-9a-f-]{36}/(applications|revisions|backfill-applications|backfill-specialists)/' ||
     '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/' ||
     '(avatar|gallery-[0-9]{1,2})/[0-9a-f]{64}\.webp$'
   );
@@ -189,7 +189,7 @@ declare
   expected_path text;
 begin
   if jsonb_typeof(p_descriptor) is distinct from 'object' then raise exception 'Canonical media descriptor is required'; end if;
-  if p_entity_type not in ('applications', 'revisions') then raise exception 'Canonical media entity is invalid'; end if;
+  if p_entity_type not in ('applications', 'revisions', 'backfill-applications', 'backfill-specialists') then raise exception 'Canonical media entity is invalid'; end if;
   if p_slot <> 'avatar' and p_slot !~ '^gallery-[0-9]{1,2}$' then raise exception 'Canonical media slot is invalid'; end if;
   if p_descriptor->>'source_path' is distinct from p_expected_source then raise exception 'Canonical media source changed after review'; end if;
   if canonical_sha !~ '^[0-9a-f]{64}$' or source_sha !~ '^[0-9a-f]{64}$' then raise exception 'Canonical media hash is invalid'; end if;
@@ -259,7 +259,7 @@ declare path_value text;
 begin
   if new.status = 'approved'
      and (tg_op='INSERT' or old.status is distinct from new.status or old.main_image_path is distinct from new.main_image_path or old.gallery_paths is distinct from new.gallery_paths) then
-    if auth.role() is distinct from 'service_role' then
+    if coalesce(auth.jwt()->>'role','') <> 'service_role' then
       raise exception 'Approved application media can only be published by the controlled backend';
     end if;
     if new.owner_id is null or (new.main_image_path is not null and not private.is_canonical_profile_media_path(new.owner_id, new.main_image_path)) then
@@ -268,7 +268,7 @@ begin
     if new.main_image_path is not null and not exists (
       select 1 from private.published_media_assets asset
       where asset.owner_id=new.owner_id and asset.canonical_path=new.main_image_path
-        and asset.source_entity_type='applications' and asset.source_entity_id=new.id
+        and asset.source_entity_type in ('applications','backfill-applications') and asset.source_entity_id=new.id
         and asset.retired_at is null
     ) then raise exception 'Approved application media must have registered provenance'; end if;
     foreach path_value in array coalesce(new.gallery_paths, '{}'::text[]) loop
@@ -276,7 +276,7 @@ begin
       if not exists (
         select 1 from private.published_media_assets asset
         where asset.owner_id=new.owner_id and asset.canonical_path=path_value
-          and asset.source_entity_type='applications' and asset.source_entity_id=new.id
+          and asset.source_entity_type in ('applications','backfill-applications') and asset.source_entity_id=new.id
           and asset.retired_at is null
       ) then raise exception 'Approved application gallery must have registered provenance'; end if;
     end loop;
@@ -300,7 +300,7 @@ declare path_value text;
 begin
   if new.status = 'published'
      and (tg_op='INSERT' or old.status is distinct from new.status or old.avatar_path is distinct from new.avatar_path or old.gallery_paths is distinct from new.gallery_paths) then
-    if auth.role() is distinct from 'service_role' then
+    if coalesce(auth.jwt()->>'role','') <> 'service_role' then
       raise exception 'Published specialist media can only be changed by the controlled backend';
     end if;
     if new.owner_id is null or (new.avatar_path is not null and not private.is_canonical_profile_media_path(new.owner_id, new.avatar_path)) then
@@ -332,6 +332,7 @@ for each row execute function private.guard_published_specialist_media();
 create or replace function public.approve_application_with_canonical_media(
   application_uuid uuid,
   reviewer_uuid uuid,
+  expected_updated_at timestamptz,
   note text,
   avatar_descriptor jsonb,
   gallery_descriptors jsonb
@@ -352,6 +353,9 @@ begin
   if not exists (select 1 from public.moderators where user_id=reviewer_uuid) then raise exception 'Only a moderator can approve an application'; end if;
   select * into app from public.applications where id=application_uuid for update;
   if not found or app.owner_id is null or app.status in ('approved','withdrawn') then raise exception 'Application is not approvable'; end if;
+  if expected_updated_at is null or app.updated_at is distinct from expected_updated_at then
+    raise exception 'Application changed after moderator review';
+  end if;
   avatar_path := private.register_canonical_media_descriptor(app.owner_id, 'applications', app.id, 'avatar', app.main_image_path, avatar_descriptor);
   if jsonb_typeof(coalesce(gallery_descriptors, '[]'::jsonb)) is distinct from 'array'
      or jsonb_array_length(coalesce(gallery_descriptors, '[]'::jsonb)) <> cardinality(coalesce(app.gallery_paths, '{}'::text[])) then
@@ -378,8 +382,8 @@ begin
   where source_entity_type='applications' and source_entity_id=app.id and specialist_id is null;
 end;
 $$;
-revoke all on function public.approve_application_with_canonical_media(uuid, uuid, text, jsonb, jsonb) from public, anon, authenticated;
-grant execute on function public.approve_application_with_canonical_media(uuid, uuid, text, jsonb, jsonb) to service_role;
+revoke all on function public.approve_application_with_canonical_media(uuid, uuid, timestamptz, text, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.approve_application_with_canonical_media(uuid, uuid, timestamptz, text, jsonb, jsonb) to service_role;
 
 create or replace function public.apply_specialist_revision(revision_uuid uuid, approve boolean, note text default null)
 returns void language plpgsql security definer set search_path = pg_catalog, public, private as $$
@@ -456,6 +460,7 @@ grant execute on function public.apply_specialist_revision(uuid, boolean, text) 
 create or replace function public.apply_specialist_revision_with_canonical_media(
   revision_uuid uuid,
   reviewer_uuid uuid,
+  expected_updated_at timestamptz,
   note text,
   avatar_descriptor jsonb,
   gallery_descriptors jsonb
@@ -478,6 +483,9 @@ begin
   if not exists (select 1 from public.moderators where user_id=reviewer_uuid) then raise exception 'Only a moderator can approve a profile revision'; end if;
   select * into r from public.specialist_revisions where id=revision_uuid for update;
   if not found or r.status <> 'pending' then raise exception 'Revision is not approvable'; end if;
+  if expected_updated_at is null or r.updated_at is distinct from expected_updated_at then
+    raise exception 'Revision changed after moderator review';
+  end if;
   p := r.payload;
   canonical_avatar_path := private.register_canonical_media_descriptor(r.owner_id, 'revisions', r.id, 'avatar', nullif(p->>'avatar_path',''), avatar_descriptor);
   if jsonb_typeof(coalesce(gallery_descriptors,'[]'::jsonb)) is distinct from 'array' then raise exception 'Canonical revision gallery is invalid'; end if;
@@ -537,7 +545,109 @@ begin
   where source_entity_type='revisions' and source_entity_id=r.id and specialist_id is null;
 end;
 $$;
-revoke all on function public.apply_specialist_revision_with_canonical_media(uuid, uuid, text, jsonb, jsonb) from public, anon, authenticated;
-grant execute on function public.apply_specialist_revision_with_canonical_media(uuid, uuid, text, jsonb, jsonb) to service_role;
+revoke all on function public.apply_specialist_revision_with_canonical_media(uuid, uuid, timestamptz, text, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.apply_specialist_revision_with_canonical_media(uuid, uuid, timestamptz, text, jsonb, jsonb) to service_role;
+
+create or replace function public.backfill_canonical_published_media(
+  target_type text,
+  target_uuid uuid,
+  expected_avatar_path text,
+  expected_gallery_paths text[],
+  avatar_descriptor jsonb,
+  gallery_descriptors jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  target_owner uuid;
+  current_avatar text;
+  current_gallery text[];
+  canonical_avatar text;
+  canonical_gallery text[] := '{}'::text[];
+  provenance_type text;
+  item jsonb;
+  gallery_source_path text;
+  position integer := 0;
+begin
+  if target_type = 'applications' then
+    select owner_id, main_image_path, coalesce(gallery_paths,'{}'::text[])
+      into target_owner, current_avatar, current_gallery
+    from public.applications
+    where id=target_uuid and status='approved'
+    for update;
+    provenance_type := 'backfill-applications';
+  elsif target_type = 'specialists' then
+    select owner_id, avatar_path, coalesce(gallery_paths,'{}'::text[])
+      into target_owner, current_avatar, current_gallery
+    from public.specialists
+    where id=target_uuid and status='published'
+    for update;
+    provenance_type := 'backfill-specialists';
+  else
+    raise exception 'Canonical backfill target type is invalid';
+  end if;
+
+  if not found or target_owner is null then raise exception 'Canonical backfill target is unavailable'; end if;
+  if current_avatar is distinct from expected_avatar_path
+     or current_gallery is distinct from coalesce(expected_gallery_paths,'{}'::text[]) then
+    raise exception 'Canonical backfill target changed after inventory';
+  end if;
+  if jsonb_typeof(coalesce(gallery_descriptors,'[]'::jsonb)) is distinct from 'array'
+     or jsonb_array_length(coalesce(gallery_descriptors,'[]'::jsonb)) <> cardinality(current_gallery) then
+    raise exception 'Canonical backfill gallery does not match inventory';
+  end if;
+
+  if current_avatar is null then
+    if avatar_descriptor is not null and avatar_descriptor <> 'null'::jsonb then raise exception 'Unexpected avatar backfill descriptor'; end if;
+    canonical_avatar := null;
+  elsif private.is_canonical_profile_media_path(target_owner,current_avatar) then
+    if avatar_descriptor is not null and avatar_descriptor <> 'null'::jsonb then raise exception 'Existing canonical avatar must not be recopied'; end if;
+    if not exists (
+      select 1 from private.published_media_assets asset
+      where asset.owner_id=target_owner and asset.canonical_path=current_avatar and asset.retired_at is null
+    ) then raise exception 'Existing canonical avatar has no active provenance'; end if;
+    canonical_avatar := current_avatar;
+  else
+    canonical_avatar := private.register_canonical_media_descriptor(
+      target_owner, provenance_type, target_uuid, 'avatar', current_avatar, avatar_descriptor
+    );
+  end if;
+
+  foreach gallery_source_path in array current_gallery loop
+    item := coalesce(gallery_descriptors,'[]'::jsonb)->position;
+    if private.is_canonical_profile_media_path(target_owner,gallery_source_path) then
+      if item is not null and item <> 'null'::jsonb then raise exception 'Existing canonical gallery item must not be recopied'; end if;
+      if not exists (
+        select 1 from private.published_media_assets asset
+        where asset.owner_id=target_owner and asset.canonical_path=gallery_source_path and asset.retired_at is null
+      ) then raise exception 'Existing canonical gallery item has no active provenance'; end if;
+      canonical_gallery := canonical_gallery || gallery_source_path;
+    else
+      canonical_gallery := canonical_gallery || private.register_canonical_media_descriptor(
+        target_owner, provenance_type, target_uuid, 'gallery-' || position::text, gallery_source_path, item
+      );
+    end if;
+    position := position + 1;
+  end loop;
+
+  if target_type = 'applications' then
+    update public.applications
+    set main_image_path=canonical_avatar, gallery_paths=canonical_gallery
+    where id=target_uuid;
+  else
+    update public.specialists
+    set avatar_path=canonical_avatar, gallery_paths=canonical_gallery
+    where id=target_uuid;
+    update private.published_media_assets
+    set specialist_id=target_uuid
+    where source_entity_type='backfill-specialists' and source_entity_id=target_uuid and specialist_id is null;
+  end if;
+end;
+$$;
+revoke all on function public.backfill_canonical_published_media(text, uuid, text, text[], jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.backfill_canonical_published_media(text, uuid, text, text[], jsonb, jsonb) to service_role;
 
 commit;

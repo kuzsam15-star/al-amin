@@ -47,6 +47,18 @@ test('published-media paths are owner-scoped and reject traversal or foreign own
   const canonical = `published/${ownerId}/applications/${entityId}/avatar/${hash}.webp`;
   assert.equal(isCanonicalPublishedMediaPath(ownerId, canonical), true);
   assert.equal(isCanonicalPublishedMediaPath(ownerId, canonical.replace('/avatar/', '/avatar/../')), false);
+  for (const invalid of [
+    source.replace('/avatar/', '//avatar/'),
+    source.replace('/avatar/', '/avatar/%2e%2e/'),
+    source.replace('/avatar/', '/avatar/..\\'),
+    source.replace('/avatar/', '/avatar∕'),
+    source.replace('submissions/', 'profile-media/'),
+    source.replace('/avatar/', '/gallery/').replace('.webp', '.svg'),
+  ]) assert.equal(isOwnedSubmissionMediaPath(ownerId, invalid), false);
+  assert.equal(isCanonicalPublishedMediaPath(ownerId, canonical.replace(`/${entityId}/`, `/${randomUUID()}/`)), true);
+  assert.equal(isCanonicalPublishedMediaPath(randomUUID(), canonical), false);
+  assert.equal(isCanonicalPublishedMediaPath(ownerId, canonical.replace('/applications/', '/unknown/')), false);
+  assert.equal(isCanonicalPublishedMediaPath(ownerId, canonical.replace('/avatar/', '/gallery-100/')), false);
 });
 
 test('controlled publication validates, transcodes, hashes and never overwrites', async () => {
@@ -102,6 +114,47 @@ test('missing, malformed, foreign and conflicting sources fail closed', async ()
     publishCanonicalMedia({ storage: conflictStorage, ownerId, entityType: 'revisions', entityId, slot: 'avatar', sourcePath: validPath }),
     /conflicts with different bytes/u,
   );
+});
+
+test('zero-byte, truncated, SVG and excessive-pixel inputs fail before canonical upload', async () => {
+  const cases = [
+    Buffer.alloc(0),
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>'),
+  ];
+  for (const bytes of cases) {
+    const path = submission();
+    const storage = new MemoryStorage([[path, bytes]]);
+    await assert.rejects(publishCanonicalMedia({ storage, ownerId, entityType: 'applications', entityId, slot: 'avatar', sourcePath: path }));
+    assert.equal(storage.uploads.length, 0);
+  }
+
+  const oversizedPixels = await sharp({
+    create: { width: 6325, height: 6325, channels: 3, background: '#113355' },
+  }).png({ compressionLevel: 9 }).toBuffer();
+  const oversizedPath = submission();
+  const oversizedStorage = new MemoryStorage([[oversizedPath, oversizedPixels]]);
+  await assert.rejects(
+    publishCanonicalMedia({ storage: oversizedStorage, ownerId, entityType: 'applications', entityId, slot: 'avatar', sourcePath: oversizedPath }),
+    /pixel|limit|image/u,
+  );
+  assert.equal(oversizedStorage.uploads.length, 0);
+});
+
+test('content identity is stable across retries and owner/entity boundaries remain distinct', async () => {
+  const firstSource = submission();
+  const secondSource = submission();
+  const bytes = await sharp({ create: { width: 7, height: 7, channels: 3, background: '#446688' } }).png().toBuffer();
+  const storage = new MemoryStorage([[firstSource, bytes], [secondSource, bytes]]);
+  const first = await publishCanonicalMedia({ storage, ownerId, entityType: 'applications', entityId, slot: 'avatar', sourcePath: firstSource });
+  const sameEntity = await publishCanonicalMedia({ storage, ownerId, entityType: 'applications', entityId, slot: 'avatar', sourcePath: secondSource });
+  assert.equal(sameEntity.canonical_sha256, first.canonical_sha256);
+  assert.equal(sameEntity.canonical_path, first.canonical_path);
+  assert.notEqual(sameEntity.source_path, first.source_path);
+
+  const otherEntity = await publishCanonicalMedia({ storage, ownerId, entityType: 'revisions', entityId: randomUUID(), slot: 'avatar', sourcePath: secondSource });
+  assert.equal(otherEntity.canonical_sha256, first.canonical_sha256);
+  assert.notEqual(otherEntity.canonical_path, first.canonical_path);
 });
 
 test('avatar and ordered gallery slots receive independent canonical paths', async () => {

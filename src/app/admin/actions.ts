@@ -38,10 +38,10 @@ export async function updateSiteContent(formData: FormData) {
 }
 
 export async function updateApplication(formData:FormData) {
-  const id=String(formData.get("id")??""); const decision=String(formData.get("decision")??""); const notes=String(formData.get("notes")??"").trim().slice(0,5000); const applicantMessage=String(formData.get("applicantMessage")??"").trim().slice(0,5000);
+  const id=String(formData.get("id")??""); const decision=String(formData.get("decision")??""); const expectedUpdatedAt=String(formData.get("expectedUpdatedAt")??""); const notes=String(formData.get("notes")??"").trim().slice(0,5000); const applicantMessage=String(formData.get("applicantMessage")??"").trim().slice(0,5000);
   const status = decision === "request_changes" ? "changes_requested" : decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
-  if(!id || !status) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
-  const {data: current,error:readError}=await supabase.from("applications").select("status,owner_id,main_image_path,gallery_paths").eq("id",id).maybeSingle();
+  if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
+  const {data: current,error:readError}=await supabase.from("applications").select("status,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
   if(readError||!current||["approved","withdrawn"].includes(current.status)) done("invalid");
   const admin = createSupabaseAdminClient();
   const publication = status === "approved" && current.owner_id && current.main_image_path
@@ -58,6 +58,7 @@ export async function updateApplication(formData:FormData) {
     ? await admin.rpc("approve_application_with_canonical_media", {
         application_uuid: id,
         reviewer_uuid: user.id,
+        expected_updated_at: expectedUpdatedAt,
         note: notes || null,
         avatar_descriptor: publication!.avatar,
         gallery_descriptors: publication!.gallery,
@@ -123,11 +124,12 @@ export async function deleteRevision(formData: FormData) {
 export async function decideRevision(formData: FormData) {
   const id = String(formData.get("revisionId") ?? "");
   const decision = String(formData.get("decision") ?? "");
+  const expectedUpdatedAt = String(formData.get("expectedUpdatedAt") ?? "");
   const note = String(formData.get("note") ?? "").trim().slice(0, 5000);
-  if (!/^[a-f0-9-]{36}$/i.test(id) || !["approve", "reject", "request_changes"].includes(decision)) done("invalid");
+  if (!/^[a-f0-9-]{36}$/i.test(id) || !["approve", "reject", "request_changes"].includes(decision) || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid");
   if (["reject", "request_changes"].includes(decision) && !note) done("comment-required");
   const { supabase, user } = await requireModerator();
-  const { data: revision } = await supabase.from("specialist_revisions").select("owner_id,payload,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").maybeSingle();
+  const { data: revision } = await supabase.from("specialist_revisions").select("owner_id,payload,updated_at,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").eq("updated_at", expectedUpdatedAt).maybeSingle();
   const payload = revision?.payload as Record<string, unknown> | undefined;
   const specialist = Array.isArray(revision?.specialist) ? revision.specialist[0] : revision?.specialist;
   const mediaChanged = payload && specialist ? (
@@ -151,6 +153,7 @@ export async function decideRevision(formData: FormData) {
       ? await admin.rpc("apply_specialist_revision_with_canonical_media", {
           revision_uuid: id,
           reviewer_uuid: user.id,
+          expected_updated_at: expectedUpdatedAt,
           note: note || null,
           avatar_descriptor: publication!.avatar,
           gallery_descriptors: publication!.gallery,

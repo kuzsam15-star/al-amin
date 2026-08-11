@@ -105,7 +105,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала совместимый server writer и canary, затем revoke broad path; rollback отключает новый writer/переключение, но не возвращает broad Storage DML.
 - **Risk of fixing:** Высокий — неверный rollout может остановить upload, оставить orphan objects или снова открыть overwrite.
 - **Dependencies:** P0-01 controls, P0-02 reproducible DB baseline, disposable Storage fixtures, publication transaction, restore evidence.
-- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT` — two clean-room runs PASS for SEC-001; live risk remains until approved deployment, existing-media backfill, Phase B enforcement, and post-deployment verification.
+- **Status:** `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT` — adversarial review, two deployment rehearsals, and two final role-matrix runs PASS; live risk remains until approved deployment, existing-media backfill, Phase B enforcement, and post-deployment verification.
 
 ### SEC-002 — Owner column exposure
 
@@ -561,7 +561,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - SEC-014 имеет широкий session/cookie blast radius, а причинность исторических reuse events пока не доказана.
 - SEC-007/SEC-008 требуют утверждённых invariants/state machine и transactional design.
 
-P0-03A выполнил этот предложенный vertical slice локально: threat/change record находится в `docs/security/changes/SEC-001_IMMUTABLE_PUBLISHED_MEDIA.md`, а evidence — в `docs/security/SEC-001_LOCAL_VERIFICATION.md`. Это не production closure: deployment, legacy-media backfill, Phase B и independent review остаются обязательными.
+P0-03A выполнил этот vertical slice локально, а P0-03B независимо проверил stale-review, Phase B provenance, backfill и failure sequencing. Evidence находится в `docs/security/SEC-001_LOCAL_VERIFICATION.md`, `SEC-001_ADVERSARIAL_REVIEW.md` и `SEC-001_DEPLOYMENT_REHEARSAL.md`. Это не production closure: controlled deployment, live legacy-media backfill и Phase B остаются обязательными.
 
 ## 5. Security change template
 

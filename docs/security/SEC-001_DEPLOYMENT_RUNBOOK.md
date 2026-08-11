@@ -1,12 +1,12 @@
 # SEC-001 Deployment Runbook
 
-Status: plan only — no production action authorized
+Status: independently reviewed plan only — no production action authorized
 Change: immutable canonical published media
 
 ## Preconditions
 
-1. P0-03B independent adversarial review and a production-like deployment
-   rehearsal are approved and complete.
+1. P0-03B independent adversarial review and two local deployment rehearsals
+   are complete. P0-03C production readiness approval remains mandatory.
 2. Exact production catalog compatibility with Phase A is verified through
    metadata-only evidence; no historical migration is rewritten.
 3. Database and Storage backup/restore evidence, change owner, observer,
@@ -23,7 +23,9 @@ Change: immutable canonical published media
    `202608110001_sec001_immutable_published_media.sql` (Phase A).
 3. Verify objects, policies, function ACLs, triggers, and current application
    reads without reading user content.
-4. Deploy the matching server source. Do not deploy source before Phase A.
+4. Deploy the matching server source. Do not deploy source before Phase A;
+   after Phase B, never roll back to a source version without reviewed-version
+   RPC parameters and canonical publication support.
 5. Run synthetic canary upload, application approval, revision rejection and
    approval, media read, direct client mutation denials, and error redaction.
 6. Re-open new moderation decisions. From this point, new approvals must create
@@ -48,10 +50,12 @@ The complete candidate set and reconciliation counts require human approval.
 
 ## Backfill contract
 
-The owner-operated backfill implementation must be separately reviewed before
-production use. It must:
+The reviewed owner-operated core is
+`tests/security/helpers/sec001-backfill.mjs`. P0-03C must wrap and approve its
+runtime identity, checkpoint/monitoring integration, and exact production
+invocation before use. The core:
 
-- require an explicit apply flag and otherwise remain dry-run;
+- remains dry-run by default and requires an explicit caller choice to apply;
 - use the same decode, WebP canonicalization, SHA-256 path, `upsert=false`, and
   post-upload hash verification as the application writer;
 - validate source ownership against the referencing application/specialist;
@@ -66,8 +70,8 @@ production use. It must:
 - support safe retry and a local synthetic rehearsal;
 - emit only aggregate redacted counts and error categories.
 
-No production backfill tool or production credential is included in P0-03A.
-P0-03B must review the operator implementation/specification before use.
+No production credential, remote endpoint, or automatic invocation is included.
+The backfill was exercised only against synthetic disposable projects.
 
 ## Backfill verification and Phase B gate
 
@@ -88,7 +92,21 @@ Phase B may be approved only when all of the following are true:
 
 Then apply
 `202608110002_sec001_enforce_canonical_published_media.sql`. It fails closed if
-legacy references remain and adds validated table constraints for future rows.
+legacy or unproven references remain and adds validated owner-aware table
+constraints for future rows.
+
+## Deployment failure matrix
+
+| Failure | Safe state | Detection | Action |
+|---|---|---|---|
+| Phase A succeeds; source deploy fails | Existing rows still readable; approvals paused | Source health/canary | Keep Phase A and deploy compatible source forward |
+| Source deploy precedes Phase A | Publication outage, not data bypass | Missing RPC/function | Runbook violation: stop and apply Phase A before retry |
+| Backfill stops part-way | Completed rows canonical; failed row unchanged | Remaining/error aggregate | Keep old sources, remediate, dry-run, resume |
+| Backfill completes; Phase B fails | Canonical data retained; enforcement incomplete | Transaction error and absent constraints | Forward-fix cause and reapply; do not revert paths |
+| App rollback attempted after Phase B | Unsafe/incompatible | Publication canary failure | Prohibit rollback; forward-fix only |
+
+At no stage may rollback delete canonical or old source media, restore owner
+overwrite, or rewrite an applied migration.
 
 ## Monitoring window
 

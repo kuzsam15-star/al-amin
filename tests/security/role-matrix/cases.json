@@ -93,6 +93,11 @@
     {"id":"MEDIA-016","role":"ROLE-USER-B","resource":"profile-media submission","action":"STORAGE_DELETE","expected":"foreign submission is undeletable"},
     {"id":"MEDIA-017","role":"ROLE-OWNER","resource":"profile-media submission path","action":"STORAGE_UPLOAD","expected":"path traversal and non-contract paths are denied"},
     {"id":"MEDIA-018","role":"ROLE-MODERATOR-AAL1","resource":"specialists.avatar_path","action":"PUBLISH","expected":"moderator client cannot substitute a canonical-looking database reference"},
+    {"id":"MEDIA-019","role":"ROLE-SERVICE-BACKEND","resource":"application publication","action":"PUBLISH","expected":"stale moderator application review cannot publish a row changed after review"},
+    {"id":"MEDIA-020","role":"ROLE-SERVICE-BACKEND","resource":"revision publication","action":"PUBLISH","expected":"stale moderator revision review cannot publish media changed after review"},
+    {"id":"MEDIA-021","role":"ROLE-SERVICE-BACKEND","resource":"application publication","action":"PUBLISH","expected":"concurrent replay of one reviewed application produces exactly one publication decision"},
+    {"id":"MEDIA-022","role":"ROLE-SERVICE-BACKEND","resource":"revision publication","action":"PUBLISH","expected":"concurrent replay of one reviewed revision produces exactly one publication decision"},
+    {"id":"MEDIA-023","role":"ROLE-MODERATOR-AAL1/SERVICE-BACKEND","resource":"revision decision","action":"MODERATE","expected":"overlapping approval and rejection serialize to one decision without unreviewed media"},
 
     {"id":"CONTENT-001","role":"ROLE-ANON","resource":"categories","action":"SELECT","expected":"active categories readable"},
     {"id":"CONTENT-002","role":"ROLE-USER-A","resource":"site_content","action":"UPDATE","expected":"ordinary user cannot manage content"},

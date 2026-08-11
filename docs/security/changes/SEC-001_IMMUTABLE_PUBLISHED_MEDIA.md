@@ -1,7 +1,7 @@
 # SEC-001 — Immutable Canonical Published Media
 
 Date: 2026-08-11
-Status: `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`
+Status: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`
 
 ## Security issue
 
@@ -56,10 +56,12 @@ Status: `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`
    the stored canonical bytes are downloaded and hash-verified.
 7. A publication database transition requires registered provenance and a
    service-role caller; client moderator writes fail closed.
-8. The current published path changes only inside the approval transaction
+8. The row-locking publication RPC proves that `updated_at` is exactly the
+   version rendered to the moderator; a stale review fails before provenance.
+9. The current published path changes only inside the approval transaction
    after canonical Storage verification.
-9. Deleting a dereferenced submission cannot break the current profile.
-10. Existing active canonical objects are retained; lifecycle deletion is a
+10. Deleting a dereferenced submission cannot break the current profile.
+11. Existing active canonical objects are retained; lifecycle deletion is a
     separate SEC-006 workstream.
 
 ## Media lifecycle and dependency map
@@ -74,7 +76,7 @@ owner browser
   -> moderator reads through /api/media/source
   -> server action verifies moderator membership
   -> controlled backend downloads and validates immutable submission
-  -> profile-media/published/<owner>/<applications|revisions>/<entity>/<slot>/<sha256>.webp
+  -> profile-media/published/<owner>/<applications|revisions|backfill-applications|backfill-specialists>/<entity>/<slot>/<sha256>.webp
   -> private.published_media_assets provenance registration
   -> service-only publication RPC
   -> applications/specialists canonical fields
@@ -110,7 +112,7 @@ the reference, not its byte history.
 
 ### Canonical namespace
 
-`published/<owner>/<applications|revisions>/<entity-id>/<avatar|gallery-N>/<sha256>.webp`
+`published/<owner>/<applications|revisions|backfill-applications|backfill-specialists>/<entity-id>/<avatar|gallery-N>/<sha256>.webp`
 
 - no anon/authenticated/moderator-client write policy covers this namespace;
 - the server derives the path after decoding and canonical WebP conversion;
@@ -127,12 +129,18 @@ the reference, not its byte history.
 
 - `src/lib/published-media.mjs`, `.d.mts`, and `.ts`: server-only canonicalizer;
 - `src/app/admin/actions.ts`: application and revision approval integration;
+- `src/app/admin/page.tsx` and `src/components/RevisionModeration.tsx`:
+  reviewed-version token propagation;
 - `src/lib/media-paths.ts`: strict submission/canonical path classification;
 - `src/lib/supabase/server.ts`: explicit server-only boundary;
 - `supabase/forward-migrations/202608110001_sec001_immutable_published_media.sql`;
 - `supabase/forward-migrations/202608110002_sec001_enforce_canonical_published_media.sql`;
 - Storage policies for `profile-media`, publication guards, provenance table,
   and service-only approval functions.
+- `tests/security/helpers/sec001-backfill.mjs`: dry-run-first owner-operated
+  backfill core with optimistic cutover;
+- `tests/security/sec001-deployment-rehearsal.mjs`: repeatable Phase A,
+  backfill, failure-injection, and Phase B rehearsal.
 
 The 18 historical migrations, `supabase/schema.sql`, verified
 `supabase/bootstrap/baseline.sql`, and its manifest remain unchanged.
@@ -153,16 +161,18 @@ The 18 historical migrations, `supabase/schema.sql`, verified
 
 ## After state and tests
 
-Both independent fresh projects produced:
+After the independent review corrections, both fresh role-matrix projects
+produced:
 
-`68 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP`
+`73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP`
 
-All 19 SEC-001 cases (`STORAGE-010` plus `MEDIA-001` through `MEDIA-018`)
+All 24 SEC-001 cases (`STORAGE-010` plus `MEDIA-001` through `MEDIA-023`)
 are PASS. Tests cover submission immutability, cross-owner isolation, path
 traversal, canonical client denials, controlled no-overwrite creation,
 application and revision publication, moderator reference substitution,
 post-publication source deletion, content hashes, malformed/missing/foreign
-sources, idempotent retry, and conflicting retry.
+sources, idempotent/conflicting retry, stale-review rejection, concurrent
+replay, and overlapping approval/rejection.
 
 The 23 remaining XFAIL classifications retain their prior non-SEC-001
 mappings. No other finding produced XPASS. Node tests, typecheck, and ESLint
@@ -185,7 +195,8 @@ have separate evidence in `SEC-001_LOCAL_VERIFICATION.md`.
 Phase A is dual-compatible for existing rows and immediately makes new
 approvals canonical after matching source deployment. Existing live published
 rows may still reference mutable paths. They require a separately approved,
-owner-operated, idempotent backfill. Phase B deliberately fails if any approved
+owner-operated, idempotent backfill. A dry-run-first backfill core was verified
+twice locally but was not run against production. Phase B deliberately fails if any approved
 application or published specialist retains a noncanonical media reference.
 Therefore SEC-001 is not fixed live until inventory, backfill, verification,
 Phase B, and post-deployment role tests complete.
@@ -204,16 +215,18 @@ Phase B, and post-deployment role tests complete.
 
 ## Residual risk and scope
 
-SEC-006 cleanup safety, SEC-017 quotas/resource abuse/MIME policy breadth,
+SEC-006 cleanup safety, SEC-008 distinct-revision state ordering, SEC-017 quotas/resource abuse/MIME policy breadth,
 SEC-010 AAL2 enforcement, and all other findings remain open. The local
 database security advisors still report the unrelated pre-hardening set of
-4 ERROR and 8 WARN. Independent adversarial review and deployment rehearsal
-are still required.
+4 ERROR and 8 WARN. Independent adversarial review and two local deployment
+rehearsals passed; production readiness approval is still required.
 
 ## Commit
 
 - **Planned message:** `fix(security): make published media immutable`
 - **Branch:** `security/hardening`
+- **Independent review commit:**
+  `test(security): adversarially verify SEC-001 deployment`
 - **Finding status after this stage:**
-  `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`
-- **Production release status:** BLOCKED pending P0-03B and approved rollout
+  `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`
+- **Production release status:** BLOCKED pending P0-03C and approved rollout
