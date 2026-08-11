@@ -5,6 +5,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
+import { publishCanonicalMediaSet } from '../../../src/lib/published-media.mjs';
 import { runCommand, redactCommandError } from './helpers/command.mjs';
 import { cleanupLocalStack, createLocalStack, queryLocalSql } from './helpers/local-stack.mjs';
 import { createTotp } from './helpers/totp.mjs';
@@ -144,8 +146,8 @@ async function createSyntheticUsers(stack) {
   return { service, users };
 }
 
-const webp = Buffer.from('UklGRiIAAABXRUJQVlA4ICAAAADQAQCdASoBAAEAAUAmJQBOgCHwAP7+AAAAAA=', 'base64');
-const webpReplacement = Buffer.from('UklGRiIAAABXRUJQVlA4ICAAAADQAQCdASoBAAEAAUAmJaQAA3AA/v7gAA==', 'base64');
+const webp = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#335577' } }).webp().toBuffer();
+const webpReplacement = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#773355' } }).webp().toBuffer();
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/EB//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/EB//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/EB//2Q==', 'base64');
 
@@ -163,22 +165,22 @@ async function insertFixture(service, table, value) {
   if (error) throw new Error(`Synthetic ${table} fixture failed: ${error.message}`);
 }
 
-async function buildFixtures(stack, service, users) {
+async function buildFixtures(stack, service, users, toolchain, env) {
   const ids = Object.fromEntries([
     'category', 'appA', 'appB', 'specialistA', 'specialistB', 'verificationA',
-    'reviewPublished', 'reviewUnpublished', 'revisionA', 'revisionB', 'badge', 'badgeAssignment',
+    'reviewPublished', 'reviewUnpublished', 'revisionA', 'revisionB', 'revisionAdmin', 'revisionMedia', 'badge', 'badgeAssignment',
     'emailA', 'emailB', 'eventPublicA', 'eventInternalA', 'eventPublicB',
   ].map((name) => [name, randomUUID()]));
-  const canonicalPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
-  const canonicalPathB = `submissions/${users.userB.id}/avatar/${randomUUID()}.webp`;
+  const sourcePath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const sourcePathB = `submissions/${users.userB.id}/avatar/${randomUUID()}.webp`;
   const avatarPath = `synthetic/${stack.projectId}.webp`;
 
-  const ownerUpload = await users.userA.client.storage.from('profile-media').upload(canonicalPath, webp, {
+  const ownerUpload = await users.userA.client.storage.from('profile-media').upload(sourcePath, webp, {
     contentType: 'image/webp',
     upsert: false,
   });
   if (ownerUpload.error) throw new Error(`Synthetic owner media fixture failed: ${ownerUpload.error.message}`);
-  const userBUpload = await users.userB.client.storage.from('profile-media').upload(canonicalPathB, webp, {
+  const userBUpload = await users.userB.client.storage.from('profile-media').upload(sourcePathB, webp, {
     contentType: 'image/webp',
     upsert: false,
   });
@@ -188,6 +190,28 @@ async function buildFixtures(stack, service, users) {
     upsert: false,
   });
   if (avatarUpload.error) throw new Error(`Synthetic avatar fixture failed: ${avatarUpload.error.message}`);
+
+  const [initialA, initialB] = await Promise.all([
+    publishCanonicalMediaSet({ storage: service.storage, ownerId: users.userA.id, entityType: 'applications', entityId: ids.appA, avatarPath: sourcePath }),
+    publishCanonicalMediaSet({ storage: service.storage, ownerId: users.userB.id, entityType: 'applications', entityId: ids.appB, avatarPath: sourcePathB }),
+  ]);
+  const canonicalPath = initialA.avatar.canonical_path;
+  const canonicalPathB = initialB.avatar.canonical_path;
+  const quote = (value) => String(value).replaceAll("'", "''");
+  for (const [ownerId, entityId, descriptor] of [
+    [users.userA.id, ids.appA, initialA.avatar],
+    [users.userB.id, ids.appB, initialB.avatar],
+  ]) {
+    await queryLocalSql(stack, toolchain.dockerBin, env, `
+      insert into private.published_media_assets (
+        canonical_path,owner_id,source_entity_type,source_entity_id,slot,source_path,
+        source_sha256,canonical_sha256,canonical_bytes
+      ) values (
+        '${quote(descriptor.canonical_path)}','${quote(ownerId)}'::uuid,'applications','${quote(entityId)}'::uuid,'avatar',
+        '${quote(descriptor.source_path)}','${quote(descriptor.source_sha256)}','${quote(descriptor.canonical_sha256)}',${descriptor.canonical_bytes}
+      );
+    `);
+  }
 
   await insertFixture(service, 'categories', {
     id: ids.category,
@@ -219,6 +243,7 @@ async function buildFixtures(stack, service, users) {
       owner_id: users.userA.id,
       full_name: 'Synthetic User A',
       status: 'screening',
+      main_image_path: sourcePath,
       internal_notes: 'Synthetic internal note',
       call_at: '2099-01-01T00:00:00Z',
     },
@@ -228,6 +253,7 @@ async function buildFixtures(stack, service, users) {
       owner_id: users.userB.id,
       full_name: 'Synthetic User B',
       status: 'new',
+      main_image_path: sourcePathB,
       internal_notes: 'Synthetic internal note B',
     },
   ]);
@@ -264,7 +290,7 @@ async function buildFixtures(stack, service, users) {
       application_id: ids.appB,
       slug: `synthetic-b-${stack.projectId.slice(-8)}`,
       full_name: 'Synthetic Specialist B',
-      avatar_path: null,
+      avatar_path: canonicalPathB,
       status: 'draft',
     },
   ]);
@@ -387,7 +413,7 @@ async function buildFixtures(stack, service, users) {
     { id: ids.eventPublicB, application_id: ids.appB, actor_id: users.userB.id, event_type: 'submitted', message: 'Synthetic public event B', is_internal: false },
   ]);
 
-  return { ids, canonicalPath, canonicalPathB, avatarPath, ownerUpload, revisionPayload };
+  return { ids, sourcePath, sourcePathB, canonicalPath, canonicalPathB, avatarPath, ownerUpload, revisionPayload };
 }
 
 function createRecorder() {
@@ -444,6 +470,44 @@ async function storageBytes(service, bucket, path) {
 function sameBytes(left, right) {
   if (!left || !right) return false;
   return createHash('sha256').update(left).digest('hex') === createHash('sha256').update(right).digest('hex');
+}
+
+function diagnosticCounts(output) {
+  const counts = { ERROR: 0, WARN: 0, INFO: 0 };
+  const add = (level) => {
+    const normalized = String(level ?? '').toUpperCase();
+    if (normalized === 'WARNING') counts.WARN += 1;
+    else if (normalized in counts) counts[normalized] += 1;
+  };
+  try {
+    const visit = (value) => {
+      if (Array.isArray(value)) return value.forEach(visit);
+      if (!value || typeof value !== 'object') return;
+      if ('level' in value) add(value.level);
+      if ('severity' in value) add(value.severity);
+      for (const child of Object.values(value)) visit(child);
+    };
+    visit(JSON.parse(output));
+  } catch {
+    for (const line of output.split(/\r?\n/u)) {
+      const match = line.match(/\b(ERROR|WARN(?:ING)?|INFO)\b/iu);
+      if (match) add(match[1]);
+    }
+  }
+  return counts;
+}
+
+async function runLocalDatabaseDiagnostics(stack, toolchain, env) {
+  const lint = await runCommand(toolchain.supabaseBin, [
+    'db', 'lint', '--local', '--schema', 'public,private', '--level', 'warning', '--fail-on', 'none',
+    '--workdir', stack.workdir, '--output-format', 'json',
+  ], { cwd: stack.workdir, env, timeoutMs: 180_000, allowFailure: true });
+  const advisors = await runCommand(toolchain.supabaseBin, [
+    'db', 'advisors', '--local', '--type', 'security', '--level', 'info', '--fail-on', 'none',
+    '--workdir', stack.workdir, '--output-format', 'json',
+  ], { cwd: stack.workdir, env, timeoutMs: 180_000, allowFailure: true });
+  if (lint.code !== 0 || advisors.code !== 0) throw new Error('Local database lint or security advisors command failed');
+  return { lint: diagnosticCounts(lint.stdout), advisors: diagnosticCounts(advisors.stdout) };
 }
 
 async function attemptUpdate({ actor, service, table, id, changes, verifyField, restoreValue, keyField = 'id' }) {
@@ -548,7 +612,7 @@ async function runCatalogCases(recorder, stack, toolchain, env) {
 
 async function runBehaviorCases(recorder, stack, service, users, fixtures, toolchain, env) {
   const anon = createClient(stack.apiUrl, stack.anonKey, clientOptions());
-  const { ids, canonicalPath, avatarPath } = fixtures;
+  const { ids, sourcePath, canonicalPath, avatarPath, revisionPayload } = fixtures;
 
   recorder.record('READ-001', deniedOrEmpty(await anon.from('applications').select('id')), 'anonymous application read returned no rows');
   recorder.record('READ-002', deniedOrEmpty(await users.userA.client.from('applications').select('id').eq('id', ids.appB)), 'user A cannot read user B application');
@@ -605,7 +669,14 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     const adminContent = await users.adminAal1.client.from('site_content').update({ hero_title: 'Synthetic AAL2 change' }).eq('id', true).select('id');
     recorder.record('ROLE-005', !adminContent.error && adminContent.data?.length === 1, 'real local TOTP session reached AAL2 and completed approved admin write');
     await service.from('site_content').update({ hero_title: 'Synthetic hero' }).eq('id', true);
-    const adminRpc = await users.adminAal1.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionB, approve: true, note: null });
+    await insertFixture(service, 'specialist_revisions', {
+      id: ids.revisionAdmin,
+      specialist_id: ids.specialistA,
+      owner_id: users.userA.id,
+      payload: revisionPayload(users.userA.id, 'Admin', canonicalPath),
+      status: 'pending',
+    });
+    const adminRpc = await users.adminAal1.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionAdmin, approve: true, note: null });
     recorder.record('RPC-003', !adminRpc.error, 'real local AAL2 admin session completed approved revision decision');
   } else {
     const safeReason = `local TOTP automation unavailable: ${aal2.reason}`.replace(/[A-Z0-9_-]{20,}/giu, '[redacted]');
@@ -639,28 +710,29 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('STORAGE-002', Boolean(foreignUpload.error) && (await storageBytes(service, 'profile-media', foreignPath)) === null, 'foreign-folder upload denied and no object persisted');
   const foreignRead = await users.userB.client.storage.from('profile-media').download(canonicalPath);
   recorder.record('STORAGE-003', Boolean(foreignRead.error), 'foreign private-object read denied');
+  const canonicalBytesBeforeForeignMutation = await storageBytes(service, 'profile-media', canonicalPath);
   const foreignUpdate = await users.userB.client.storage.from('profile-media').update(canonicalPath, webpReplacement, { contentType: 'image/webp' });
   const afterForeignUpdate = await storageBytes(service, 'profile-media', canonicalPath);
-  recorder.record('STORAGE-004', Boolean(foreignUpdate.error) && sameBytes(afterForeignUpdate, webp), 'foreign object update denied and bytes unchanged');
+  recorder.record('STORAGE-004', Boolean(foreignUpdate.error) && sameBytes(afterForeignUpdate, canonicalBytesBeforeForeignMutation), 'foreign object update denied and bytes unchanged');
   const foreignDelete = await users.userB.client.storage.from('profile-media').remove([canonicalPath]);
   const afterForeignDelete = await storageBytes(service, 'profile-media', canonicalPath);
-  recorder.record('STORAGE-005', sameBytes(afterForeignDelete, webp), 'foreign object delete denied and canonical bytes remain');
+  recorder.record('STORAGE-005', sameBytes(afterForeignDelete, canonicalBytesBeforeForeignMutation), 'foreign object delete denied and canonical bytes remain');
   const svgPath = `submissions/${users.userA.id}/formats/image.svg`;
   const svgUpload = await users.userA.client.storage.from('profile-media').upload(svgPath, Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), { contentType: 'image/svg+xml' });
   recorder.record('STORAGE-006', Boolean(svgUpload.error) && (await storageBytes(service, 'profile-media', svgPath)) === null, 'SVG upload denied by bucket MIME contract without persisting object');
-  const pngPath = `submissions/${users.userA.id}/formats/image.png`;
+  const pngPath = `submissions/${users.userA.id}/gallery/${randomUUID()}.png`;
   const pngUpload = await users.userA.client.storage.from('profile-media').upload(pngPath, png, { contentType: 'image/png' });
   recorder.record('STORAGE-007', Boolean(pngUpload.error) && (await storageBytes(service, 'profile-media', pngPath)) === null, 'direct PNG upload boundary evaluated');
-  const jpegPath = `submissions/${users.userA.id}/formats/image.jpg`;
+  const jpegPath = `submissions/${users.userA.id}/gallery/${randomUUID()}.jpg`;
   const jpegUpload = await users.userA.client.storage.from('profile-media').upload(jpegPath, jpeg, { contentType: 'image/jpeg' });
   recorder.record('STORAGE-008', Boolean(jpegUpload.error) && (await storageBytes(service, 'profile-media', jpegPath)) === null, 'direct JPEG upload boundary evaluated');
-  const invalidPath = `submissions/${users.userA.id}/formats/invalid.webp`;
+  const invalidPath = `submissions/${users.userA.id}/gallery/${randomUUID()}.webp`;
   const invalidUpload = await users.userA.client.storage.from('profile-media').upload(invalidPath, Buffer.from('not-an-image'), { contentType: 'image/webp' });
   recorder.record('STORAGE-009', Boolean(invalidUpload.error) && (await storageBytes(service, 'profile-media', invalidPath)) === null, 'content-validation boundary evaluated without retaining output');
   const canonicalUpdate = await users.userA.client.storage.from('profile-media').update(canonicalPath, webpReplacement, { contentType: 'image/webp' });
   const afterCanonicalUpdate = await storageBytes(service, 'profile-media', canonicalPath);
-  recorder.record('STORAGE-010', Boolean(canonicalUpdate.error) && sameBytes(afterCanonicalUpdate, webp), 'referenced canonical object replacement boundary evaluated with byte comparison');
-  const oversizedPath = `submissions/${users.userA.id}/formats/oversized.webp`;
+  recorder.record('STORAGE-010', Boolean(canonicalUpdate.error) && sameBytes(afterCanonicalUpdate, canonicalBytesBeforeForeignMutation), 'referenced canonical object replacement boundary evaluated with byte comparison');
+  const oversizedPath = `submissions/${users.userA.id}/gallery/${randomUUID()}.webp`;
   const oversized = await users.userA.client.storage.from('profile-media').upload(oversizedPath, Buffer.alloc(5 * 1024 * 1024 + 1), { contentType: 'image/webp' });
   recorder.record('STORAGE-011', Boolean(oversized.error) && (await storageBytes(service, 'profile-media', oversizedPath)) === null, 'upload above configured bucket limit denied without persisting object');
   const anonMedia = await anon.storage.from('profile-media').download(canonicalPath);
@@ -670,6 +742,126 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const moderatorAvatarPath = `synthetic/moderator-${stack.projectId}.webp`;
   const moderatorAvatar = await users.moderator.client.storage.from('avatars').upload(moderatorAvatarPath, webp, { contentType: 'image/webp' });
   recorder.record('STORAGE-014', !moderatorAvatar.error && (await storageBytes(service, 'avatars', moderatorAvatarPath)) !== null, 'moderator synthetic avatar upload succeeded');
+
+  const referencedDelete = await users.userA.client.storage.from('profile-media').remove([sourcePath]);
+  const afterReferencedDelete = await storageBytes(service, 'profile-media', sourcePath);
+  recorder.record('MEDIA-001', sameBytes(afterReferencedDelete, webp), 'referenced submission deletion boundary evaluated by persisted bytes');
+  const ownerSourceUpdate = await users.userA.client.storage.from('profile-media').update(sourcePath, webpReplacement, { contentType: 'image/webp' });
+  const sourceAfterOwnerUpdate = await storageBytes(service, 'profile-media', sourcePath);
+  recorder.record('MEDIA-013', Boolean(ownerSourceUpdate.error) && sameBytes(sourceAfterOwnerUpdate, webp), 'owner same-path submission overwrite denied with byte comparison');
+  const foreignSourceRead = await users.userB.client.storage.from('profile-media').download(sourcePath);
+  recorder.record('MEDIA-014', Boolean(foreignSourceRead.error), 'foreign submission read denied');
+  const foreignSourceUpdate = await users.userB.client.storage.from('profile-media').update(sourcePath, webpReplacement, { contentType: 'image/webp' });
+  const sourceAfterForeignUpdate = await storageBytes(service, 'profile-media', sourcePath);
+  recorder.record('MEDIA-015', Boolean(foreignSourceUpdate.error) && sameBytes(sourceAfterForeignUpdate, webp), 'foreign submission update denied with byte comparison');
+  await users.userB.client.storage.from('profile-media').remove([sourcePath]);
+  recorder.record('MEDIA-016', sameBytes(await storageBytes(service, 'profile-media', sourcePath), webp), 'foreign submission deletion denied with byte comparison');
+  const traversalPath = `submissions/${users.userA.id}/avatar/${randomUUID()}/../../published/escape.webp`;
+  const traversalUpload = await users.userA.client.storage.from('profile-media').upload(traversalPath, webp, { contentType: 'image/webp', upsert: false });
+  recorder.record('MEDIA-017', Boolean(traversalUpload.error) && (await storageBytes(service, 'profile-media', traversalPath)) === null, 'non-contract traversal-shaped upload path denied');
+  const publishedPathPattern = /^published\/[a-f0-9-]{36}\/(?:applications|revisions)\/[a-f0-9-]{36}\/(?:avatar|gallery-[0-9]+)\/[a-f0-9]{64}\.webp$/iu;
+  const specialistAvatar = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  recorder.record('MEDIA-002', publishedPathPattern.test(String(specialistAvatar ?? '')), 'published specialist media namespace evaluated');
+  const publicSpecialist = await anon.from('published_specialists').select('avatar_path').eq('id', ids.specialistA).maybeSingle();
+  recorder.record('MEDIA-003', !publicSpecialist.error && publishedPathPattern.test(String(publicSpecialist.data?.avatar_path ?? '')), 'public projection media namespace evaluated');
+
+  const canonicalHash = createHash('sha256').update(webp).digest('hex');
+  const controlledPath = `published/${users.userA.id}/applications/${ids.appA}/avatar/${canonicalHash}.webp`;
+  const ownerCanonical = await users.userA.client.storage.from('profile-media').upload(controlledPath, webp, { contentType: 'image/webp', upsert: false });
+  recorder.record('MEDIA-004', Boolean(ownerCanonical.error) && (await storageBytes(service, 'profile-media', controlledPath)) === null, 'owner canonical-namespace insertion denied');
+  const moderatorCanonical = await users.moderator.client.storage.from('profile-media').upload(controlledPath, webp, { contentType: 'image/webp', upsert: false });
+  recorder.record('MEDIA-005', Boolean(moderatorCanonical.error) && (await storageBytes(service, 'profile-media', controlledPath)) === null, 'moderator client canonical-namespace insertion denied');
+  const moderatorReferenceSubstitution = await users.moderator.client
+    .from('specialists')
+    .update({ avatar_path: controlledPath })
+    .eq('id', ids.specialistA);
+  const pathAfterModeratorSubstitution = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  recorder.record('MEDIA-018', Boolean(moderatorReferenceSubstitution.error) && pathAfterModeratorSubstitution === specialistAvatar, 'moderator client canonical-looking reference substitution denied');
+  const serviceCanonical = await service.storage.from('profile-media').upload(controlledPath, webp, { contentType: 'image/webp', upsert: false });
+  const serviceOverwrite = await service.storage.from('profile-media').upload(controlledPath, webpReplacement, { contentType: 'image/webp', upsert: false });
+  const controlledBytes = await storageBytes(service, 'profile-media', controlledPath);
+  recorder.record('MEDIA-006', !serviceCanonical.error && Boolean(serviceOverwrite.error) && sameBytes(controlledBytes, webp), 'controlled writer no-overwrite semantics verified');
+
+  const applicationPublisherAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
+    select exists (
+      select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='public' and p.proname='approve_application_with_canonical_media'
+        and oidvectortypes(p.proargtypes)='uuid, uuid, text, jsonb, jsonb'
+        and not has_function_privilege('anon',p.oid,'EXECUTE')
+        and not has_function_privilege('authenticated',p.oid,'EXECUTE')
+    );
+  `)) === 't';
+  const applicationPublication = await publishCanonicalMediaSet({
+    storage: service.storage,
+    ownerId: users.userA.id,
+    entityType: 'applications',
+    entityId: ids.appA,
+    avatarPath: sourcePath,
+  });
+  const applicationPublish = await service.rpc('approve_application_with_canonical_media', {
+    application_uuid: ids.appA,
+    reviewer_uuid: users.moderator.id,
+    note: null,
+    avatar_descriptor: applicationPublication.avatar,
+    gallery_descriptors: applicationPublication.gallery,
+  });
+  const applicationStatus = await rowValue(service, 'applications', ids.appA, 'status');
+  const applicationPublishedPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  recorder.record('MEDIA-009', applicationPublisherAcl && !applicationPublish.error && applicationStatus === 'approved' && applicationPublishedPath === applicationPublication.avatar.canonical_path, 'service-only application publication completed after canonical copy');
+
+  const publishedBeforeDelete = applicationPublishedPath;
+  const publishedBytesBeforeDelete = await storageBytes(service, 'profile-media', String(publishedBeforeDelete ?? ''));
+  await users.userA.client.storage.from('profile-media').remove([sourcePath]);
+  const publishedAfterDelete = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const publishedBytesAfterDelete = await storageBytes(service, 'profile-media', String(publishedAfterDelete ?? ''));
+  recorder.record('MEDIA-007', (await storageBytes(service, 'profile-media', sourcePath)) === null && publishedAfterDelete === publishedBeforeDelete && sameBytes(publishedBytesAfterDelete, publishedBytesBeforeDelete), 'published canonical bytes survive deletion of dereferenced submission source');
+
+  const revisionPublisherAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
+    select exists (
+      select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='public' and p.proname='apply_specialist_revision_with_canonical_media'
+        and oidvectortypes(p.proargtypes)='uuid, uuid, text, jsonb, jsonb'
+        and not has_function_privilege('anon',p.oid,'EXECUTE')
+        and not has_function_privilege('authenticated',p.oid,'EXECUTE')
+    );
+  `)) === 't';
+  const revisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const revisionSourceUpload = await users.userA.client.storage.from('profile-media').upload(revisionSource, webpReplacement, { contentType: 'image/webp', upsert: false });
+  if (revisionSourceUpload.error) throw new Error('Synthetic revision media source upload failed');
+  await insertFixture(service, 'specialist_revisions', {
+    id: ids.revisionMedia,
+    specialist_id: ids.specialistA,
+    owner_id: users.userA.id,
+    payload: fixtures.revisionPayload(users.userA.id, 'Media', revisionSource),
+    status: 'pending',
+  });
+  const beforeRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const directRevisionApproval = await users.moderator.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionMedia, approve: true, note: null });
+  const afterDirectRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const directRevisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
+  recorder.record('MEDIA-008', Boolean(directRevisionApproval.error) && directRevisionStatus === 'pending' && afterDirectRevisionPath === beforeRevisionPath, 'client approval of changed mutable media failed closed');
+  const revisionPublication = await publishCanonicalMediaSet({
+    storage: service.storage,
+    ownerId: users.userA.id,
+    entityType: 'revisions',
+    entityId: ids.revisionMedia,
+    avatarPath: revisionSource,
+  });
+  const revisionPublish = await service.rpc('apply_specialist_revision_with_canonical_media', {
+    revision_uuid: ids.revisionMedia,
+    reviewer_uuid: users.moderator.id,
+    note: null,
+    avatar_descriptor: revisionPublication.avatar,
+    gallery_descriptors: revisionPublication.gallery,
+  });
+  const afterRevisionPath = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
+  const revisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
+  recorder.record('MEDIA-010', revisionPublisherAcl && !revisionPublish.error && revisionStatus === 'approved' && afterRevisionPath === revisionPublication.avatar.canonical_path && afterRevisionPath !== beforeRevisionPath, 'service-only revision publication changed the canonical reference after approval');
+  const unusedPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const unusedUpload = await users.userA.client.storage.from('profile-media').upload(unusedPath, webp, { contentType: 'image/webp', upsert: false });
+  const unusedDelete = await users.userA.client.storage.from('profile-media').remove([unusedPath]);
+  recorder.record('MEDIA-011', !unusedUpload.error && !unusedDelete.error && (await storageBytes(service, 'profile-media', unusedPath)) === null, 'unreferenced own submission deletion verified');
+  recorder.record('MEDIA-012', controlledBytes !== null && createHash('sha256').update(controlledBytes).digest('hex') === canonicalHash, 'canonical path content hash verified without logging content');
 
   const categories = await anon.from('categories').select('id').eq('id', ids.category);
   recorder.record('CONTENT-001', !categories.error && categories.data?.length === 1, 'active category public read succeeded');
@@ -706,8 +898,9 @@ async function executeRun(runNumber, guard, env) {
   try {
     stack = await createLocalStack({ runNumber, repoRoot, ...guard.toolchain, env });
     if (!stack.projectId.startsWith(requiredProjectPrefix)) throw new Error('Disposable project prefix guard failed');
+    const diagnostics = await runLocalDatabaseDiagnostics(stack, guard.toolchain, env);
     const { service, users } = await createSyntheticUsers(stack);
-    const fixtures = await buildFixtures(stack, service, users);
+    const fixtures = await buildFixtures(stack, service, users, guard.toolchain, env);
     await runCatalogCases(recorder, stack, guard.toolchain, env);
     await runBehaviorCases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     const results = recorder.finalize();
@@ -718,6 +911,7 @@ async function executeRun(runNumber, guard, env) {
       ports: stack.ports,
       results,
       counts,
+      diagnostics,
       ok: counts.FAIL === 0 && counts.XPASS === 0,
     };
   } finally {
@@ -733,6 +927,7 @@ async function executeRun(runNumber, guard, env) {
 function compareRuns(first, second) {
   const normalized = (run) => run.results.map(({ id, result, SEC_ID }) => ({ id, result, SEC_ID }));
   assert.deepEqual(normalized(first), normalized(second), 'Independent runs produced different classifications or SEC mappings');
+  assert.deepEqual(first.diagnostics, second.diagnostics, 'Independent runs produced different database diagnostic counts');
 }
 
 function printSummary(first, second) {
@@ -740,6 +935,8 @@ function printSummary(first, second) {
   console.log('AL-AMIN_ROLE_MATRIX_LOCAL_ONLY');
   console.log(`RUN_1 ${format(first)}`);
   console.log(`RUN_2 ${format(second)}`);
+  console.log(`DB_LINT ERROR=${first.diagnostics.lint.ERROR} WARN=${first.diagnostics.lint.WARN} INFO=${first.diagnostics.lint.INFO}`);
+  console.log(`DB_SECURITY_ADVISORS ERROR=${first.diagnostics.advisors.ERROR} WARN=${first.diagnostics.advisors.WARN} INFO=${first.diagnostics.advisors.INFO}`);
   console.log('CLEANUP PASS');
   console.log('No keys, passwords, tokens, user identifiers, ports, or fixture values are printed.');
 }

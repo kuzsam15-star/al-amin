@@ -76,6 +76,11 @@
 - **Доказательство выхода:** owner direct Storage requests deny; cross-owner deny; published bytes/hash неизменны до approval; valid owner upload через gateway работает; orphan quota/GC tests проходят.
 - **Rollback/forward-fix:** сначала dual-compatible new paths и backfill only if necessary, затем revoke. Никогда не откатывать broad DML; при ошибке остановить публикацию и использовать предыдущий immutable path.
 - **Зависимости:** P0-02; тестовые Storage fixtures.
+- **P0-03A local status (2026-08-11):** SEC-001 реализован двумя forward-only
+  фазами и server-controlled content-addressed publication. Два fresh run:
+  68 PASS / 23 approved XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; SEC-001 XFAIL = 0;
+  cleanup PASS. SEC-017 и все остальные findings остаются открыты. Production
+  rollout, existing-media backfill и Phase B не выполнялись.
 
 ### P0-04 — Закрыть owner column leak applications
 
@@ -223,10 +228,10 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-03A — SEC-001 immutable canonical published media:
-threat analysis and test-first fix.**
+**Выполнить только P0-03B — SEC-001 independent adversarial review and
+deployment rehearsal.**
 
-Verified Strategy C bootstrap и P0-02C role-matrix harness приняты как local
-enabling controls. Historical 18 migrations остаются immutable archive и не
-replay-ятся как fresh bootstrap. Следующий этап начинается с threat analysis,
-фиксирует current XFAIL для SEC-001 и только затем разрешает узкий forward fix.
+P0-03A имеет статус `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`.
+Independent review должен проверить threat model, Phase A/source order,
+dry-run/backfill contract, Phase B preconditions и forward-fix без доступа к
+production на этапе review.

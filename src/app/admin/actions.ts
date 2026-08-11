@@ -8,12 +8,14 @@ import { profileMediaPaths, removeUnreferencedProfileMedia } from "@/lib/media-c
 import { processEmailQueue, retryEmailNotification as retryEmail } from "@/lib/email/queue";
 import { siteContentFields, validateSiteContent } from "@/lib/site-content-fields";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { prepareCanonicalPublication } from "@/lib/published-media";
 
 async function audit(entityType:string, entityId:string, action:string, details:Record<string,unknown>) { const { supabase,user } = await requireModerator(); await supabase.from("audit_log").insert({ actor_id:user.id,entity_type:entityType,entity_id:entityId,action,details }); }
 function done(notice="saved", returnTo="/admin"):never { revalidatePath("/"); revalidatePath("/admin"); revalidatePath("/specialists"); revalidatePath("/cabinet"); redirect(`${returnTo}?notice=${notice}`); }
 function contentDone(notice: string): never { redirect(`/admin?section=settings&notice=${notice}`); }
 const alwaysHighRisk = new Set(["avatar_path","gallery_paths","public_contact","portfolio_links","video_links","full_name","category_id","additional_category_ids"]);
 const changedKeys = (profile: Record<string, unknown>, payload: Record<string, unknown>) => Object.keys(payload).filter((key) => JSON.stringify(profile[key] ?? null) !== JSON.stringify(payload[key] ?? null));
+const sameStringArray = (left: unknown, right: unknown) => JSON.stringify(Array.isArray(left) ? left : []) === JSON.stringify(Array.isArray(right) ? right : []);
 const substantialDescriptionChange = (before: unknown, after: unknown) => {
   const oldText = String(before ?? "").trim(); const newText = String(after ?? "").trim();
   return oldText !== newText && Math.abs(oldText.length - newText.length) > 140;
@@ -38,11 +40,29 @@ export async function updateSiteContent(formData: FormData) {
 export async function updateApplication(formData:FormData) {
   const id=String(formData.get("id")??""); const decision=String(formData.get("decision")??""); const notes=String(formData.get("notes")??"").trim().slice(0,5000); const applicantMessage=String(formData.get("applicantMessage")??"").trim().slice(0,5000);
   const status = decision === "request_changes" ? "changes_requested" : decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
-  if(!id || !status) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase}=await requireModerator();
-  const {data: current,error:readError}=await supabase.from("applications").select("status").eq("id",id).maybeSingle();
+  if(!id || !status) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
+  const {data: current,error:readError}=await supabase.from("applications").select("status,owner_id,main_image_path,gallery_paths").eq("id",id).maybeSingle();
   if(readError||!current||["approved","withdrawn"].includes(current.status)) done("invalid");
   const admin = createSupabaseAdminClient();
-  const {error}=await admin.from("applications").update({status,internal_notes:notes||null,applicant_message:status === "changes_requested" ? applicantMessage : null}).eq("id",id);
+  const publication = status === "approved" && current.owner_id && current.main_image_path
+    ? await prepareCanonicalPublication({
+        ownerId: current.owner_id,
+        entityType: "applications",
+        entityId: id,
+        avatarPath: current.main_image_path,
+        galleryPaths: current.gallery_paths ?? [],
+      }).catch(() => null)
+    : null;
+  if (status === "approved" && !publication) done("save-error");
+  const {error}=status === "approved"
+    ? await admin.rpc("approve_application_with_canonical_media", {
+        application_uuid: id,
+        reviewer_uuid: user.id,
+        note: notes || null,
+        avatar_descriptor: publication!.avatar,
+        gallery_descriptors: publication!.gallery,
+      })
+    : await admin.from("applications").update({status,internal_notes:notes||null,applicant_message:status === "changes_requested" ? applicantMessage : null}).eq("id",id);
   if(error) done("save-error");
   // The database trigger publishes one profile atomically when status becomes approved.
   await audit("application",id,status === "approved" ? "approved_and_published" : status,{ hasApplicantMessage: Boolean(applicantMessage) });
@@ -106,17 +126,41 @@ export async function decideRevision(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim().slice(0, 5000);
   if (!/^[a-f0-9-]{36}$/i.test(id) || !["approve", "reject", "request_changes"].includes(decision)) done("invalid");
   if (["reject", "request_changes"].includes(decision) && !note) done("comment-required");
-  const { supabase } = await requireModerator();
-  const { data: revision } = await supabase.from("specialist_revisions").select("payload,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").maybeSingle();
+  const { supabase, user } = await requireModerator();
+  const { data: revision } = await supabase.from("specialist_revisions").select("owner_id,payload,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").maybeSingle();
+  const payload = revision?.payload as Record<string, unknown> | undefined;
+  const specialist = Array.isArray(revision?.specialist) ? revision.specialist[0] : revision?.specialist;
+  const mediaChanged = payload && specialist ? (
+    payload?.avatar_path !== specialist?.avatar_path
+    || (Object.hasOwn(payload, "gallery_paths") && !sameStringArray(payload.gallery_paths, specialist?.gallery_paths))
+  ) : false;
+  const publication = decision === "approve" && mediaChanged && revision?.owner_id && typeof payload?.avatar_path === "string"
+    ? await prepareCanonicalPublication({
+        ownerId: revision.owner_id,
+        entityType: "revisions",
+        entityId: id,
+        avatarPath: payload.avatar_path,
+        galleryPaths: Array.isArray(payload.gallery_paths) ? payload.gallery_paths.filter((path): path is string => typeof path === "string") : [],
+      }).catch(() => null)
+    : null;
+  if (decision === "approve" && (!payload || !specialist || (mediaChanged && !publication))) done("save-error");
+  const admin = createSupabaseAdminClient();
   const { error } = decision === "request_changes"
     ? await supabase.rpc("request_specialist_revision_changes", { revision_uuid: id, note })
-    : await supabase.rpc("apply_specialist_revision", { revision_uuid: id, approve: decision === "approve", note: note || null });
+    : decision === "approve" && mediaChanged
+      ? await admin.rpc("apply_specialist_revision_with_canonical_media", {
+          revision_uuid: id,
+          reviewer_uuid: user.id,
+          note: note || null,
+          avatar_descriptor: publication!.avatar,
+          gallery_descriptors: publication!.gallery,
+        })
+      : await supabase.rpc("apply_specialist_revision", { revision_uuid: id, approve: decision === "approve", note: note || null });
   if (error) done("save-error");
   if (revision?.payload) {
     const proposed = profileMediaPaths(revision.payload as Record<string, unknown>);
-    const specialist = Array.isArray(revision.specialist) ? revision.specialist[0] : revision.specialist;
     const published = profileMediaPaths((specialist ?? null) as Record<string, unknown> | null);
-    const candidates = decision === "reject" ? proposed.filter((path) => !published.includes(path)) : decision === "approve" ? published.filter((path) => !proposed.includes(path)) : [];
+    const candidates = decision === "reject" ? proposed.filter((path) => !published.includes(path)) : [];
     await removeUnreferencedProfileMedia(candidates);
   }
   await audit("specialist_revision", id, decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "changes_requested", { note: note || null });

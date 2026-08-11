@@ -120,16 +120,16 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 |---|---|---|---|---|---|:---:|---|
 | ST-01 | anon | Bucket metadata | Read arbitrary `profile-media` object directly | Deny/private | Bucket `public=false` | PASS | Live bucket metadata |
 | ST-02 | owner | Auth session, own prefix | Policy metadata check | Draft access только `submissions/<uid>/` | Owner-path predicate присутствует | PASS | Live `storage.objects` policies |
-| ST-03 | user B | Path user A известен | Direct read/upload/update/delete чужого path | Deny | Policy выглядит корректно; mutation не запускалась | NOT RUN | Нужен disposable staging role test |
-| ST-04 | owner | Published path принадлежит owner | Direct Storage UPDATE/DELETE/reinsert | Deny; canonical immutable | Live authenticated DML и owner policy разрешают | FAIL | Live ACL; `202607310001...:21-27` |
-| ST-05 | owner | Valid session + image | POST `/api/media` JPEG/PNG/WebP | Decode, dimension bound, WebP re-encode | Source implementation соответствует | PASS | `src/app/api/media/route.ts`; static only |
+| ST-03 | user B | Path user A известен | Direct read/upload/update/delete чужого path | Deny | Disposable post-fix role matrix denies all four operations | PASS (local) | MEDIA-014–016 + STORAGE cases |
+| ST-04 | owner | Published path принадлежит owner | Direct Storage UPDATE/DELETE/reinsert | Deny; canonical immutable | Local post-fix canonical mutations deny and source deletion leaves canonical bytes intact; live rollout not performed | PASS (local) / FAIL (live) | MEDIA-001, 004, 006, 007, 013, 018 |
+| ST-05 | owner | Valid session + image | POST `/api/media` JPEG/PNG/WebP | Decode, dimension bound, WebP re-encode | Existing route plus canonical server transform/hash tests pass | PASS | Route + `published-media-security.test.mjs` |
 | ST-06 | owner | SVG/polyglot input | POST `/api/media` | Reject; no SVG execution | Accept list и decoded format исключают SVG | PASS | Route + Storage MIME restrictions; static |
-| ST-07 | owner | Hostile image corpus | Decompression bomb, truncated file, huge dimensions, EXIF, HEIF | Bounded reject/strip без crash | Не выполнялось динамически | NOT RUN | Нужен isolated media corpus |
+| ST-07 | owner | Hostile image corpus | Decompression bomb, truncated file, huge dimensions, EXIF, HEIF | Bounded reject/strip без crash | Malformed/MIME-spoof/size boundary covered locally; full hostile corpus remains separate SEC-017 work | PASS (targeted) / NOT RUN (full corpus) | Targeted unit + role matrix |
 | ST-08 | service cleanup | Query failure/`changes_requested` reference | Run cleanup dry fixture | Abort; object preserved | Code игнорирует errors и state | FAIL | `src/lib/media-cleanup.ts:17-31` |
 | ST-09 | owner/bot | Много uploads/bytes/objects | Burst upload | Durable quota/rate deny | Quota/rate отсутствуют; direct API доступен | FAIL | Route/policies |
 | ST-10 | anon | Public media URL | Cache-busting query burst | Canonical cache key/prebuilt derivative | Route ignores extra query but per-request work возможен; не load-tested | NOT RUN | `/api/media/view`; edge unknown |
-| ST-11 | anon/owner | Published/own draft | GET `/api/media/view`/`source` | Public только approved; private только owner/mod | Authorization path подтверждён статически | PASS | `view/route.ts`, `source/route.ts`; dynamic still required |
-| ST-12 | operator | Takedown/restore fixture | Delete reference/purge cache/restore object | Предсказуемый purge и recoverability | Процедура/cache purge/Storage backup не доказаны | NOT RUN | Hosting/backup evidence absent |
+| ST-11 | anon/owner | Published/own draft | GET `/api/media/view`/`source` | Public только approved; private только owner/mod | Dynamic local published projection/canonical read and private submission boundaries pass | PASS (local) | MEDIA-002, 003, 007, 014 + view cases |
+| ST-12 | operator | Takedown/restore fixture | Delete reference/purge cache/restore object | Предсказуемый purge и recoverability | SEC-001 source-dereference survival passes; takedown/cache/restore remains unproved | PASS (SEC-001 local) / NOT RUN (restore) | MEDIA-007; SEC-006/013 remain open |
 
 ## 5. Auth, sessions и privileged access
 
@@ -243,6 +243,17 @@ SEC-001/002/003/004/010/015/016/017/018/025/026.
 - `tests/security/role-matrix/expected-failures.json`;
 - `tests/security/role-matrix/coverage-matrix.json`;
 - `docs/security/ROLE_MATRIX_BASELINE_RESULTS.md`.
+
+### 10.1 P0-03A SEC-001 post-fix execution
+
+Verified baseline evidence above remains historical. After applying the two
+SEC-001 forward migrations, two new independent disposable runs matched:
+**68 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**; cleanup PASS.
+
+`STORAGE-010` and `MEDIA-001`–`MEDIA-018` are PASS. SEC-001 has no entry in
+the expected-failure ledger. The 23 remaining XFAIL mappings are unchanged and
+no other finding produced XPASS. Live deployment/backfill was not performed.
+Evidence: `docs/security/SEC-001_LOCAL_VERIFICATION.md`.
 
 Concurrency, production Auth/headers/monitoring, dependency/provenance,
 backup/restore и sustained abuse остаются `NOT_AUTOMATED`; это не PASS и не

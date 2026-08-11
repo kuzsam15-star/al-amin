@@ -14,7 +14,8 @@ Each full invocation creates two independent local Supabase projects and uses:
 - the pinned Supabase CLI 2.113.0;
 - Docker Desktop's local `desktop-linux` context;
 - PostgreSQL 17 from the local Supabase stack;
-- the verified no-data `supabase/bootstrap/baseline.sql` only;
+- the verified no-data `supabase/bootstrap/baseline.sql`, followed by sorted
+  reviewed files in `supabase/forward-migrations/`;
 - local Auth, PostgREST/Data API, Kong, and Storage;
 - synthetic Auth users, rows, and generated image buffers.
 
@@ -93,7 +94,7 @@ is never encoded as `PASS`.
 
 ## 7. Coverage
 
-The active suite contains 73 cases. It covers:
+The active suite contains 91 cases. It covers:
 
 - private/base-table reads and cross-owner isolation;
 - application protected columns, ownership, status, update, and delete;
@@ -106,6 +107,9 @@ The active suite contains 73 cases. It covers:
 - exact public-view projections and unpublished-row exclusion;
 - owner/foreign/anonymous Storage upload, read, update, delete, MIME, size, and
   referenced-object behavior;
+- immutable submission paths, content-addressed canonical publication,
+  no-overwrite retry, source/canonical hash identity, application/revision
+  publication, source deletion survival, and client canonical-path denial;
 - categories, site content, badges, email queue, audit, role revocation, RLS,
   and default privileges.
 
@@ -128,3 +132,8 @@ removed. A finding-specific change should add negative and positive cases,
 rerun both fresh projects, and update the stable coverage matrix. Unexpected
 insecure behavior must remain `FAIL` and be adjudicated separately; it must not
 be silently added to the expected-failure ledger.
+
+For SEC-001, the ledger transition has been adjudicated: the historical
+pre-hardening result remains in `ROLE_MATRIX_BASELINE_RESULTS.md`, while the
+post-fix result is recorded in `SEC-001_LOCAL_VERIFICATION.md`. Fresh runs now
+produce 68 PASS and 23 non-SEC-001 XFAIL with no XPASS, FAIL, or SKIP.

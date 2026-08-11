@@ -78,6 +78,21 @@ SEC-002, SEC-003, SEC-004, SEC-007, SEC-008, SEC-015, SEC-016, SEC-017,
 SEC-018, SEC-023, SEC-025, and SEC-026. These are marked in the SQL/manifest.
 They are not fixes and must be addressed only by later reviewed forward changes.
 
+## Forward hardening track
+
+Fresh local/CI verification applies database state in this order:
+
+1. `baseline.sql`;
+2. `verify.sql` for the pinned pre-hardening contract;
+3. reviewed `supabase/forward-migrations/*.sql` in filename order;
+4. the full role-matrix and finding-specific verification.
+
+The baseline and manifest are never rewritten to make a later finding appear
+fixed historically. The SEC-001 track currently has a dual-compatible Phase A
+and an enforcement Phase B. Phase B is safe on fresh/canonical environments
+and deliberately aborts on existing approved/published legacy media; production
+requires the separately approved inventory and backfill runbook first.
+
 Auth settings are configuration expectations, not SQL objects. No provider
 secret or production redirect identifier is stored here.
 

@@ -22,7 +22,7 @@
 
 | ID | Severity | Кратко | Статус | Blocker |
 |---|---|---|---|---:|
-| SEC-001 | High | Замена опубликованного media через прямой Storage API | Open — confirmed live | yes |
+| SEC-001 | High | Замена опубликованного media через прямой Storage API | IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT — live open | yes |
 | SEC-002 | High | Владелец заявки читает moderator-only колонки | Open — confirmed live | yes |
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | Open — confirmed live | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | Open — confirmed live | yes |
@@ -53,14 +53,14 @@
 
 ### SEC-001 — Прямая замена опубликованного media
 
-- **Severity / status:** High; Open — confirmed locally and live.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_DEPLOYMENT`; исходный риск подтверждён live и остаётся launch blocker до rollout/backfill/Phase B.
 - **Область:** Storage ownership, moderation integrity, file upload, availability.
 - **Объекты:** `storage.objects`; bucket `profile-media`; `supabase/migrations/202607310001_security_hardening.sql:21-27`; `src/app/api/media/route.ts:12,24-25`; `src/app/api/media/view/route.ts:34-50`; `src/lib/media-paths.ts:1-16`.
 - **Доказательство — факт:** live ACL даёт `authenticated` `INSERT/UPDATE/DELETE` на `storage.objects`; owner policy разрешает операции под `submissions/<auth.uid()>/`. Route загружает через user client. Публичная карточка сохраняет и выдаёт тот же path. Серверное перекодирование защищает чтение, но не moderation integrity.
 - **Сценарий эксплуатации:** владелец узнаёт path текущего опубликованного avatar/gallery, напрямую вызывает Storage update/delete/reinsert с другим допустимым WebP. Строка профиля не меняется, revision и moderator approval не создаются. Также можно создавать orphan objects.
 - **Ущерб / вероятность:** обход модерации, подмена или удаление публичного изображения, репутационный и storage-cost ущерб; вероятность высокая для любого владельца профиля.
-- **Исправление:** сделать canonical media immutable для пользователя. Authenticated route проверяет файл, затем controlled backend пишет новый случайный path; owner не получает прямой UPDATE/DELETE referenced objects. Публикация нового path — атомарно только через approved revision. Добавить object/byte quotas и delayed GC.
-- **Тесты:** owner direct INSERT/UPDATE/DELETE canonical object должны получать deny; bytes опубликованного объекта не меняются до approve; cross-owner path deny; orphan quota/expiry; cache purge при takedown.
+- **Локальная реализация:** две forward-only фазы создают отдельный content-addressed `published/` namespace, provenance ledger, no-overwrite server writer, service-only publication RPC и DB guards. Owner submission UPDATE запрещён; удаление разрешено только после dereference. Existing live paths требуют отдельного idempotent backfill; Phase B fail-closed до нулевого остатка legacy references.
+- **Тесты:** два независимых post-fix run: 68 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Все 19 SEC-001 cases PASS; canonical bytes/hash, application/revision approval, post-publication source deletion, client mutation denials, cross-owner/path traversal и fail-closed retries проверены. Quota/expiry/cache/restore остаются SEC-006/017 scope.
 - **Rollback/forward-fix:** только forward migration с поэтапным переходом на новые immutable paths; сначала совместимый server writer, затем revoke policies. Откат не должен возвращать broad Storage DML.
 - **Launch blocker:** yes. **Уверенность:** High.
 

@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runCommand, redactCommandError } from './command.mjs';
@@ -176,6 +176,19 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
       throw new Error('Bootstrap verification marker is absent');
     }
 
+    const forwardDirectory = join(repoRoot, 'supabase', 'forward-migrations');
+    const forwardMigrations = (await readdir(forwardDirectory))
+      .filter((name) => /^\d+_[a-z0-9_]+\.sql$/u.test(name))
+      .sort((left, right) => left.localeCompare(right));
+    for (const name of forwardMigrations) {
+      const sql = await readFile(join(forwardDirectory, name));
+      await runCommand(
+        dockerBin,
+        ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'supabase_admin', '-d', 'postgres'],
+        { env, input: sql, timeoutMs: 300_000 },
+      );
+    }
+
     return {
       workdir,
       projectId,
@@ -186,6 +199,7 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
       serviceRoleKey: statusEnv.SERVICE_ROLE_KEY,
       excludedServices,
       baselineVerified: true,
+      forwardMigrations,
       started,
     };
   } catch (error) {
