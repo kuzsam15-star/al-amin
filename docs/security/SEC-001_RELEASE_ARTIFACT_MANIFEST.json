@@ -15,7 +15,7 @@
     { "id": "state-machine", "path": "scripts/release/sec001/lib/release-state.mjs", "sha256": "F89AD7F5B158D66F3153AD2BDE3DFBC076ABB8E852F02C3A9E491376F0C4F0C2" },
     { "id": "state-cli", "path": "scripts/release/sec001/lib/release-cli.mjs", "sha256": "7CC334BFBD73AC2BC9098E9F9C879D8387F26EC2175E4CBDABCE4FBA77CDA642" },
     { "id": "identity-check", "path": "scripts/release/sec001/lib/identity-check.mjs", "sha256": "23A163523EB1E8126E0ACD47003B97553A82C7154D57FD07B8614B6184B41EF1" },
-    { "id": "powershell-controller", "path": "scripts/release/sec001/Invoke-Sec001Release.ps1", "sha256": "9CB7B28A341C86152B2C0CBC50A4FC5AA1FB344815E4B6550780A6FDC8768288" },
+    { "id": "powershell-controller", "path": "scripts/release/sec001/Invoke-Sec001Release.ps1", "sha256": "EB9C1D8F3D2702E456AB28A07E724A60C128F19BB6E2F3A3FF1DAF2851D6D3B9" },
     { "id": "powershell-common", "path": "scripts/release/sec001/Release.Common.ps1", "sha256": "7D1A2446F05A96CD683340B8B902F2163F27C00D7AAF53DCCED1EFF8C00E9E0A" },
     { "id": "isolated-psql", "path": "scripts/release/sec001/Invoke-IsolatedReleasePsql.sh", "sha256": "C65F44A066862F895F874B0326A48E7888D4A05C712D84D30DCF737E20C9504F" },
     { "id": "preflight-query", "path": "scripts/release/sec001/sql/preflight.sql", "sha256": "F6A161C2C01B60A399F5B7CD8264FB32B296044E93AF4075E8044BCB70FDD79F" },

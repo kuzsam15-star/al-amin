@@ -113,8 +113,10 @@ try {
   }
   Write-Sec001SafeLog $Stage 'PASS'
 } catch {
-  Write-Sec001SafeLog $Stage 'FAILED_SAFE' @{ safeErrorCode = ($_.Exception.Message -replace '[^A-Z0-9_-]', '_') }
-  Write-Error $_.Exception.Message
+  $message = [string]$_.Exception.Message
+  $safeCode = if ($message -cmatch '^[A-Z0-9_-]{1,96}$') { $message } else { 'UNEXPECTED_RELEASE_ERROR' }
+  Write-Sec001SafeLog $Stage 'FAILED_SAFE' @{ safeErrorCode = $safeCode }
+  Write-Error $safeCode
   $exitCode = 1
 } finally {
   if ($lockHeld) { Exit-Sec001LocalLock $sessionId }
