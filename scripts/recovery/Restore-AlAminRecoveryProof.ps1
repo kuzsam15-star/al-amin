@@ -34,8 +34,18 @@ try {
 
   $containerFile = "/tmp/alamin-restore-$([guid]::NewGuid().ToString('N')).backup"
   try {
-    & $script:DockerPath cp $databaseBackup "${TargetContainer}:$containerFile" 2>$null
-    if ($LASTEXITCODE -ne 0) { throw 'Could not stage database backup in disposable target.' }
+    # Docker Desktop writes a successful `docker cp` progress message to stderr.
+    # Windows PowerShell turns native stderr into a terminating NativeCommandError
+    # while ErrorActionPreference is Stop, even when Docker exits successfully.
+    $priorPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      & $script:DockerPath cp $databaseBackup "${TargetContainer}:$containerFile" 2>$null | Out-Null
+      $copyExit = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $priorPreference
+    }
+    if ($copyExit -ne 0) { throw 'Could not stage database backup in disposable target.' }
     $prepareSql = "drop schema if exists public cascade; drop schema if exists private cascade; drop schema if exists auth cascade; drop schema if exists storage cascade; drop schema if exists supabase_migrations cascade;"
     $priorPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
