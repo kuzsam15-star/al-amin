@@ -2,14 +2,18 @@
 
 Date: 2026-08-11
 
-Status: `DEPLOYMENT_BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`
+Status: `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`
 
 Change: immutable canonical published media
 
-This is an owner-operated plan. It does not authorize production access,
-deployment, backfill, or Phase B. P0-03C confirmed the local mechanics and
-froze the candidate bytes, but the recovery and production execution gates
-below are not yet proven.
+This is an owner-operated plan. It does not itself authorize production access,
+deployment, backfill, or Phase B. Recovery Level 3 and the P0-12 release wrapper
+are proven locally; P0-13 still requires explicit owner authorization.
+
+Use only `scripts/release/sec001/START_SEC001_RELEASE.bat`. The wrapper owns the
+external checkpoint, artifact/target verification, hidden credential prompts,
+advisory lock, aggregate backfill gates and exact Phase B confirmation. Do not
+paste these migrations into Dashboard SQL Editor or bypass the wrapper.
 
 ## Preconditions
 
@@ -166,8 +170,8 @@ Thresholds:
 
 The reviewed core pages database inventory in groups of 500, is idempotent by
 re-inventory, uses no-overwrite canonical upload, performs optimistic database
-cutover, and retains old source media. It does not yet provide a complete
-production operator wrapper or durable redacted checkpoint artifact.
+cutover, and retains old source media. P0-12 adds the owner wrapper and durable
+redacted checkpoint outside Git.
 
 The future wrapper must start with one canary row, then batches of 10 and a
 maximum provisional batch of 25 with concurrency `1`. Observe at least one
@@ -287,21 +291,20 @@ Remove-Item Env:ALAMIN_SECURITY_LOCAL_ONLY
 ```
 
 Expected output is
-`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=19 RUN2=19 FAIL=0`; any other result is
+`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=20 RUN2=20 FAIL=0`; any other result is
 a stop. The runner sanitizes remote variables and destroys only its projects.
 
-Production mutation commands are intentionally **not released**. The project
-currently has no approved exact version-recording production migration runner,
-no pinned hosting release command/artifact, and no executable production
-backfill wrapper. A raw `psql`, Dashboard paste, `supabase db push`, or guessed
-Vercel command would create unreviewed migration/release provenance and is not
-an acceptable substitute. P0-03D may receive commands only after these gaps
-and the recovery blocker are closed.
+Production operation is exposed only through
+`scripts/release/sec001/START_SEC001_RELEASE.bat` after a separate P0-13 owner
+approval. Raw `psql`, Dashboard paste, `supabase db push`, linked mode, or a
+guessed hosting command remains forbidden. P0-12 did not set the approval flag,
+create an identity package, request a secret, or contact production.
 
 ## Completion evidence
 
-SEC-001 may become `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT` only after all
-readiness checklist rows are `READY`. It may be marked fixed live only after
+SEC-001 is `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT` because recovery and
+local release-operation rows are proven; live evidence rows intentionally
+remain pending for P0-13. It may be marked fixed live only after
 the authorized Phase A/source/backfill/Phase B sequence, full canonical
 coverage, production-safe canaries, observation window, and reviewer sign-off.
 Old source media remains retained until separate SEC-006 lifecycle and SEC-013

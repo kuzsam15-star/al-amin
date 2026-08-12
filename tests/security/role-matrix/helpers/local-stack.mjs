@@ -212,6 +212,7 @@ export async function createLocalStack({
       ports,
       container,
       apiUrl: statusEnv.API_URL,
+      dbUrl: statusEnv.DB_URL,
       anonKey: statusEnv.ANON_KEY,
       serviceRoleKey: statusEnv.SERVICE_ROLE_KEY,
       excludedServices: excludedServiceNames,

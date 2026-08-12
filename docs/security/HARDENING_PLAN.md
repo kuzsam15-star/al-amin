@@ -105,7 +105,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала совместимый server writer и canary, затем revoke broad path; rollback отключает новый writer/переключение, но не возвращает broad Storage DML.
 - **Risk of fixing:** Высокий — неверный rollout может остановить upload, оставить orphan objects или снова открыть overwrite.
 - **Dependencies:** P0-01 controls, P0-02 reproducible DB baseline, disposable Storage fixtures, publication transaction, restore evidence.
-- **Status:** `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; P0-03C production gate is `BLOCKED_BY_RELEASE_OPERATIONS`. Adversarial review, two deployment rehearsals, two final role-matrix runs, two production-derived Level 2 restores, and two configuration Level 3 rehearsals PASS. Recovery is proven, but no approved production migration/source runner, frozen target/checkpoint identity, production backfill wrapper, or monitoring window exists. Live risk remains until those gates, approved deployment, existing-media backfill, Phase B enforcement, and post-deployment verification complete.
+- **Status:** `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`; not fixed live. Adversarial review, role-matrix, recovery Level 3, the frozen owner wrapper, target/checkpoint identity model, aggregate backfill controls, Phase B hard gate, failure injection and two disposable release rehearsals PASS. Live risk remains until P0-13 owner approval, Phase A/source/canary, production inventory/backfill, observation, Phase B and post-deployment evidence complete.
 
 ### SEC-002 — Owner column exposure
 

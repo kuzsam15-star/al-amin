@@ -87,12 +87,12 @@
   два final role-matrix run: 73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
   Статус: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`;
   production по-прежнему не изменён.
-- **P0-03C readiness status (2026-08-13):**
-  `BLOCKED_BY_RELEASE_OPERATIONS`. Локальные bytes заморожены, recovery Level 3
-  доказан, deployment order/compatibility/stop/forward-fix gates сформированы,
-  но отсутствуют точный version-recording production migration runner, signed source release
-  artifact/command, production backfill wrapper и active monitoring window.
-  Production execution не разрешён.
+- **P0-12 release-operations status (2026-08-13):**
+  `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`. Owner wrapper, внешний
+  checkpoint/identity fingerprint, frozen hashes, hidden credential transport,
+  backfill/observation gates, Phase B hard gate, 14/14 release tests и два
+  disposable rehearsal по 20/20 PASS. Это не `FIXED_LIVE`: P0-13 ещё требует
+  отдельного owner approval и live evidence.
 
 ### P0-04 — Закрыть owner column leak applications
 
@@ -249,11 +249,13 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-12 — SEC-001 production release wrapper/checkpoint/identity readiness.**
+**Следующий этап: P0-13 — SEC-001 controlled production deployment.**
 
 P0-11A завершил owner-approved read-only export и два matching Level 2 restore;
 P0-11B доказал configuration Level 3 двумя matching disposable runs без
 production mutation. SEC-013 имеет статус `RECOVERY_READINESS_PROVEN`, а
-recovery часть P0-03C закрыта. P0-12 должен доказать только remaining
-release-operations boundary; SEC-001 production deployment на этом этапе не
-выполняется.
+recovery часть P0-03C закрыта. P0-12 PASS доказал remaining
+release-operations boundary: owner wrapper, внешний
+checkpoint/identity fingerprint, frozen hashes, backfill/observation gates и
+Phase B hard gate. Production не изменялся; P0-13 требует отдельного явного
+owner approval.

@@ -4,7 +4,7 @@ Date: 2026-08-13
 
 Starting commit: `d498bbbb5a2d3cc7c675add9cb68c424b8406387`
 
-Verdict: `BLOCKED_BY_RELEASE_OPERATIONS`
+Verdict: `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`
 
 No production or remote Supabase action was performed. This gate evaluates
 operational readiness only; it does not change the locally verified SEC-001
@@ -12,24 +12,25 @@ implementation and does not close the live finding.
 
 ## 1. Decision
 
-The SEC-001 implementation remains independently verified locally, but it is
-not ready for production execution. The recovery prerequisite is now proven;
-three release-operation groups still lack evidence:
+The SEC-001 implementation remains independently verified locally. Recovery
+Level 3 and the controlled release-operations boundary are now proven locally.
+Production execution still requires a new, explicit owner approval in P0-13.
+The former three release-operation gaps are closed as follows:
 
-1. **Migration provenance:** the two reviewed files are in the separate
-   forward track, but no exact production mechanism is approved that both
-   applies their bytes and records their immutable versions without
-   reinterpreting the 18 archived migrations.
-2. **Source release provenance:** the repository has no CI/hosting manifest,
-   Git remote, signed release artifact, exact production deploy command, or
-   frozen Phase-A-compatible rollback build.
-3. **Backfill operations:** the dry-run-first core is locally verified, but no
-   production owner wrapper, short-lived identity, durable redacted
-   checkpoint, rate/monitor integration, or exact production invocation is
-   approved.
+1. **Migration provenance:** exact SHA-256-checked Phase A/Phase B files are
+   applied by an isolated pinned client; catalog markers and the external
+   checkpoint record the verified state without replaying the 18-file archive.
+2. **Source release provenance:** the checkpoint freezes the runtime Git SHA,
+   the existing hosting owner deploys exactly that SHA, and a read-only version
+   marker must match before canary.
+3. **Backfill operations:** the dry-run-first core now has a short-lived
+   identity model, redacted durable checkpoint, 1/10/25 sequential batching,
+   zero-change second pass, observation gate and exact production invocation.
 
-Any one is a hard stop. These are operational evidence gaps, not a failure of
-the local canonical-media security invariant.
+The owner wrapper, external checkpoint/identity model, frozen release manifest,
+short-lived identity lifecycle, aggregate backfill gates, observation gate and
+Phase B hard gate are specified in `SEC-001_RELEASE_OPERATIONS.md` and pass two
+independent disposable rehearsals. This readiness result is not live closure.
 
 ## 2. Evidence reviewed
 
@@ -162,9 +163,9 @@ Integrity/security errors have a zero error budget. A clearly transient
 network/platform error may be retried twice with bounded backoff; a third
 failure stops the batch. The old source is never deleted.
 
-Current status: `BLOCKED`. The core proves idempotent re-inventory and safe
-cutover locally, but the production wrapper/checkpoint/identity/invocation and
-monitor integration do not exist as frozen artifacts.
+Current status: `READY_LOCAL`. The core and owner wrapper prove idempotent
+re-inventory, 1/10/25 sequential batching, external checkpoint/resume and safe
+cutover locally. Production counts and signals remain P0-13 evidence.
 
 ## 9. Machine-checkable Phase B gate
 
@@ -208,9 +209,10 @@ unknown path family, overwrite, broken media, DB-before-copy behavior,
 unexpected error spike, successful client canonical mutation, source deletion,
 material count drift, credential exposure, or any non-zero Phase B gate.
 
-Do not proceed to Phase B until the agreed observation window ends with no
-unresolved stop signal. No monitoring stack was added in this stage; owner,
-window, baseline, and thresholds therefore remain `NOT_YET_PROVEN`.
+Do not proceed to Phase B until at least 30 minutes, two application approvals,
+one revision approval and zero unresolved error/alert signals are evidenced.
+No monitoring stack was added; the criteria and owner checklist are
+`READY_LOCAL`, while live signals remain `NOT_YET_PROVEN`.
 
 ## 12. Rollback / forward-fix summary
 
@@ -239,32 +241,33 @@ signed URLs, backups, rows, and media must never be sent to AI/chat/Git/logs.
 
 ## 14. Readiness checklist
 
-Status meanings: `READY` is locally or externally evidenced;
-`NOT_YET_PROVEN` needs human/external evidence; `BLOCKED` prevents Phase A.
+Status meanings: `READY` or `READY_LOCAL` is locally evidenced;
+`NOT_YET_PROVEN` needs P0-13 human/live evidence; `BLOCKED` prevents Phase A.
 
 | Gate | Required evidence | Status | Stop condition | Responsible actor |
 |---|---|---|---|---|
 | PRE-FLIGHT — Git/commit | clean `security/hardening` at frozen commit | `READY` | mismatch/diff | Release operator |
 | PRE-FLIGHT — project identity | two-person correct-project confirmation | `NOT_YET_PROVEN` | ambiguity | Human owner |
 | PRE-FLIGHT — catalog drift | same-day metadata compatibility | `NOT_YET_PROVEN` | incompatible/unknown drift | DB owner + reviewer |
-| PRE-FLIGHT — roles/window | named owners, stop authority, window | `BLOCKED` | missing owner/window | Change owner |
+| PRE-FLIGHT — roles/window | named owners, stop authority, window | `READY_LOCAL`; live assignment pending | missing owner/window | Change owner |
 | RECOVERY — database | dated isolated restore and RPO/RTO | `READY` | stale/failed pre-change checkpoint | Operations/DB owner |
 | RECOVERY — Storage | independent object restore/hash proof | `READY` | stale/failed pre-change checkpoint | Storage owner |
 | RECOVERY — config | tested redacted reconstruction checklist | `READY` | manifest drift or critical unknown | Platform owner |
 | PHASE A — artifact | exact frozen migration bytes | `READY` local | hash mismatch | DB owner |
-| PHASE A — runner | exact audited version-recording production mechanism | `BLOCKED` | unknown/bypassed history | DB owner |
-| SOURCE DEPLOY — artifact | signed build tied to commit | `BLOCKED` | unknown build/provenance | Release owner |
-| SOURCE DEPLOY — rollback | Phase-A-compatible rollback target/command | `BLOCKED` | old incompatible app | Release owner |
-| DRY RUN — wrapper | exact restricted redacted inventory command | `BLOCKED` | no approved wrapper | Backfill operator |
+| PHASE A — runner | exact audited migration plus catalog/checkpoint record | `READY_LOCAL` | hash/catalog mismatch | DB owner |
+| SOURCE DEPLOY — artifact | checkpoint commit plus read-only version marker | `READY_LOCAL` | version mismatch | Release owner |
+| SOURCE DEPLOY — rollback | Phase-A-compatible forward/rollback boundary | `READY_LOCAL` | old incompatible app | Release owner |
+| DRY RUN — wrapper | exact restricted redacted inventory command | `READY_LOCAL` | wrapper/hash mismatch | Backfill operator |
 | DRY RUN — counts | stable aggregate and zero anomalies | `NOT_YET_PROVEN` | count/anomaly drift | Operator + reviewer |
-| BACKFILL — controls | identity, checkpoint, batching, monitoring | `BLOCKED` | absent control | Backfill/Operations owner |
+| BACKFILL — controls | identity, checkpoint, batching, monitoring | `READY_LOCAL` | control mismatch | Backfill/Operations owner |
 | BACKFILL — complete | zero legacy and zero-change second pass | `NOT_YET_PROVEN` | non-zero | Reviewer |
-| OBSERVATION | defined duration/baseline/thresholds/observer | `BLOCKED` | no active observation | Operations owner |
+| OBSERVATION | 30 min + 2 application + 1 revision + zero errors | `READY_LOCAL`; live evidence pending | unresolved signal | Operations owner |
 | PHASE B | signed all-zero gate plus exact migration | `NOT_YET_PROVEN` | any non-zero/unknown | DB owner + Security |
 | POST-VERIFY | canary, constraints, serving, monitoring | `NOT_YET_PROVEN` | regression | Security + app owner |
 | CLOSEOUT | independent sign-off; SEC-001 live status update | `NOT_YET_PROVEN` | incomplete evidence | Change owner + reviewer |
 
-Production execution rows are intentionally not marked `READY`.
+Live outcome rows remain `NOT_YET_PROVEN`; local tooling rows are now
+`READY_LOCAL`. No production execution occurred.
 
 ## 15. Controlled command plan
 
@@ -289,18 +292,16 @@ Remove-Item Env:ALAMIN_SECURITY_LOCAL_ONLY
 
 Expected Git output is branch `security/hardening`, frozen HEAD, and no status
 lines. Expected rehearsal output is
-`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=19 RUN2=19 FAIL=0`. Any deviation stops.
+`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=20 RUN2=20 FAIL=0`. Any deviation stops.
 
-### Withheld production commands
+### Owner production launcher (not authorized in P0-12)
 
-No production mutation command is safe to release yet. The exact migration
-runner/history recording, signed hosting artifact/command, backfill wrapper,
-credential mechanism, target/checkpoint identity, and monitoring window are
-absent. Guessing `db push`, a
-Dashboard paste, raw `psql`, or a Vercel command would violate provenance and
-could target the wrong state. Future commands must be labeled `SAFE READ` or
-`MUTATION`, contain no secret literal, state expected output and stop
-condition, and be executed only after this checklist has no `BLOCKED` row.
+P0-13 may use only `scripts/release/sec001/START_SEC001_RELEASE.bat` after an
+explicit owner approval. It remains disabled by default, requires the external
+identity package and hidden credentials, and exposes each mutation only after
+its prerequisites. Guessing `db push`, a Dashboard paste, raw `psql`, or a
+hosting command would bypass provenance and can target the wrong state. P0-12
+did not run the launcher in production mode.
 
 ## 16. Final local rehearsal
 
@@ -308,7 +309,7 @@ The frozen local command runs the existing full deployment rehearsal against
 two fresh disposable projects. P0-03C re-ran it after the final runbook was
 prepared:
 
-`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=19 RUN2=19 FAIL=0`
+`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=20 RUN2=20 FAIL=0`
 
 Project-specific cleanup left `0` matching containers, `0` volumes, `0`
 networks, and `0` temporary paths. The first shell capture timed out after five
@@ -320,12 +321,10 @@ production release-operation gates.
 ## 17. Release implication
 
 SEC-001 remains
-`INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`, but the
-production readiness decision is `BLOCKED_BY_RELEASE_OPERATIONS`.
-It must not be renamed `FIXED_LIVE`, `CLOSED`, or
-`READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`.
+`INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; production
+readiness is now `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`. It must not be
+renamed `FIXED_LIVE` or `CLOSED` before controlled live execution and evidence.
 
-The recovery prerequisite is satisfied. The next safe work is P0-12: freeze and
-prove the exact release wrapper, project/checkpoint identity, version-recording
-migration mechanism, deployment artifact/rollback, backfill controls, and
-monitoring window. Production deployment remains unauthorized.
+Recovery and release tooling prerequisites are satisfied. The next stage is
+P0-13, which requires explicit owner approval because it will mutate production.
+No such approval or production action occurred in P0-12.

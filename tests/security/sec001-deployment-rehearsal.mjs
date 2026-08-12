@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import { publishCanonicalMedia } from '../../src/lib/published-media.mjs';
 import { runSec001Backfill } from './helpers/sec001-backfill.mjs';
-import { runCommand } from './role-matrix/helpers/command.mjs';
-import { applyForwardMigration, cleanupLocalStack, createLocalStack, queryLocalSql } from './role-matrix/helpers/local-stack.mjs';
+import { redactCommandError, runCommand } from './role-matrix/helpers/command.mjs';
+import { cleanupLocalStack, createLocalStack, queryLocalSql } from './role-matrix/helpers/local-stack.mjs';
+import {
+  acquireLocalLock, advance, assertObservationGate, assertPhaseBGate, createCheckpoint,
+  finish, readCheckpoint, recordBackfillProgress, releaseLocalLock, writeCheckpoint,
+} from '../../scripts/release/sec001/lib/release-state.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
@@ -64,6 +69,29 @@ async function toolchain(env) {
     throw new Error('Pinned local-only toolchain guard failed');
   }
   return { supabaseBin, dockerBin };
+}
+
+async function applyReleasePhase({ stack, tools, env, name, allowFailure = false }) {
+  if (!stack.dbUrl) throw new Error('Disposable database URL is unavailable');
+  const databaseUrl = new URL(stack.dbUrl);
+  const sqlPath = join(repoRoot, 'supabase', 'forward-migrations', name);
+  const helperPath = join(repoRoot, 'scripts', 'release', 'sec001', 'Invoke-IsolatedReleasePsql.sh');
+  const mode = name === phaseA ? 'phase-a' : 'phase-b';
+  try {
+    return await runCommand(tools.dockerBin, [
+    'run', '--rm', '-i', '--tmpfs', '/run/secrets:rw,noexec,nosuid,nodev,size=64k',
+    '--mount', `type=bind,src=${sqlPath},dst=/release/stage.sql,readonly`,
+    '--mount', `type=bind,src=${helperPath},dst=/release/run.sh,readonly`,
+    'postgres:17.6-bookworm', 'bash', '/release/run.sh',
+    'host.docker.internal', 'supabase_admin', databaseUrl.pathname.slice(1),
+    databaseUrl.port, mode,
+  ], {
+    env, input: `${decodeURIComponent(databaseUrl.password)}\n`, timeoutMs: 300_000, allowFailure,
+    });
+  } catch (error) {
+    error.safeMessage = `LOCAL_RELEASE_CLIENT: ${redactCommandError(error)}`;
+    throw error;
+  }
 }
 
 async function guard(env) {
@@ -137,7 +165,20 @@ function sqlQuote(value) { return String(value).replaceAll("'", "''"); }
 
 async function executeRehearsal(runNumber, tools, env) {
   let stack;
+  let releaseDirectory;
+  let lockHeld = false;
+  const sessionId = `rehearsal-${runNumber}-${randomUUID()}`;
   try {
+    releaseDirectory = await mkdtemp(join(tmpdir(), `alamin-sec001-release-${runNumber}-`));
+    const checkpointPath = join(releaseDirectory, 'checkpoint.json');
+    const lockPath = join(releaseDirectory, 'release.lock');
+    await acquireLocalLock(lockPath, { owner: 'synthetic-rehearsal', sessionId });
+    lockHeld = true;
+    let checkpoint = createCheckpoint({
+      sourceCommit: '2861305e2c83725d26ea01a5ca474d19b440a6c5',
+      artifactManifestHash: 'A'.repeat(64), projectFingerprint: 'B'.repeat(64),
+    });
+    await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
     stack = await createLocalStack({
       runNumber, repoRoot, ...tools, env, projectPrefix: 'alamin-sec001-rehearsal', forwardMigrationNames: [],
     });
@@ -199,8 +240,12 @@ async function executeRehearsal(runNumber, tools, env) {
     ]);
     if (revisionError) throw new Error(`Synthetic revision fixtures failed: ${revisionError.message}`);
     record(runNumber, 'BASELINE-LEGACY-READABLE', (await service.from('published_specialists').select('id').eq('id', ids.specialist)).data?.length === 1);
-    await applyForwardMigration({ stack, repoRoot, dockerBin: tools.dockerBin, env, name: phaseA });
+    checkpoint = advance(checkpoint, 'PREFLIGHT_PASSED', { evidence: { localOnly: true, artifactHashes: 'PASS' } });
+    await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
+    await applyReleasePhase({ stack, tools, env, name: phaseA });
     record(runNumber, 'PHASE-A-APPLIED', true);
+    checkpoint = advance(checkpoint, 'PHASE_A_APPLIED', { evidence: { catalogVerification: 'PASS' } });
+    checkpoint = advance(checkpoint, 'SOURCE_DEPLOY_CONFIRMED', { evidence: { localSourceCommit: checkpoint.sourceCommit } });
 
     const mixedCanonical = await publishCanonicalMedia({
       storage: service.storage, ownerId: owners[4].id, entityType: 'backfill-applications',
@@ -219,9 +264,8 @@ async function executeRehearsal(runNumber, tools, env) {
       update public.applications set main_image_path='${sqlQuote(mixedCanonical.canonical_path)}' where id='${ids.mixed}'::uuid;
       commit;
     `);
-    const prematurePhaseB = await applyForwardMigration({
-      stack, repoRoot, dockerBin: tools.dockerBin, env, name: phaseB, allowFailure: true,
-    });
+    checkpoint = advance(checkpoint, 'CANARY_PASSED', { evidence: { canonicalCreate: 'PASS', publicRead: 'PASS', clientMutationDenied: 'PASS' } });
+    const prematurePhaseB = await applyReleasePhase({ stack, tools, env, name: phaseB, allowFailure: true });
     const phaseBConstraintCount = await queryLocalSql(stack, tools.dockerBin, env, `
       select count(*) from pg_constraint where conname in ('applications_approved_media_canonical','specialists_published_media_canonical');
     `);
@@ -229,6 +273,9 @@ async function executeRehearsal(runNumber, tools, env) {
 
     const dryRun = await runSec001Backfill({ service, dryRun: true });
     record(runNumber, 'DRY-RUN-NO-MUTATION', dryRun.planned === 6 && dryRun.applied === 0 && (await row(service, 'applications', ids.valid, 'main_image_path')).main_image_path === paths.valid);
+    checkpoint = advance(checkpoint, 'INVENTORY_REVIEWED', { evidence: { counts: { totalLegacy: 6, alreadyCanonical: 0, missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0 } } });
+    checkpoint = advance(checkpoint, 'BACKFILL_IN_PROGRESS');
+    await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
 
     const { error: removeMissingError } = await service.storage.from('profile-media').remove([paths.missing]);
     if (removeMissingError) throw new Error('Synthetic missing-source fixture preparation failed');
@@ -257,6 +304,8 @@ async function executeRehearsal(runNumber, tools, env) {
     await upload(service, paths.corrupt, bytes, true);
     const interrupted = await runSec001Backfill({ service, dryRun: false, stopAfter: 1 });
     record(runNumber, 'CHECKPOINT-INTERRUPTION', interrupted.applied === 1 && interrupted.remaining > 0);
+    checkpoint = recordBackfillProgress(checkpoint, interrupted);
+    await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
 
     await assert.rejects(runSec001Backfill({ service, dryRun: false }), /conflicts/u);
     record(runNumber, 'CANONICAL-CONFLICT-FAIL-CLOSED', (await row(service, 'applications', ids.conflict, 'main_image_path')).main_image_path === paths.conflict);
@@ -266,6 +315,9 @@ async function executeRehearsal(runNumber, tools, env) {
     record(runNumber, 'RESUME-COMPLETES', resumed.applied === 3 && resumed.remaining === 0);
     const idempotent = await runSec001Backfill({ service, dryRun: false });
     record(runNumber, 'SECOND-APPLY-ZERO', idempotent.planned === 0 && idempotent.applied === 0);
+    checkpoint = recordBackfillProgress(checkpoint, { planned: 0, applied: 0, remaining: 0 });
+    checkpoint.counters = { ...checkpoint.counters, changedSecondPass: 0, legacyRemaining: 0, missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0 };
+    checkpoint = advance(checkpoint, 'BACKFILL_COMPLETE', { evidence: { secondPass: 'ZERO_CHANGE' } });
 
     const mixedAfter = await row(service, 'applications', ids.mixed, 'main_image_path,gallery_paths');
     record(runNumber, 'MIXED-STATE-ATOMIC', mixedAfter.main_image_path === mixedCanonical.canonical_path && mixedAfter.gallery_paths[0].startsWith(`published/${owners[4].id}/backfill-applications/`));
@@ -275,9 +327,14 @@ async function executeRehearsal(runNumber, tools, env) {
       && (await row(service, 'specialist_revisions', ids.revisionPending, 'payload')).payload.avatar_path === paths.valid
       && (await row(service, 'specialist_revisions', ids.revisionRejected, 'payload')).payload.avatar_path === paths.valid);
 
-    await applyForwardMigration({ stack, repoRoot, dockerBin: tools.dockerBin, env, name: phaseB });
-    await applyForwardMigration({ stack, repoRoot, dockerBin: tools.dockerBin, env, name: phaseB });
+    const observation = { elapsedMinutes: 30, applicationApprovals: 2, revisionApprovals: 1, canonicalizationErrors: 0, mediaServingErrors: 0, securityErrors: 0, unresolvedAlerts: 0 };
+    assertObservationGate(observation);
+    checkpoint = advance(checkpoint, 'OBSERVATION_PASSED', { evidence: { metrics: observation } });
+    assertPhaseBGate(checkpoint, checkpoint.counters, 'APPLY PHASE B');
+    await applyReleasePhase({ stack, tools, env, name: phaseB });
+    await applyReleasePhase({ stack, tools, env, name: phaseB });
     record(runNumber, 'PHASE-B-APPLIED-IDEMPOTENT', true);
+    checkpoint = advance(checkpoint, 'PHASE_B_APPLIED', { evidence: { catalogVerification: 'PASS' } });
     const validAfter = await row(service, 'applications', ids.valid, 'main_image_path');
     const foreignSubstitution = await service.from('applications').update({ main_image_path: mixedAfter.main_image_path }).eq('id', ids.valid);
     record(runNumber, 'OWNER-PROVENANCE-CONSTRAINT', Boolean(foreignSubstitution.error) && (await row(service, 'applications', ids.valid, 'main_image_path')).main_image_path === validAfter.main_image_path);
@@ -300,10 +357,22 @@ async function executeRehearsal(runNumber, tools, env) {
     const afterOwnerDelete = await service.storage.from('profile-media').download(validAfter.main_image_path);
     record(runNumber, 'CLIENT-CANONICAL-DELETE-DENIED', (Boolean(ownerDeleteCanonical.error) || ownerDeleteCanonical.data?.length === 0) && Boolean(afterOwnerDelete.data));
 
+    checkpoint = advance(checkpoint, 'POST_VERIFY_PASSED', { evidence: { roleMatrixSubset: 'PASS' } });
+    checkpoint = finish(checkpoint);
+    await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
+    const persisted = await readCheckpoint(checkpointPath, repoRoot);
+    record(runNumber, 'RELEASE-WRAPPER-COMPLETE', persisted.state === 'COMPLETE' && persisted.lastSuccessfulStep === 'COMPLETE');
+    await releaseLocalLock(lockPath, sessionId);
+    lockHeld = false;
+
     return { run: runNumber, count: results.filter((entry) => entry.run === runNumber).length };
   } finally {
     const cleanup = await cleanupLocalStack(stack, { supabaseBin: tools.supabaseBin, dockerBin: tools.dockerBin, env });
     if (!cleanup.ok) throw new Error(`SEC-001 cleanup residual: ${cleanup.residual.join(', ')}`);
+    if (lockHeld && releaseDirectory) {
+      try { await releaseLocalLock(join(releaseDirectory, 'release.lock'), sessionId); } catch {}
+    }
+    if (releaseDirectory) await rm(releaseDirectory, { recursive: true, force: true });
   }
 }
 
