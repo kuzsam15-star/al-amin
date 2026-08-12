@@ -85,7 +85,9 @@ The authenticated `age` ciphertext contains one ZIP payload:
 The autonomous local preflight uses the disposable Storage container's static
 S3 protocol credentials and its loopback `/storage/v1/s3` endpoint. This tests
 the same rclone/SigV4/list/download path as production without any production
-endpoint, key, or object. For the preflight only:
+endpoint, key, or object. It first exports two intentionally empty buckets and
+requires deterministic empty-set manifests, then repeats with synthetic image
+objects before the encrypted restore proof. For the preflight only:
 
 ```text
 powershell.exe -NoProfile -File scripts/recovery/Invoke-AlAminRecoveryProof.ps1 -Mode SyntheticPreflight

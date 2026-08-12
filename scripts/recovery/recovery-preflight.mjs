@@ -127,12 +127,22 @@ async function run() {
     const s3ContractProbe = await ps('Test-AlAminS3EndpointValidation.ps1', []);
     const s3EndpointContract = JSON.parse(s3ContractProbe.stdout.trim().split(/\r?\n/u).at(-1));
     source = await createLocalStack({ runNumber: 1, repoRoot, supabaseBin, dockerBin, env, projectPrefix: 'alamin-recovery-source' });
-    const fixtures = await seedSyntheticSource(source);
     const localS3 = await getLocalStaticS3Credentials(source);
-    const pgpassProbe = await ps('Test-AlAminPgpassIsolation.ps1', ['-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
-    const pgpassIsolation = JSON.parse(pgpassProbe.stdout.trim().split(/\r?\n/u).at(-1));
-    await ps('Export-AlAminDatabaseBackup.ps1', ['-SourceMode','LocalContainer','-OutputDirectory',databaseDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
     try {
+      const emptyStorageDir = join(workRoot, 'empty-storage');
+      await mkdir(emptyStorageDir, { recursive: true });
+      await ps('Export-AlAminStorageBackup.ps1', ['-SourceMode','LocalS3','-OutputDirectory',emptyStorageDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl,'-LocalS3AccessKeyId',localS3.accessKeyId,'-LocalS3Region',localS3.region], { ALAMIN_RECOVERY_LOCAL_S3_SECRET: localS3.secretAccessKey });
+      const emptyManifest = JSON.parse((await readFile(join(emptyStorageDir, 'storage_manifest.redacted.json'), 'utf8')).replace(/^\uFEFF/u, ''));
+      const emptyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+      if (emptyManifest.buckets.length !== 2 || emptyManifest.buckets.some((bucket) => bucket.object_count !== 0 || bucket.total_bytes !== 0 || bucket.path_hash !== emptyHash || bucket.aggregate_content_hash !== emptyHash)) {
+        throw new Error('Empty Storage bucket manifest regression failed');
+      }
+      await rm(emptyStorageDir, { recursive: true, force: true });
+
+      var fixtures = await seedSyntheticSource(source);
+      const pgpassProbe = await ps('Test-AlAminPgpassIsolation.ps1', ['-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
+      var pgpassIsolation = JSON.parse(pgpassProbe.stdout.trim().split(/\r?\n/u).at(-1));
+      await ps('Export-AlAminDatabaseBackup.ps1', ['-SourceMode','LocalContainer','-OutputDirectory',databaseDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
       await ps('Export-AlAminStorageBackup.ps1', ['-SourceMode','LocalS3','-OutputDirectory',storageDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl,'-LocalS3AccessKeyId',localS3.accessKeyId,'-LocalS3Region',localS3.region], { ALAMIN_RECOVERY_LOCAL_S3_SECRET: localS3.secretAccessKey });
     } finally {
       localS3.accessKeyId = '';
@@ -164,6 +174,7 @@ async function run() {
       databaseRowCountsMatch: verifyResult.RowCountsMatch,
       storageHashesMatch: verifyResult.StorageHashesMatch,
       storageExportTransport: 'Supabase S3 SigV4 via rclone (loopback-only)',
+      emptyStorageBuckets: 'PASS',
       s3EndpointContract,
       encryption: 'age v1.3.1 authenticated encryption',
       rawArtifactsRemaining: 0,

@@ -208,7 +208,7 @@ function Get-Sha256Lower {
 }
 
 function Get-PathSafeHash {
-  param([Parameter(Mandatory)][string[]]$Values)
+  param([AllowEmptyCollection()][string[]]$Values = @())
   $joined = ($Values | Sort-Object) -join "`n"
   $bytes = [Text.Encoding]::UTF8.GetBytes($joined)
   try {

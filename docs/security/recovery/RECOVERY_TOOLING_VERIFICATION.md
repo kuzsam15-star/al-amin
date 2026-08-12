@@ -117,6 +117,14 @@ hashes, and left zero raw artifacts or Docker resources. Endpoint contract
 tests also passed for both supported official host forms and blocked missing
 path, foreign host, malformed region, and query-string cases.
 
+A subsequent owner run reached both buckets but exposed an empty-collection
+manifest bug after credential use: PowerShell refused to bind an empty array to
+the hash helper. The key was deleted and production remained unchanged. The
+helper now defines SHA-256 of the empty UTF-8 set as the deterministic empty
+bucket hash. The full preflight first exports two empty buckets and asserts
+zero counts/bytes plus that hash before seeding and repeating the normal
+two-object export/restore proof.
+
 ## Security review
 
 - Git, source, verified baseline, historical migrations, and package files are
