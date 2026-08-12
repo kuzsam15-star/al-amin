@@ -3,7 +3,12 @@ param(
   [Parameter(Mandatory)][string]$OutputDirectory,
   [string]$LocalContainer,
   [string]$LocalProjectId,
-  [string]$LocalApiUrl
+  [string]$LocalApiUrl,
+  [string]$ProductionHost,
+  [string]$ProductionPort = '5432',
+  [string]$ProductionDatabase = 'postgres',
+  [string]$ProductionUser,
+  [switch]$ProductionReadOnlyApproved
 )
 
 . (Join-Path $PSScriptRoot 'Recovery.Common.ps1')
@@ -70,14 +75,24 @@ if ($SourceMode -eq 'LocalContainer') {
   }
 } else {
   Write-Host 'Database export is read-only. Values remain in this local prompt and are not logged.'
-  $hostName = (Read-Host 'Production database host').Trim()
-  $port = (Read-Host 'Port [5432]').Trim(); if (-not $port) { $port = '5432' }
-  $database = (Read-Host 'Database [postgres]').Trim(); if (-not $database) { $database = 'postgres' }
-  $user = (Read-Host 'Database user').Trim()
+  if ($ProductionHost -or $ProductionUser) {
+    if (-not $ProductionReadOnlyApproved -or -not $ProductionHost -or -not $ProductionUser) {
+      throw 'Prepared production connection metadata requires the explicit read-only approval boundary.'
+    }
+    $hostName = $ProductionHost.Trim()
+    $port = $ProductionPort.Trim()
+    $database = $ProductionDatabase.Trim()
+    $user = $ProductionUser.Trim()
+  } else {
+    $hostName = (Read-Host 'Production database host').Trim()
+    $port = (Read-Host 'Port [5432]').Trim(); if (-not $port) { $port = '5432' }
+    $database = (Read-Host 'Database [postgres]').Trim(); if (-not $database) { $database = 'postgres' }
+    $user = (Read-Host 'Database user').Trim()
+  }
   if ($hostName -notmatch '^[A-Za-z0-9.-]+$' -or $hostName -in @('localhost','127.0.0.1') -or $port -notmatch '^\d{2,5}$' -or $database -notmatch '^[A-Za-z0-9_-]+$' -or $user -notmatch '^[A-Za-z0-9_.-]+$') {
     throw 'Database connection metadata failed validation.'
   }
-  if ((Read-Host 'Type READ ONLY to confirm the production source must not be changed') -cne 'READ ONLY') {
+  if (-not $ProductionReadOnlyApproved -and (Read-Host 'Type READ ONLY to confirm the production source must not be changed') -cne 'READ ONLY') {
     throw 'Production source confirmation was not provided.'
   }
   $securePassword = Read-Host 'Database password (hidden)' -AsSecureString

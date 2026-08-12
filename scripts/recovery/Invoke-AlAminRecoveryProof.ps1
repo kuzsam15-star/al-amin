@@ -1,4 +1,12 @@
-param([ValidateSet('Interactive','SyntheticPreflight')][string]$Mode = 'Interactive')
+param(
+  [ValidateSet('Interactive','SyntheticPreflight','PreparedProductionExport')][string]$Mode = 'Interactive',
+  [string]$PreparedBackupDirectory,
+  [string]$PreparedDatabaseHost,
+  [string]$PreparedDatabasePort = '5432',
+  [string]$PreparedDatabaseName = 'postgres',
+  [string]$PreparedDatabaseUser,
+  [switch]$OwnerProductionReadApproved
+)
 
 . (Join-Path $PSScriptRoot 'Recovery.Common.ps1')
 Set-StrictMode -Version Latest
@@ -19,10 +27,17 @@ try {
   Write-Host 'This owner-operated tool never restores into production.'
   Write-Host 'Credentials remain in local hidden prompts and are not written to Git or reports.'
   Write-Host ''
-  Write-Host '1 - Create a read-only encrypted production backup (after owner approval)'
-  Write-Host '2 - Restore an existing encrypted backup into two disposable local targets'
-  Write-Host '3 - Run the synthetic local preflight'
-  $choice = Read-Host 'Choose 1, 2, or 3'
+  if ($Mode -eq 'PreparedProductionExport') {
+    if (-not $OwnerProductionReadApproved -or -not $PreparedBackupDirectory -or -not $PreparedDatabaseHost -or -not $PreparedDatabaseUser) {
+      throw 'Prepared production export requires approved non-secret connection metadata.'
+    }
+    $choice = '1'
+  } else {
+    Write-Host '1 - Create a read-only encrypted production backup (after owner approval)'
+    Write-Host '2 - Restore an existing encrypted backup into two disposable local targets'
+    Write-Host '3 - Run the synthetic local preflight'
+    $choice = Read-Host 'Choose 1, 2, or 3'
+  }
   if ($choice -eq '3') {
     & node (Join-Path $PSScriptRoot 'recovery-preflight.mjs')
     if ($LASTEXITCODE -ne 0) { throw 'Synthetic recovery preflight failed.' }
@@ -43,8 +58,12 @@ try {
   if ($choice -ne '1') { throw 'No valid workflow was selected.' }
 
   Write-Host 'The next operation reads real database rows and Storage bytes but never mutates the source.'
-  if ((Read-Host 'Type CREATE ENCRYPTED BACKUP to continue') -cne 'CREATE ENCRYPTED BACKUP') { throw 'Owner confirmation was not provided locally.' }
-  $destination = (Read-Host 'Existing final backup directory outside the project').Trim()
+  if ($Mode -eq 'PreparedProductionExport') {
+    $destination = $PreparedBackupDirectory.Trim()
+  } else {
+    if ((Read-Host 'Type CREATE ENCRYPTED BACKUP to continue') -cne 'CREATE ENCRYPTED BACKUP') { throw 'Owner confirmation was not provided locally.' }
+    $destination = (Read-Host 'Existing final backup directory outside the project').Trim()
+  }
   if (-not (Test-Path -LiteralPath $destination -PathType Container)) { throw 'The final backup directory does not exist.' }
   Assert-OutsideRepository -Path $destination
 
@@ -55,7 +74,11 @@ try {
   $config = Join-Path $payload 'config'
   New-Item -ItemType Directory -Path $database,$storage,$config -Force | Out-Null
   try {
-    & (Join-Path $PSScriptRoot 'Export-AlAminDatabaseBackup.ps1') -SourceMode Production -OutputDirectory $database
+    if ($Mode -eq 'PreparedProductionExport') {
+      & (Join-Path $PSScriptRoot 'Export-AlAminDatabaseBackup.ps1') -SourceMode Production -OutputDirectory $database -ProductionHost $PreparedDatabaseHost -ProductionPort $PreparedDatabasePort -ProductionDatabase $PreparedDatabaseName -ProductionUser $PreparedDatabaseUser -ProductionReadOnlyApproved
+    } else {
+      & (Join-Path $PSScriptRoot 'Export-AlAminDatabaseBackup.ps1') -SourceMode Production -OutputDirectory $database
+    }
     & (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -SourceMode ProductionS3 -OutputDirectory $storage
     Copy-Item -LiteralPath (Join-Path $repo 'docs\security\recovery\CONFIG_RECOVERY_MANIFEST.json') -Destination $config
     $zip = Join-Path $work 'payload.zip'

@@ -10,6 +10,12 @@ Run `START_RECOVERY_PROOF.bat`. The launcher checks the clean
 `security/hardening` repository, pinned tools, Docker `desktop-linux`, and local
 safety boundary before presenting three plain-language choices.
 
+The security workstream may launch `PreparedProductionExport` after owner
+approval using only Dashboard-verified, non-secret host/port/database/user and
+an existing external destination. This mode skips technical metadata prompts
+but never accepts a database password as an argument: the password still uses
+the same hidden owner-only prompt and isolated `0600` pgpass boundary.
+
 Production export remains owner-gated. Never paste a database password, S3 key,
 archive passphrase, URL containing credentials, or token into chat. Enter them
 only into the local hidden prompt after the workstream explicitly opens the
