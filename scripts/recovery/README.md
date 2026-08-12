@@ -58,9 +58,13 @@ The authenticated `age` ciphertext contains one ZIP payload:
   checked as `0600` before libpq may connect. The password and connection URL
   never appear in process arguments, environment variables, bind mounts, or
   logs.
-- Production Storage uses process-scoped rclone configuration and only `copy`
-  from the two fixed source buckets. No sync, move, upload, overwrite, or delete
-  command exists.
+- Production Storage requires the exact official Supabase SigV4 contract: an
+  HTTPS project host, endpoint path `/storage/v1/s3`, and the exact Dashboard
+  region. A read-only `ListObjects` probe must pass before any byte is copied.
+  The pinned rclone process ignores persistent config and clears unrelated
+  AWS/rclone credential sources while using the temporary key in process memory.
+  It only lists/copies from the two fixed source buckets; no sync, move, upload,
+  overwrite, or delete command exists.
 - Raw paths and rows are never printed. Errors are redacted.
 - Targets must be loopback-only and use an `alamin-recovery-target-*` project ID.
 - Cleanup is exact-path and project-specific. Broad Docker or filesystem prune
@@ -69,7 +73,10 @@ The authenticated `age` ciphertext contains one ZIP payload:
   review; rerun cleanup only through the named cleanup script. A retained raw
   directory is a blocker, never silently ignored.
 
-For the autonomous local preflight only:
+The autonomous local preflight uses the disposable Storage container's static
+S3 protocol credentials and its loopback `/storage/v1/s3` endpoint. This tests
+the same rclone/SigV4/list/download path as production without any production
+endpoint, key, or object. For the preflight only:
 
 ```text
 powershell.exe -NoProfile -File scripts/recovery/Invoke-AlAminRecoveryProof.ps1 -Mode SyntheticPreflight

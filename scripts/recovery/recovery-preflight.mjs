@@ -76,6 +76,28 @@ async function seedSyntheticSource(stack) {
   return { authUsers: 1, applicationRows: 1, storageObjects: 2 };
 }
 
+async function getLocalStaticS3Credentials(stack) {
+  const storageContainer = `supabase_storage_${stack.projectId}`;
+  const inspected = await runCommand(
+    dockerBin,
+    ['inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', storageContainer],
+    { env, timeoutMs: 30_000 },
+  );
+  const values = new Map();
+  for (const line of inspected.stdout.split(/\r?\n/u)) {
+    const separator = line.indexOf('=');
+    if (separator > 0) values.set(line.slice(0, separator), line.slice(separator + 1));
+  }
+  const accessKeyId = values.get('S3_PROTOCOL_ACCESS_KEY_ID');
+  const secretAccessKey = values.get('S3_PROTOCOL_ACCESS_KEY_SECRET');
+  const region = values.get('STORAGE_S3_REGION') ?? values.get('REGION');
+  if (!accessKeyId || !secretAccessKey || region !== 'local') {
+    const relevantNames = [...values.keys()].filter((name) => /S3|REGION/u.test(name)).sort();
+    throw new Error(`Disposable Storage did not expose the expected local static SigV4 credential contract; available fields: ${relevantNames.join(',') || 'none'}; local region contract: ${region === 'local' ? 'PASS' : 'ABSENT_OR_DIFFERENT'}`);
+  }
+  return { accessKeyId, secretAccessKey, region };
+}
+
 async function packageEncrypted(payloadRoot, workRoot) {
   const zipPath = join(workRoot, 'payload.zip');
   const archivePath = join(workRoot, 'synthetic-recovery.zip.age');
@@ -102,12 +124,20 @@ async function run() {
   let target;
   let restoreRoot;
   try {
+    const s3ContractProbe = await ps('Test-AlAminS3EndpointValidation.ps1', []);
+    const s3EndpointContract = JSON.parse(s3ContractProbe.stdout.trim().split(/\r?\n/u).at(-1));
     source = await createLocalStack({ runNumber: 1, repoRoot, supabaseBin, dockerBin, env, projectPrefix: 'alamin-recovery-source' });
     const fixtures = await seedSyntheticSource(source);
+    const localS3 = await getLocalStaticS3Credentials(source);
     const pgpassProbe = await ps('Test-AlAminPgpassIsolation.ps1', ['-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
     const pgpassIsolation = JSON.parse(pgpassProbe.stdout.trim().split(/\r?\n/u).at(-1));
     await ps('Export-AlAminDatabaseBackup.ps1', ['-SourceMode','LocalContainer','-OutputDirectory',databaseDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
-    await ps('Export-AlAminStorageBackup.ps1', ['-SourceMode','LocalApi','-OutputDirectory',storageDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl], { ALAMIN_RECOVERY_LOCAL_SERVICE_KEY: source.serviceRoleKey });
+    try {
+      await ps('Export-AlAminStorageBackup.ps1', ['-SourceMode','LocalS3','-OutputDirectory',storageDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl,'-LocalS3AccessKeyId',localS3.accessKeyId,'-LocalS3Region',localS3.region], { ALAMIN_RECOVERY_LOCAL_S3_SECRET: localS3.secretAccessKey });
+    } finally {
+      localS3.accessKeyId = '';
+      localS3.secretAccessKey = '';
+    }
     await copyFile(join(repoRoot, 'docs', 'security', 'recovery', 'CONFIG_RECOVERY_MANIFEST.json'), join(configDir, 'CONFIG_RECOVERY_MANIFEST.json'));
     const encrypted = await packageEncrypted(payloadRoot, workRoot);
     await rm(payloadRoot, { recursive: true, force: true });
@@ -133,6 +163,8 @@ async function run() {
       restored: { tableCount: verifyResult.TableCount, authUsers: verifyResult.AuthUserCount, storageObjects: verifyResult.StorageObjectCount },
       databaseRowCountsMatch: verifyResult.RowCountsMatch,
       storageHashesMatch: verifyResult.StorageHashesMatch,
+      storageExportTransport: 'Supabase S3 SigV4 via rclone (loopback-only)',
+      s3EndpointContract,
       encryption: 'age v1.3.1 authenticated encryption',
       rawArtifactsRemaining: 0,
       residualDockerResources: 0,

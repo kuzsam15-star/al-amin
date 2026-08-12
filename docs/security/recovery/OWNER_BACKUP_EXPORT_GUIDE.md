@@ -2,9 +2,9 @@
 
 ## Current gate
 
-The recovery toolkit is locally verified, but production export is **not
-authorized yet**. Do not start choice 1 in `START_RECOVERY_PROOF.bat` until the
-security workstream records the exact owner approval requested below.
+Owner Gate 1 and the provisional RPO/RTO were approved. The recovery toolkit is
+locally verified, including two full Supabase S3 SigV4 list/download regressions.
+Production export remains owner-operated and read-only.
 
 The next owner-approved run will, for the first time, read real AL-AMIN database
 rows and Storage object bytes. It will not change the database, Storage, Auth,
@@ -20,7 +20,10 @@ the toolkit removes that directory.
 3. A temporary Supabase Storage S3 access key created in Dashboard immediately
    before export. Enter its ID and secret only into the local terminal. Never
    paste either value into chat.
-4. A new strong archive passphrase known only to Viktor. The `age` prompt hides
+4. The endpoint copied from the S3 Configuration page must end in
+   `/storage/v1/s3`; the region must be copied exactly from the same page. The
+   wrapper rejects any other host/path/region contract before using the key.
+5. A new strong archive passphrase known only to Viktor. The `age` prompt hides
    it; the toolkit asks for it again solely to authenticate the ciphertext.
 
 No `service_role`, Supabase personal access token, `supabase login`, project
@@ -31,8 +34,9 @@ link, paid add-on, password reset, or production write is required.
 1. Run `scripts\recovery\START_RECOVERY_PROOF.bat`.
 2. Choose **1** only after Owner Gate 1 is approved.
 3. Read the safety message and type the local confirmation shown by the tool.
-4. Enter connection and temporary S3 values locally. They are not written to
-   command history, Git, or reports.
+4. Enter connection and temporary S3 values locally. Use the exact official S3
+   endpoint (including `/storage/v1/s3`) and exact region displayed together in
+   Dashboard. They are not written to command history, Git, or reports.
 5. Select the existing external backup folder and create the archive passphrase.
 6. Wait for `Encrypted export PASS`.
 7. Immediately delete the exact temporary S3 key in Supabase Dashboard.
@@ -51,9 +55,10 @@ guide, close the window and report the safe error text. Do not improvise.
   catalog/count queries through an ACL-protected temporary libpq service and
   password file. No credential is placed in a process argument.
 - Storage: rclone source-side `copy` from fixed `avatars` and `profile-media`
-  buckets. Its process-scoped configuration permits only the operator-approved
-  credential lifetime; the script contains no source upload, sync, move, or
-  delete command.
+  buckets after a silent read-only SigV4/ListObjects probe. Its isolated,
+  process-scoped configuration permits only the operator-approved credential
+  lifetime and ignores persistent or unrelated AWS/rclone credentials; the
+  script contains no source upload, sync, move, or delete command.
 - Configuration: the redacted recovery manifest is copied without secret values.
 
 ## Owner Gate 1

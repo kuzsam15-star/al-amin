@@ -75,6 +75,41 @@ reconcile flow. Result: `PASS`; 48 table counts, one synthetic Auth user, and
 two Storage object hashes matched; raw artifacts and residual Docker resources
 were both zero. No production endpoint or credential was used.
 
+## Supabase S3 SigV4 regression
+
+The first owner-approved Storage attempt stopped fail-closed with HTTP 403
+`SignatureDoesNotMatch` on read-only `ListObjects` for `avatars`. The temporary
+S3 key was deleted immediately; no Storage object, database row, Auth state, or
+production configuration was changed. Because endpoint/region/key input was
+intentionally never persisted, the individual mismatching signer input cannot
+be reconstructed after key deletion.
+
+Official Supabase documentation requires AWS Signature Version 4, the exact
+project region, matching access-key ID/secret, and an endpoint ending in
+`/storage/v1/s3`. The prior wrapper had a confirmed validation gap: it accepted
+any HTTPS `supabase.co` path rather than enforcing the S3 path/host contract.
+The corrected boundary now:
+
+- accepts only the official project gateway or direct Storage hostname over
+  HTTPS and the exact `/storage/v1/s3` path;
+- rejects credentials in URLs, query strings, fragments, foreign hosts,
+  malformed regions, and missing S3 paths before credential use;
+- forces path-style SigV4 with provider `Other`, disables legacy V2 signing,
+  ignores persistent rclone config, and clears unrelated AWS/rclone credential
+  and session-token sources for the child process;
+- performs a silent read-only `ListObjects` probe for each fixed bucket before
+  download, and returns only a redacted failure classification;
+- keeps the only production operations as list/download.
+
+Two independent full disposable regressions then used the local Supabase
+Storage container's static S3-protocol key pair held only in process memory.
+Both runs passed actual rclone SigV4 listing and download for `avatars` and
+`profile-media`, encrypted the payload, destroyed the source, restored into a
+fresh target, reconciled 48 table counts, one synthetic Auth user, two object
+hashes, and left zero raw artifacts or Docker resources. Endpoint contract
+tests also passed for both supported official host forms and blocked missing
+path, foreign host, malformed region, and query-string cases.
+
 ## Security review
 
 - Git, source, verified baseline, historical migrations, and package files are
@@ -85,7 +120,9 @@ were both zero. No production endpoint or credential was used.
   `PGPASSFILE` are checked as `0600` before connection. Secrets and URLs are
   absent from process args, environment variables, bind mounts, and logs.
 - Production Storage credentials are process-scoped rclone environment values;
-  no persistent rclone/AWS config exists.
+  no persistent rclone/AWS config exists. Persistent config and unrelated
+  AWS/rclone credential, profile, and session-token sources are explicitly
+  excluded from the signer process.
 - Fixed production source buckets are downloaded only. No source PUT, COPY,
   MOVE, SYNC, DELETE, migration, function call, or mutation is implemented.
 - Raw rows, object names, object bytes, UUIDs, and credentials are absent from
@@ -109,6 +146,8 @@ production identifier.
 - Supabase CLI backup/restore workflow: <https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore>
 - Supabase Storage S3 compatibility: <https://supabase.com/docs/guides/storage/s3/compatibility>
 - Supabase Storage S3 authentication: <https://supabase.com/docs/guides/storage/s3/authentication>
+- Supabase managed-to-S3 rclone guidance and signature troubleshooting: <https://supabase.com/docs/guides/self-hosting/copy-from-platform-s3>
+- Supabase Storage error codes: <https://supabase.com/docs/guides/storage/debugging/error-codes>
 - PostgreSQL 17 `pg_restore`: <https://www.postgresql.org/docs/17/app-pgrestore.html>
 
 ## Remaining owner gates

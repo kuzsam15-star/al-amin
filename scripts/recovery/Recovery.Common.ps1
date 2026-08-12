@@ -217,6 +217,142 @@ function Get-PathSafeHash {
   } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
 }
 
+function Get-ValidatedS3Connection {
+  param(
+    [Parameter(Mandatory)][string]$Endpoint,
+    [Parameter(Mandatory)][string]$Region,
+    [switch]$AllowLocal
+  )
+
+  $endpointValue = $Endpoint.Trim().TrimEnd('/')
+  $regionValue = $Region.Trim()
+  try { $uri = [Uri]$endpointValue } catch { throw 'The S3 endpoint is not a valid absolute URL.' }
+  if (-not $uri.IsAbsoluteUri -or $uri.UserInfo -or $uri.Query -or $uri.Fragment) {
+    throw 'The S3 endpoint must be an absolute credential-free URL without query or fragment.'
+  }
+  if ($uri.AbsolutePath -cne '/storage/v1/s3') {
+    throw 'The official Supabase S3 endpoint must end exactly with /storage/v1/s3.'
+  }
+
+  if ($AllowLocal) {
+    if ($uri.Scheme -notin @('http','https') -or $uri.Host -notin @('127.0.0.1','localhost','::1') -or $regionValue -cne 'local') {
+      throw 'Synthetic S3 signing is restricted to a loopback endpoint and region local.'
+    }
+  } else {
+    if ($uri.Scheme -cne 'https' -or -not $uri.IsDefaultPort -or $uri.Host -notmatch '^[a-z0-9]+(?:\.storage)?\.supabase\.co$') {
+      throw 'Only an official HTTPS Supabase project S3 endpoint is allowed.'
+    }
+    if ($regionValue -cnotmatch '^[a-z]{2}(?:-[a-z0-9]+)+-[0-9]+$') {
+      throw 'The S3 region must be the exact project region identifier shown by Supabase.'
+    }
+  }
+
+  return [pscustomobject]@{
+    Endpoint = $endpointValue
+    Region = $regionValue
+  }
+}
+
+function Invoke-ReadOnlyS3BucketExport {
+  param(
+    [Parameter(Mandatory)][string]$Endpoint,
+    [Parameter(Mandatory)][string]$Region,
+    [Parameter(Mandatory)][string]$AccessKeyId,
+    [Parameter(Mandatory)][Security.SecureString]$SecretAccessKey,
+    [Parameter(Mandatory)][string[]]$Buckets,
+    [Parameter(Mandatory)][string]$DestinationRoot,
+    [switch]$AllowLocal
+  )
+
+  $connection = Get-ValidatedS3Connection -Endpoint $Endpoint -Region $Region -AllowLocal:$AllowLocal
+  if ([string]::IsNullOrWhiteSpace($AccessKeyId) -or $AccessKeyId -match '[\r\n]') {
+    throw 'The temporary S3 access key ID is missing or malformed.'
+  }
+  Assert-OutsideRepository -Path $DestinationRoot
+
+  $controlled = [ordered]@{
+    RCLONE_CONFIG_SOURCE_TYPE = 's3'
+    RCLONE_CONFIG_SOURCE_PROVIDER = 'Other'
+    RCLONE_CONFIG_SOURCE_ENV_AUTH = 'false'
+    RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID = $AccessKeyId
+    RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY = $null
+    RCLONE_CONFIG_SOURCE_SESSION_TOKEN = $null
+    RCLONE_CONFIG_SOURCE_ENDPOINT = $connection.Endpoint
+    RCLONE_CONFIG_SOURCE_REGION = $connection.Region
+    RCLONE_CONFIG_SOURCE_FORCE_PATH_STYLE = 'true'
+    RCLONE_CONFIG_SOURCE_V2_AUTH = 'false'
+    RCLONE_CONFIG_SOURCE_USE_ACCELERATE_ENDPOINT = 'false'
+    RCLONE_S3_ACCESS_KEY_ID = $null
+    RCLONE_S3_SECRET_ACCESS_KEY = $null
+    RCLONE_S3_SESSION_TOKEN = $null
+    AWS_ACCESS_KEY_ID = $null
+    AWS_SECRET_ACCESS_KEY = $null
+    AWS_SESSION_TOKEN = $null
+    AWS_PROFILE = $null
+    AWS_SHARED_CREDENTIALS_FILE = $null
+    AWS_CONFIG_FILE = $null
+    AWS_EC2_METADATA_DISABLED = 'true'
+  }
+  $old = @{}
+  foreach ($name in $controlled.Keys) {
+    $old[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+  }
+
+  $plainSecret = $null
+  try {
+    $plainSecret = ConvertFrom-SecureStringTransient $SecretAccessKey
+    if ([string]::IsNullOrWhiteSpace($plainSecret) -or $plainSecret -match '[\r\n]') {
+      throw 'The temporary S3 secret access key is missing or malformed.'
+    }
+    $controlled.RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY = $plainSecret
+    foreach ($entry in $controlled.GetEnumerator()) {
+      [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
+    }
+    $plainSecret = $null
+
+    foreach ($bucket in $Buckets) {
+      if ($bucket -notmatch '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$') {
+        throw 'The Storage export bucket is outside the fixed safe-name contract.'
+      }
+
+      # This is a fail-fast SigV4/ListObjects probe. Output is suppressed so
+      # object paths cannot reach logs. It performs no source mutation.
+      $priorPreference = $ErrorActionPreference
+      $ErrorActionPreference = 'Continue'
+      try {
+        & $script:RclonePath lsf "source:$bucket" --max-depth 1 --config NUL --log-level ERROR 2>$null | Out-Null
+        $probeExit = $LASTEXITCODE
+      } finally {
+        $ErrorActionPreference = $priorPreference
+      }
+      if ($probeExit -ne 0) {
+        throw 'Supabase S3 read-only signing or bucket-list verification failed.'
+      }
+
+      $bucketOut = Join-Path $DestinationRoot $bucket
+      New-Item -ItemType Directory -Path $bucketOut -Force | Out-Null
+      $priorPreference = $ErrorActionPreference
+      $ErrorActionPreference = 'Continue'
+      try {
+        & $script:RclonePath copy "source:$bucket" $bucketOut --immutable --metadata --check-first --no-traverse --config NUL --log-level ERROR 2>$null | Out-Null
+        $copyExit = $LASTEXITCODE
+      } finally {
+        $ErrorActionPreference = $priorPreference
+      }
+      if ($copyExit -ne 0) {
+        throw 'Read-only Storage download failed for an approved bucket.'
+      }
+    }
+  } finally {
+    foreach ($name in $controlled.Keys) {
+      [Environment]::SetEnvironmentVariable($name, $old[$name], 'Process')
+    }
+    $controlled.RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY = $null
+    $plainSecret = $null
+    $connection = $null
+  }
+}
+
 function Assert-LocalDisposableTarget {
   param(
     [Parameter(Mandatory)][string]$ProjectId,

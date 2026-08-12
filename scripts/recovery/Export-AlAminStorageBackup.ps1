@@ -1,9 +1,11 @@
 param(
-  [Parameter(Mandatory)][ValidateSet('LocalApi','ProductionS3')][string]$SourceMode,
+  [Parameter(Mandatory)][ValidateSet('LocalApi','LocalS3','ProductionS3')][string]$SourceMode,
   [Parameter(Mandatory)][string]$OutputDirectory,
   [string]$LocalContainer,
   [string]$LocalProjectId,
-  [string]$LocalApiUrl
+  [string]$LocalApiUrl,
+  [string]$LocalS3AccessKeyId,
+  [string]$LocalS3Region = 'local'
 )
 
 . (Join-Path $PSScriptRoot 'Recovery.Common.ps1')
@@ -56,41 +58,30 @@ if ($SourceMode -eq 'LocalApi') {
   } finally {
     $headers.Clear(); $localKey = $null
   }
+} elseif ($SourceMode -eq 'LocalS3') {
+  Assert-LocalDisposableTarget -ProjectId $LocalProjectId -ApiUrl $LocalApiUrl -Container $LocalContainer
+  $localSecret = $env:ALAMIN_RECOVERY_LOCAL_S3_SECRET
+  if ([string]::IsNullOrWhiteSpace($localSecret)) { throw 'Disposable local S3 secret is absent from process memory.' }
+  $secureLocalSecret = ConvertTo-SecureString -String $localSecret -AsPlainText -Force
+  try {
+    Invoke-ReadOnlyS3BucketExport -Endpoint "$($LocalApiUrl.TrimEnd('/'))/storage/v1/s3" -Region $LocalS3Region -AccessKeyId $LocalS3AccessKeyId -SecretAccessKey $secureLocalSecret -Buckets $buckets -DestinationRoot $objectRoot -AllowLocal
+  } finally {
+    $secureLocalSecret.Dispose(); $secureLocalSecret = $null; $localSecret = $null
+  }
 } else {
   Write-Host 'Storage export permits LIST/HEAD/GET only. The temporary S3 secret remains in this process.'
   $endpoint = (Read-Host 'Supabase S3 endpoint (https://...)').Trim()
   $region = (Read-Host 'S3 region').Trim()
+  $connection = Get-ValidatedS3Connection -Endpoint $endpoint -Region $region
   $accessId = (Read-Host 'Temporary S3 access key ID').Trim()
   $secureSecret = Read-Host 'Temporary S3 secret access key (hidden)' -AsSecureString
-  $uri = [Uri]$endpoint
-  if ($uri.Scheme -ne 'https' -or $uri.Host -notmatch '(^|\.)supabase\.co$' -or $uri.Host -in @('localhost','127.0.0.1')) {
-    throw 'Only the official HTTPS Supabase S3 endpoint is allowed.'
-  }
   if ((Read-Host 'Type LIST GET ONLY to confirm source write/delete is forbidden') -cne 'LIST GET ONLY') {
     throw 'Storage read-only confirmation was not provided.'
   }
-  $old = @{}
-  $names = @('RCLONE_CONFIG_SOURCE_TYPE','RCLONE_CONFIG_SOURCE_PROVIDER','RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID','RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY','RCLONE_CONFIG_SOURCE_ENDPOINT','RCLONE_CONFIG_SOURCE_REGION','RCLONE_CONFIG_SOURCE_FORCE_PATH_STYLE')
-  foreach ($name in $names) { $old[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
   try {
-    $plainSecret = ConvertFrom-SecureStringTransient $secureSecret
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_TYPE','s3','Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_PROVIDER','Other','Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID',$accessId,'Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY',$plainSecret,'Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_ENDPOINT',$endpoint,'Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_REGION',$region,'Process')
-    [Environment]::SetEnvironmentVariable('RCLONE_CONFIG_SOURCE_FORCE_PATH_STYLE','true','Process')
-    $plainSecret = $null
-    foreach ($bucket in $buckets) {
-      $bucketOut = Join-Path $objectRoot $bucket
-      New-Item -ItemType Directory -Path $bucketOut -Force | Out-Null
-      & $script:RclonePath copy "source:$bucket" $bucketOut --immutable --metadata --check-first --no-traverse --log-level ERROR 2>$null
-      if ($LASTEXITCODE -ne 0) { throw "Read-only Storage download failed for an approved bucket." }
-    }
+    Invoke-ReadOnlyS3BucketExport -Endpoint $connection.Endpoint -Region $connection.Region -AccessKeyId $accessId -SecretAccessKey $secureSecret -Buckets $buckets -DestinationRoot $objectRoot
   } finally {
-    foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $old[$name], 'Process') }
-    $secureSecret.Dispose(); $plainSecret = $null; $accessId = $null
+    $secureSecret.Dispose(); $connection = $null; $accessId = $null
   }
 }
 
