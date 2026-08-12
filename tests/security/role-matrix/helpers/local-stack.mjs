@@ -49,6 +49,7 @@ function updateConfig(source, projectId, ports) {
     ['inbucket.port', String(ports.inbucket)],
     ['inbucket.smtp_port', String(ports.smtp)],
     ['inbucket.pop3_port', String(ports.pop3)],
+    ['local_smtp.port', String(ports.inbucket)],
     ['storage.enabled', 'true'],
     ['auth.enabled', 'true'],
     ['auth.mfa.totp.enroll_enabled', 'true'],
@@ -100,7 +101,17 @@ function assertLoopbackUrl(value, label) {
   }
 }
 
-export async function createLocalStack({ runNumber, repoRoot, supabaseBin, dockerBin, env, projectPrefix = 'alamin-role-matrix', forwardMigrationNames }) {
+export async function createLocalStack({
+  runNumber,
+  repoRoot,
+  supabaseBin,
+  dockerBin,
+  env,
+  projectPrefix = 'alamin-role-matrix',
+  forwardMigrationNames,
+  configTransform,
+  excludedServiceNames = excludedServices,
+}) {
   const random = randomUUID().slice(0, 8);
   const projectId = `${projectPrefix}-r${runNumber}-${random}`;
   const workdir = await mkdtemp(join(tmpdir(), `${projectId}-`));
@@ -121,7 +132,10 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
     await runCommand(supabaseBin, ['init', '--workdir', workdir], { cwd: workdir, env });
     const configPath = join(workdir, 'supabase', 'config.toml');
     const config = await readFile(configPath, 'utf8');
-    const updated = updateConfig(config, projectId, ports);
+    const baseConfig = updateConfig(config, projectId, ports);
+    const updated = configTransform
+      ? await configTransform(baseConfig, { projectId, ports })
+      : baseConfig;
     const forbiddenCredentialLine = updated.split(/\r?\n/u).some((line) => {
       const assignment = line.match(/^\s*([A-Za-z0-9_]*(?:project_ref|access_token|service_role|password)[A-Za-z0-9_]*)\s*=\s*["']([^"']*)["']/iu);
       if (!assignment) return false;
@@ -136,7 +150,7 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
 
     await runCommand(
       supabaseBin,
-      ['start', '--workdir', workdir, '--exclude', excludedServices.join(',')],
+      ['start', '--workdir', workdir, '--exclude', excludedServiceNames.join(',')],
       { cwd: workdir, env, timeoutMs: 1_200_000 },
     );
     started = true;
@@ -200,7 +214,7 @@ export async function createLocalStack({ runNumber, repoRoot, supabaseBin, docke
       apiUrl: statusEnv.API_URL,
       anonKey: statusEnv.ANON_KEY,
       serviceRoleKey: statusEnv.SERVICE_ROLE_KEY,
-      excludedServices,
+      excludedServices: excludedServiceNames,
       baselineVerified: true,
       forwardMigrations,
       started,

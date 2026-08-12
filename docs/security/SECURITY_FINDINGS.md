@@ -207,18 +207,18 @@
 - **Rollback/forward-fix:** policy/config PRs отдельно; сохранённый last-known-good signed artefact; no direct production deploy.
 - **Launch blocker:** yes. **Уверенность:** High относительно предоставленного каталога.
 
-### SEC-013 — Backup/restore не доказаны
+### SEC-013 — Backup/restore readiness
 
-- **Severity / status:** High; Partially mitigated — production-derived Level 2 restore proven; Level 3/config and recurring operations open.
+- **Severity / status:** High historical severity; `RECOVERY_READINESS_PROVEN` for the MVP recovery gate; recurring operational maturity remains open.
 - **Область:** availability, ransomware/operator error, DR.
 - **Объекты:** `SECURITY_OPERATIONS.md:23-29`; Supabase database, Storage objects, Auth/config/secrets.
-- **Доказательство — факт:** owner-approved encrypted database + Storage generation создана вне Git; RPO/RTO утверждены; два fresh isolated local restore совпали по 47 table counts, 5 Auth users и SHA-256 всех 36 Storage objects. Temporary S3 key удалён до encryption, plaintext и disposable resources очищены. Critical Dashboard/secret configuration не применена и не проверена в isolated project; automated cadence, retention generations, incident-time RTO и lost-key exercise ещё отсутствуют.
+- **Доказательство — факт:** owner-approved encrypted database + Storage generation создана вне Git; RPO/RTO утверждены; два fresh isolated local restore совпали по 47 table counts, 5 Auth users и SHA-256 всех 36 Storage objects. Temporary S3 key удалён до encryption, plaintext и disposable resources очищены. Manifest v2 классифицирует 67 configuration fields: 13 restorable, 48 exact manual re-entry, 6 not applicable, 0 critical unknowns; все 7 secret names имеют explicit source. Два независимых disposable Level 3 run и complete-project-loss walkthrough PASS без production/external-provider calls и без residual resources. Automated cadence, retention generations, measured incident-time RTO и lost-key exercise остаются maturity work.
 - **Сценарий:** ошибочная миграция, cleanup bug или compromise уничтожает rows/media; команда не может доказуемо восстановить согласованный snapshot.
 - **Ущерб / вероятность:** необратимая потеря PII/media и длительный outage; вероятность средняя, impact высокий.
 - **Исправление:** зашифрованные DB + Storage + config backups, раздельные credentials/off-site/immutability, RPO/RTO; автоматическая проверка; quarterly isolated restore с reconciliation и documented evidence.
 - **Тесты:** restore в isolated project, row/object/hash counts, Auth/config checklist, point-in-time objectives, lost-key exercise.
 - **Rollback/forward-fix:** backup changes additive; не удалять предыдущие copies до успешной проверки новой цепочки.
-- **Launch blocker:** yes до Level 3 config rehearsal и operational cadence/retention evidence. **Уверенность:** High; Level 2 подтверждён production-derived artifact и двумя совпавшими isolated restore, остаточный gap задокументирован.
+- **Launch blocker:** no для MVP recovery readiness; ongoing cadence/retention and resilience maturity remain required operations, not a claim of an ideal backup system. **Уверенность:** High; Level 2 and Level 3 each passed twice with matching evidence and zero critical unknowns.
 
 ### SEC-014 — Отсутствует Supabase SSR Proxy
 

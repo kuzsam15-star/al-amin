@@ -2,113 +2,92 @@
 
 ## 1. Evidence record
 
-- Production-derived export completed: 2026-08-12.
-- Two independent isolated local restores completed: 2026-08-13.
-- Source access: owner-approved database read and Storage `LIST`/`HEAD`/`GET` only.
+- Date completed: 2026-08-13.
+- Production source mode: read-only.
 - Production mutations: none.
-- Temporary S3 key: owner-confirmed deleted before encryption.
-- Credentials persisted: no.
-- Verdict: **PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS**.
+- Credentials persisted in Git or evidence: none.
+- Plaintext recovery residuals: zero.
+- Disposable Docker residuals: zero.
+- Verdict: **RECOVERY_LEVEL_3_PROVEN**.
 
-Level 2 proves recoverability of the database, Auth database state, and Storage
-object bytes. Level 3 is not claimed because the non-database Supabase project
-configuration still contains manual/secret re-entry items that were not applied
-and verified in an isolated project.
+## 2. Encrypted backup and Level 2 evidence
 
-## 2. Encrypted backup evidence
+The owner-operated workflow created one authenticated `age`-encrypted database
+and Storage archive outside the repository. Its passphrase remained owner-held.
+The temporary S3 key was deleted before encryption. Raw database rows, Auth
+records, Storage paths, object bytes, passwords, and keys are absent from Git.
 
-The owner-operated workflow created one age-encrypted recovery archive and one
-redacted report outside the repository. The final ciphertext size and SHA-256
-match the redacted report. The archive passphrase is owner-held and was never
-provided to Codex, Git, process arguments, environment variables, or reports.
+Two independent disposable local restore targets produced matching results:
 
-The plaintext export was removed after authenticated encryption. Final checks
-found zero protected recovery work directories and no persisted source
-credential. Raw database rows, Auth records, Storage paths, object bytes, and
-credentials are not present in Git evidence.
+| Domain | Result |
+| --- | --- |
+| Database | PASS x2; 47 table counts reconciled |
+| Auth database state | PASS x2; five users reconciled by count only |
+| Storage | PASS x2; 36 objects reconciled by SHA-256 |
+| Archive authentication | PASS |
+| Cleanup | PASS; zero residual resources |
 
-## 3. Database and Auth proof
+No production row or object was changed during export or proof.
 
-| Check | Restore 1 | Restore 2 |
-| --- | ---: | ---: |
-| Restored tables reconciled | 47 | 47 |
-| Auth users reconciled | 5 | 5 |
-| Per-table row counts | PASS | PASS |
-| Isolated target | disposable local | fresh disposable local |
-| Cleanup | PASS | PASS |
+## 3. Level 3 configuration evidence
 
-Both restores used PostgreSQL 17 tooling and fresh loopback-only Supabase
-targets. The source database was exported read-only; restore SQL ran only in the
-disposable local targets. No production row values were written to logs or
-documentation.
+`CONFIG_RECOVERY_MANIFEST.json` v2 records 67 unique configuration fields:
 
-## 4. Storage proof
+| Classification | Count |
+| --- | ---: |
+| `PROVEN_RESTORABLE` | 13 |
+| `PROVEN_MANUAL_REENTRY` | 48 |
+| `PROVEN_NOT_APPLICABLE` | 6 |
+| `UNKNOWN_BLOCKER` | 0 |
 
-| Check | Restore 1 | Restore 2 |
-| --- | ---: | ---: |
-| Restored objects reconciled | 36 | 36 |
-| Per-object content SHA-256 | PASS | PASS |
-| Source operations | `LIST`/`HEAD`/`GET` only | not contacted |
-| Target operations | disposable local restore | fresh disposable local restore |
-| Cleanup | PASS | PASS |
+Seven secrets are named `MUST_REENTER`; values are not stored. Every secret has
+an explicit source/custodian. Every manual field has an exact Dashboard or
+provider path, expected non-secret state, verification, and failure impact.
 
-The source export covered the fixed `avatars` and `profile-media` buckets.
-Object paths and bytes remain only inside the encrypted owner-held artifact;
-documentation contains aggregate counts only. The temporary S3 credential was
-deleted before encryption and was not reused for restore.
+Two independent disposable local runs used different project IDs and ports.
+Both reconstructed and verified PostgreSQL 17, required extensions, Auth,
+PostgREST/Data API, Storage, Kong, Realtime, local email delivery, exact bucket
+metadata, and current provider/session configuration equivalents. Synthetic
+secrets remained memory/environment-indirected. External OAuth and SMTP calls
+were zero. Each run cleaned its containers, networks, volumes, and workdir.
 
-## 5. Configuration proof
+The detailed record is `CONFIG_RECOVERY_REHEARSAL.md`.
 
-The redacted `CONFIG_RECOVERY_MANIFEST.json` was packaged and its format was
-validated in both restores. Database-backed policies and configuration restored
-with the database were exercised by healthy local Auth, PostgREST, Storage, and
-Kong services.
+## 4. Complete-project-loss decision
 
-Level 3 remains pending because Dashboard/project configuration that requires
-manual inspection or secret re-entry was not applied to an isolated cloud
-project. This includes provider/SMTP secret presence, redirect allowlists,
-session/MFA controls, Realtime settings, custom domains, network restrictions,
-compute/region choices, and API configuration.
+The documented walkthrough starts with only the owner-held encrypted archive,
+the canonical Git repository, the redacted manifest, and credentials retained by
+the owner or external providers. It covers replacement-project creation,
+database/Auth restore, Storage restore, secret re-entry, provider and redirect
+configuration, SMTP, Realtime, Data API, required extensions, deployment
+rewiring, reconciliation, and fail-closed cutover approval.
 
-## 6. Deterministic two-run result
+Walkthrough result: **PASS**. No replacement production project was created and
+no cutover was attempted during this proof.
 
-The two independent summaries matched on:
+## 5. RPO/RTO decision
 
-- 47 reconciled tables;
-- 5 Auth users;
-- 36 Storage objects;
-- every approved table row count;
-- every Storage object content hash;
-- config manifest format version;
-- pre-Phase-A SEC-001 recovery state;
-- successful project-specific cleanup.
+The process is compatible with the approved MVP targets:
 
-Final residual resources: zero containers, zero named recovery networks, zero
-named recovery volumes, and zero plaintext recovery work directories.
+- Database: RPO 24 hours, RTO 8 hours.
+- Storage: RPO 24 hours, RTO 12 hours.
+- Configuration: RPO every approved change, RTO 4 hours.
 
-## 7. RPO/RTO decision
+This is capability evidence, not proof that daily cadence or incident-time RTO
+is continuously achieved. Those remain ongoing operational controls.
 
-Viktor approved the RPO/RTO targets recorded in `RECOVERY_POLICY.md`. This proof
-validates the restore mechanism but does not establish an automated backup
-cadence or measure a production incident RTO. The current Free-plan/manual
-export process therefore does not by itself prove that every approved target is
-continuously met.
+## 6. Security decision and remaining work
 
-## 8. Remaining gap and next gate
+SEC-013 is `RECOVERY_READINESS_PROVEN`. Its High historical severity remains in
+the ledger, while its MVP launch-blocker role is removed because Level 2 remains
+valid, Level 3 passed twice, critical unknowns are zero, and secret/manual
+mappings are complete.
 
-The next recovery control is a configuration-only Level 3 rehearsal in an
-owner-approved isolated project or equivalent environment. It must apply all
-non-secret configuration, re-enter required secrets without exposing them, and
-verify Auth/provider/session/network behavior. It must not restore into or
-mutate production.
+The backup system is not declared ideal. Automated generation and retention,
+lost-key testing, managed PITR, measured incident RTO, and recurring independent
+exercises remain maturity work.
 
-Until that gate passes, the correct status is Level 2 rather than full project
-disaster recovery readiness.
-
-## 9. Invariants
-
-- Production was read only for the approved export and was never a restore target.
-- No production mutation, migration, Auth change, or Storage write/delete occurred.
-- No production credential or data was committed or printed in evidence.
-- Historical migrations and the verified pre-hardening baseline were unchanged.
-- The encrypted owner-held artifact remains outside the repository.
+For SEC-001, the recovery prerequisite is now satisfied. Production deployment
+remains unauthorized because the exact release wrapper, target identity and
+checkpoint controls, production migration/source mechanism, backfill controls,
+monitoring window, and human release approvals remain incomplete.

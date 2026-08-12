@@ -105,6 +105,13 @@ Use `CONFIG_RECOVERY_MANIFEST.json` as the redacted checklist. Apply non-secret
 values to the isolated target and manually re-enter secrets from the owner's
 secret manager. Never copy secret values into the manifest.
 
+Manifest v2 contains 67 fields: 13 locally restorable, 48 exact manual re-entry
+items, six proven not applicable, and zero critical unknowns. Seven secret names
+are `MUST_REENTER`; their values remain with the owner, external provider,
+replacement-project Dashboard, or deployment secret store. Follow
+`CONFIG_RECOVERY_REHEARSAL.md` for the verified command, expected evidence, and
+complete-project-loss sequence.
+
 Required manual checks include Auth providers, email confirmation, redirect URL
 allowlist, MFA/session controls, SMTP/provider secret presence, Storage bucket
 configuration, Realtime settings, extensions, region/compute, custom domains,
@@ -122,7 +129,10 @@ network restrictions, and API settings. Unknown values block a Level 3 result.
 | Credentials/config loss | Secret manager plus redacted config manifest | New isolated project | Config RPO/RTO | Rotate/re-enter secrets; apply reviewed non-secret settings | Manifest has no unknown field; provider smoke checks | Secret unavailable or redirect/network setting unknown |
 | Complete project loss | DB artifact + Storage artifact + config manifest | New isolated project | Maximum of all RTOs | Restore DB, Storage, then config; verify before DNS/caller cutover | Level 3 reconciliation | Any domain is below Level 3 |
 
-These are reviewed procedures, not executed disaster tests in this stage.
+The complete-project-loss configuration sequence and all local-equivalent
+checks were executed twice with synthetic values. Cloud project creation,
+external provider calls, DNS cutover, and production restore remain manual,
+owner-approved incident actions and were not executed.
 
 ## 7. SEC-001 partial-deployment recovery
 
@@ -160,8 +170,10 @@ Each rehearsal uses a fresh isolated target:
 Two independent Level 2 rehearsals of the production-derived encrypted artifact
 completed on 2026-08-13. Both reconciled 47 tables, 5 Auth users, and 36 Storage
 objects with matching row counts and content hashes, then removed all disposable
-resources. A Level 3 configuration rehearsal remains pending and must use an
-owner-approved isolated project or equivalent target.
+resources. Two additional independent Level 3 configuration rehearsals used
+different disposable project IDs and ports. They matched on all 67 manifest
+fields, seven secret mappings, 48 manual checklists, local service/configuration
+checks, complete-project-loss walkthrough, and zero residual resources.
 
 ## 9. Cleanup
 

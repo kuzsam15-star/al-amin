@@ -1,10 +1,10 @@
 # SEC-001 Production Readiness
 
-Date: 2026-08-11
+Date: 2026-08-13
 
 Starting commit: `d498bbbb5a2d3cc7c675add9cb68c424b8406387`
 
-Verdict: `BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`
+Verdict: `BLOCKED_BY_RELEASE_OPERATIONS`
 
 No production or remote Supabase action was performed. This gate evaluates
 operational readiness only; it does not change the locally verified SEC-001
@@ -13,19 +13,17 @@ implementation and does not close the live finding.
 ## 1. Decision
 
 The SEC-001 implementation remains independently verified locally, but it is
-not ready for production execution. Four mandatory gates lack evidence:
+not ready for production execution. The recovery prerequisite is now proven;
+three release-operation groups still lack evidence:
 
-1. **Recovery:** SEC-013 remains open. There is no dated isolated restore of
-   database, Storage objects, and critical configuration, no accepted RPO/RTO,
-   and no Storage byte/hash reconciliation.
-2. **Migration provenance:** the two reviewed files are in the separate
+1. **Migration provenance:** the two reviewed files are in the separate
    forward track, but no exact production mechanism is approved that both
    applies their bytes and records their immutable versions without
    reinterpreting the 18 archived migrations.
-3. **Source release provenance:** the repository has no CI/hosting manifest,
+2. **Source release provenance:** the repository has no CI/hosting manifest,
    Git remote, signed release artifact, exact production deploy command, or
    frozen Phase-A-compatible rollback build.
-4. **Backfill operations:** the dry-run-first core is locally verified, but no
+3. **Backfill operations:** the dry-run-first core is locally verified, but no
    production owner wrapper, short-lived identity, durable redacted
    checkpoint, rate/monitor integration, or exact production invocation is
    approved.
@@ -90,10 +88,12 @@ isolated restore must succeed.
 
 ### Current status
 
-`BLOCKED`. The repository explicitly records OP-09 as `NOT RUN`, Storage
-restore as unproved, and SEC-013 as an open High launch blocker. No external
-recovery artifact was provided, and this stage was forbidden from accessing or
-creating one.
+`READY`. Production-derived database/Auth/Storage recovery passed twice: 47
+tables, five Auth users, and 36 Storage object hashes reconciled. Configuration
+Level 3 passed twice with 67 classified fields, seven complete secret-source
+mappings, 48 exact manual checklists, zero critical unknowns, and a successful
+complete-project-loss walkthrough. RPO/RTO are approved. SEC-013 is
+`RECOVERY_READINESS_PROVEN`; the release-operation gates below remain blocked.
 
 ## 5. Artifact freeze
 
@@ -139,7 +139,7 @@ deletes canonical/legacy media, or rewrites applied migrations.
 | No untracked production-only path family exists | Git and known flow only | Medium/unknown | path-family aggregate classifier; unknown family stops |
 | Current deployed app is compatible with Phase A | no hosting/release artifact | Unknown | identify deployed build and compare exact contract |
 | Forward versions can be recorded safely | no production runner/history plan | Unknown | owner-approved migration-history/release rehearsal |
-| Recovery meets the change window | no restore report | Unknown | pass Section 4 before Phase A |
+| Recovery meets the change window | Level 2 DB/Auth/Storage PASS x2; Level 3 config PASS x2; approved RPO/RTO | High for capability | verify a fresh pre-change generation/checkpoint before Phase A |
 
 No assumption that depends on production rows/media was tested here.
 
@@ -248,9 +248,9 @@ Status meanings: `READY` is locally or externally evidenced;
 | PRE-FLIGHT — project identity | two-person correct-project confirmation | `NOT_YET_PROVEN` | ambiguity | Human owner |
 | PRE-FLIGHT — catalog drift | same-day metadata compatibility | `NOT_YET_PROVEN` | incompatible/unknown drift | DB owner + reviewer |
 | PRE-FLIGHT — roles/window | named owners, stop authority, window | `BLOCKED` | missing owner/window | Change owner |
-| RECOVERY — database | dated isolated restore and RPO/RTO | `BLOCKED` | absent/failed restore | Operations/DB owner |
-| RECOVERY — Storage | independent object restore/hash proof | `BLOCKED` | absent/failed restore | Storage owner |
-| RECOVERY — config | tested redacted reconstruction checklist | `BLOCKED` | incomplete config recovery | Platform owner |
+| RECOVERY — database | dated isolated restore and RPO/RTO | `READY` | stale/failed pre-change checkpoint | Operations/DB owner |
+| RECOVERY — Storage | independent object restore/hash proof | `READY` | stale/failed pre-change checkpoint | Storage owner |
+| RECOVERY — config | tested redacted reconstruction checklist | `READY` | manifest drift or critical unknown | Platform owner |
 | PHASE A — artifact | exact frozen migration bytes | `READY` local | hash mismatch | DB owner |
 | PHASE A — runner | exact audited version-recording production mechanism | `BLOCKED` | unknown/bypassed history | DB owner |
 | SOURCE DEPLOY — artifact | signed build tied to commit | `BLOCKED` | unknown build/provenance | Release owner |
@@ -295,7 +295,8 @@ lines. Expected rehearsal output is
 
 No production mutation command is safe to release yet. The exact migration
 runner/history recording, signed hosting artifact/command, backfill wrapper,
-credential mechanism, and recovery evidence are absent. Guessing `db push`, a
+credential mechanism, target/checkpoint identity, and monitoring window are
+absent. Guessing `db push`, a
 Dashboard paste, raw `psql`, or a Vercel command would violate provenance and
 could target the wrong state. Future commands must be labeled `SAFE READ` or
 `MUTATION`, contain no secret literal, state expected output and stop
@@ -313,16 +314,18 @@ Project-specific cleanup left `0` matching containers, `0` volumes, `0`
 networks, and `0` temporary paths. The first shell capture timed out after five
 seconds while its child runner continued; that runner exited and cleaned its
 project before the captured verification run began. No overlapping runner or
-residual resource was used. This local PASS cannot satisfy the missing
-production recovery/release gates.
+residual resource was used. This local PASS does not satisfy the remaining
+production release-operation gates.
 
 ## 17. Release implication
 
 SEC-001 remains
 `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`, but the
-production readiness decision is `BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`.
+production readiness decision is `BLOCKED_BY_RELEASE_OPERATIONS`.
 It must not be renamed `FIXED_LIVE`, `CLOSED`, or
 `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`.
 
-The next safe work must first produce isolated database plus Storage/config
-recovery evidence; production deployment remains unauthorized.
+The recovery prerequisite is satisfied. The next safe work is P0-12: freeze and
+prove the exact release wrapper, project/checkpoint identity, version-recording
+migration mechanism, deployment artifact/rollback, backfill controls, and
+monitoring window. Production deployment remains unauthorized.

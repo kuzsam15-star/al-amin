@@ -87,11 +87,10 @@
   два final role-matrix run: 73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
   Статус: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`;
   production по-прежнему не изменён.
-- **P0-03C readiness status (2026-08-11):**
-  `BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`. Локальные bytes заморожены и
-  deployment order/compatibility/stop/forward-fix gates сформированы, но
-  отсутствуют датированный isolated DB+Storage/config restore proof, точный
-  version-recording production migration runner, signed source release
+- **P0-03C readiness status (2026-08-13):**
+  `BLOCKED_BY_RELEASE_OPERATIONS`. Локальные bytes заморожены, recovery Level 3
+  доказан, deployment order/compatibility/stop/forward-fix gates сформированы,
+  но отсутствуют точный version-recording production migration runner, signed source release
   artifact/command, production backfill wrapper и active monitoring window.
   Production execution не разрешён.
 
@@ -175,11 +174,15 @@
 - **Доказательство выхода:** датированный restore report с row/object/hash reconciliation, временем, RPO/RTO и найденными gaps; quarterly schedule.
 - **Rollback/forward-fix:** новые backups additive; старую цепочку не удалять до двух успешных restore cycles.
 - **Зависимости:** P0-01/02; никаких restore в production.
-- **Статус (2026-08-13):** Production-derived Recovery Level 2 PASS. RPO/RTO
-  approved; encrypted DB+Storage artifact создан вне Git; два fresh isolated
-  local restore совпали по 47 tables, 5 Auth users и 36 Storage hashes; cleanup
-  PASS с zero residual resources. SEC-013 остаётся High launch blocker до Level
-  3 configuration rehearsal, recurring cadence/retention и remaining fault drills.
+- **Статус (2026-08-13):** `RECOVERY_LEVEL_3_PROVEN`. RPO/RTO approved;
+  encrypted DB+Storage artifact создан вне Git; два fresh isolated Level 2
+  restore совпали по 47 tables, 5 Auth users и 36 Storage hashes. Manifest v2
+  содержит 67 classified fields, 7 complete secret sources, 48 exact manual
+  checklists и 0 critical unknowns; два independent configuration rehearsal и
+  complete-project-loss walkthrough PASS. Cleanup каждого run оставил 0
+  resources. SEC-013 recovery-readiness blocker снят; cadence/retention,
+  measured incident RTO, managed PITR decision и lost-key drill остаются
+  operational maturity work.
 
 ### P0-12 — Минимальный detection/response baseline
 
@@ -246,10 +249,11 @@
 
 ## 8. Следующий один безопасный этап
 
-**Выполнить только P0-11B — configuration-only Level 3 recovery rehearsal.**
+**Выполнить только P0-12 — SEC-001 production release wrapper/checkpoint/identity readiness.**
 
-P0-11A завершил owner-approved read-only export и два matching Level 2 restore
-без передачи credentials Codex и без production mutation. P0-11B должен в
-owner-approved isolated project применить/проверить non-secret configuration,
-выполнить secret re-entry только владельцем и доказать Auth/provider/session/
-network behavior. До этого SEC-013 и P0-03C recovery gate остаются открыты.
+P0-11A завершил owner-approved read-only export и два matching Level 2 restore;
+P0-11B доказал configuration Level 3 двумя matching disposable runs без
+production mutation. SEC-013 имеет статус `RECOVERY_READINESS_PROVEN`, а
+recovery часть P0-03C закрыта. P0-12 должен доказать только remaining
+release-operations boundary; SEC-001 production deployment на этом этапе не
+выполняется.

@@ -105,7 +105,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала совместимый server writer и canary, затем revoke broad path; rollback отключает новый writer/переключение, но не возвращает broad Storage DML.
 - **Risk of fixing:** Высокий — неверный rollout может остановить upload, оставить orphan objects или снова открыть overwrite.
 - **Dependencies:** P0-01 controls, P0-02 reproducible DB baseline, disposable Storage fixtures, publication transaction, restore evidence.
-- **Status:** `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; P0-03C production gate is `BLOCKED_BY_RECOVERY_AND_RELEASE_OPERATIONS`. Adversarial review, two deployment rehearsals, and two final role-matrix runs PASS, but no dated DB+Storage/config restore proof, approved production migration/source runner, production backfill wrapper, or monitoring window exists. Live risk remains until those gates, approved deployment, existing-media backfill, Phase B enforcement, and post-deployment verification complete.
+- **Status:** `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; P0-03C production gate is `BLOCKED_BY_RELEASE_OPERATIONS`. Adversarial review, two deployment rehearsals, two final role-matrix runs, two production-derived Level 2 restores, and two configuration Level 3 rehearsals PASS. Recovery is proven, but no approved production migration/source runner, frozen target/checkpoint identity, production backfill wrapper, or monitoring window exists. Live risk remains until those gates, approved deployment, existing-media backfill, Phase B enforcement, and post-deployment verification complete.
 
 ### SEC-002 — Owner column exposure
 
@@ -297,10 +297,10 @@ SEC-016 остаётся частью ранней database-baseline работ�
 ### SEC-013 — Backup/restore evidence gap
 
 - **ID:** SEC-013
-- **Название:** DB+Storage backup/restore не доказаны.
-- **Severity:** High; launch blocker.
+- **Название:** DB+Storage+configuration recovery readiness.
+- **Severity:** High historical severity; MVP recovery launch gate proven.
 - **Affected components:** Database, Storage, Auth/config inventory, RPO/RTO и disaster recovery.
-- **Current evidence:** Production-derived encrypted DB+Storage generation создана вне Git и дважды восстановлена в fresh isolated local Supabase targets: 47 table counts, 5 Auth users и 36 Storage object hashes совпали; cleanup оставил 0 ресурсов. Level 3 configuration application, recurring cadence/retention, incident-time RTO и lost-key exercise остаются открыты.
+- **Current evidence:** Production-derived encrypted DB+Storage generation создана вне Git и дважды восстановлена в fresh isolated local Supabase targets: 47 table counts, 5 Auth users и 36 Storage object hashes совпали. Configuration manifest v2 содержит 67 полей (13 restorable, 48 manual, 6 not applicable, 0 critical unknowns), 7 complete secret-source mappings; два independent Level 3 local run и complete-project-loss walkthrough PASS; cleanup оставил 0 ресурсов. Recurring cadence/retention, measured incident-time RTO и lost-key exercise остаются maturity work.
 - **Threat:** Destructive bug/operator compromise уничтожает rows/media без coherent recovery.
 - **Expected secure behavior:** Encrypted separated DB+Storage+critical-config backup, immutable retention и регулярный isolated restore с reconciliation.
 - **Files likely affected:** Operations runbooks/config/evidence records, `docs/security/SECURITY_OPERATIONS.md` при его создании на отдельном этапе.
@@ -309,10 +309,10 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Backup changes additive; старые copies сохраняются до многократной проверки новой chain; restore только в isolated target.
 - **Risk of fixing:** Средний — retention/custody mistake может уничтожить единственную рабочую copy.
 - **Dependencies:** P0-01/P0-02, isolated restore project, admin backup access, approved RPO/RTO и secret custody.
-- **Status:** Partially mitigated — `PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS`.
-  Database/Auth/Storage recovery is proven twice against the owner-approved
-  encrypted artifact; Level 3 project configuration and recurring operational
-  controls remain open. Severity and launch-blocker status are unchanged.
+- **Status:** `RECOVERY_READINESS_PROVEN`. Database/Auth/Storage Level 2 and
+  configuration Level 3 are each proven twice. The SEC-013 MVP recovery blocker
+  is removed without lowering historical severity or claiming continuous backup
+  cadence, managed PITR, lost-key resilience, or achieved incident-time RTO.
 
 ### SEC-014 — Supabase SSR Proxy/session lifecycle
 
@@ -564,7 +564,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - SEC-014 имеет широкий session/cookie blast radius, а причинность исторических reuse events пока не доказана.
 - SEC-007/SEC-008 требуют утверждённых invariants/state machine и transactional design.
 
-P0-03A выполнил этот vertical slice локально, а P0-03B независимо проверил stale-review, Phase B provenance, backfill и failure sequencing. Evidence находится в `docs/security/SEC-001_LOCAL_VERIFICATION.md`, `SEC-001_ADVERSARIAL_REVIEW.md` и `SEC-001_DEPLOYMENT_REHEARSAL.md`. P0-03C сформировал operational gate, но заблокировал production execution до доказанного DB+Storage/config recovery, versioned migration/source release mechanism, owner-operated backfill wrapper и monitoring window. Это не production closure: controlled deployment, live legacy-media backfill и Phase B остаются обязательными.
+P0-03A выполнил этот vertical slice локально, а P0-03B независимо проверил stale-review, Phase B provenance, backfill и failure sequencing. Evidence находится в `docs/security/SEC-001_LOCAL_VERIFICATION.md`, `SEC-001_ADVERSARIAL_REVIEW.md` и `SEC-001_DEPLOYMENT_REHEARSAL.md`. P0-03C сформировал operational gate. DB+Storage/config recovery теперь доказан; production execution остаётся заблокирован до versioned migration/source release mechanism, frozen project/checkpoint identity, owner-operated backfill wrapper и monitoring window. Это не production closure: controlled deployment, live legacy-media backfill и Phase B остаются обязательными.
 
 ## 5. Security change template
 

@@ -99,3 +99,18 @@ objects before the encrypted restore proof. For the preflight only:
 ```text
 powershell.exe -NoProfile -File scripts/recovery/Invoke-AlAminRecoveryProof.ps1 -Mode SyntheticPreflight
 ```
+
+## Configuration-only Level 3 rehearsal
+
+The non-secret project-configuration layer is rehearsed independently with:
+
+```text
+node scripts/recovery/config-recovery-rehearsal.mjs
+```
+
+The runner is fail-closed and local-only. It validates the redacted 67-field
+manifest, starts two independent disposable Supabase projects with synthetic
+secret values, verifies PostgreSQL 17, Auth, PostgREST, Storage, Kong, Realtime,
+local SMTP delivery, buckets, and required extensions, then performs exact
+project-specific cleanup. It never logs secret values, contacts external OAuth
+or SMTP providers, links a Supabase project, or reads production.
