@@ -5,6 +5,8 @@ param(
   [string]$PreparedDatabasePort = '5432',
   [string]$PreparedDatabaseName = 'postgres',
   [string]$PreparedDatabaseUser,
+  [string]$PreparedS3Endpoint,
+  [string]$PreparedS3Region,
   [switch]$OwnerProductionReadApproved
 )
 
@@ -28,8 +30,8 @@ try {
   Write-Host 'Credentials remain in local hidden prompts and are not written to Git or reports.'
   Write-Host ''
   if ($Mode -eq 'PreparedProductionExport') {
-    if (-not $OwnerProductionReadApproved -or -not $PreparedBackupDirectory -or -not $PreparedDatabaseHost -or -not $PreparedDatabaseUser) {
-      throw 'Prepared production export requires approved non-secret connection metadata.'
+    if (-not $OwnerProductionReadApproved -or -not $PreparedBackupDirectory -or -not $PreparedDatabaseHost -or -not $PreparedDatabaseUser -or -not $PreparedS3Endpoint -or -not $PreparedS3Region) {
+      throw 'Prepared production export requires approved non-secret database and Storage connection metadata.'
     }
     $choice = '1'
   } else {
@@ -79,7 +81,11 @@ try {
     } else {
       & (Join-Path $PSScriptRoot 'Export-AlAminDatabaseBackup.ps1') -SourceMode Production -OutputDirectory $database
     }
-    & (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -SourceMode ProductionS3 -OutputDirectory $storage
+    if ($Mode -eq 'PreparedProductionExport') {
+      & (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -SourceMode ProductionS3 -OutputDirectory $storage -ProductionS3Endpoint $PreparedS3Endpoint -ProductionS3Region $PreparedS3Region -ProductionReadOnlyApproved
+    } else {
+      & (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -SourceMode ProductionS3 -OutputDirectory $storage
+    }
     Copy-Item -LiteralPath (Join-Path $repo 'docs\security\recovery\CONFIG_RECOVERY_MANIFEST.json') -Destination $config
     $zip = Join-Path $work 'payload.zip'
     Compress-Archive -LiteralPath $database,$storage,$config -DestinationPath $zip -CompressionLevel Optimal

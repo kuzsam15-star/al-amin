@@ -101,6 +101,9 @@ The corrected boundary now:
 - pins the S3 ListObjects API to V2 for both the fail-fast probe and copy,
   following current Supabase troubleshooting guidance for rclone; this removes
   the remaining managed/local divergence caused by rclone's default V1 list;
+- permits the prepared owner workflow to receive only prevalidated non-secret
+  S3 endpoint/region as launch metadata, avoiding terminal paste ambiguity;
+  access-key ID and secret remain interactive and are never process arguments;
 - performs a silent read-only `ListObjects` probe for each fixed bucket before
   download, and returns only a redacted failure classification;
 - keeps the only production operations as list/download.

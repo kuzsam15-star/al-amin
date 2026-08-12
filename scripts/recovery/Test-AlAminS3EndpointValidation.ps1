@@ -24,4 +24,14 @@ if (($commonSource | Select-String -Pattern '--s3-list-version 2' -AllMatches).M
     $commonSource -notmatch "RCLONE_CONFIG_SOURCE_LIST_VERSION = '2'") {
   throw 'Supabase S3 ListObjects V2 pin regression failed.'
 }
+
+$entrySource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Invoke-AlAminRecoveryProof.ps1') -Raw
+$exportSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -Raw
+if ($entrySource -notmatch '\[string\]\$PreparedS3Endpoint' -or
+    $entrySource -notmatch '\[string\]\$PreparedS3Region' -or
+    $entrySource -notmatch '-ProductionS3Endpoint \$PreparedS3Endpoint -ProductionS3Region \$PreparedS3Region -ProductionReadOnlyApproved' -or
+    $exportSource -notmatch '\[switch\]\$ProductionReadOnlyApproved' -or
+    $exportSource -notmatch 'Get-ValidatedS3Connection -Endpoint \$endpoint -Region \$region') {
+  throw 'Prepared non-secret S3 metadata wiring regression failed.'
+}
 $checks | ConvertTo-Json -Compress

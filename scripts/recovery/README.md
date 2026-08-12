@@ -11,10 +11,11 @@ Run `START_RECOVERY_PROOF.bat`. The launcher checks the clean
 safety boundary before presenting three plain-language choices.
 
 The security workstream may launch `PreparedProductionExport` after owner
-approval using only Dashboard-verified, non-secret host/port/database/user and
-an existing external destination. This mode skips technical metadata prompts
-but never accepts a database password as an argument: the password still uses
-the same hidden owner-only prompt and isolated `0600` pgpass boundary.
+approval using only Dashboard-verified, non-secret database host/port/name/user,
+S3 endpoint/region, and an existing external destination. This mode skips
+technical metadata prompts but never accepts a database password, S3 access
+key, or S3 secret as an argument: credentials still use owner-only prompts and
+the database password keeps the isolated `0600` pgpass boundary.
 
 Production export remains owner-gated. Never paste a database password, S3 key,
 archive passphrase, URL containing credentials, or token into chat. Enter them

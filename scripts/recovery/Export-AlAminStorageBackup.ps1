@@ -5,7 +5,10 @@ param(
   [string]$LocalProjectId,
   [string]$LocalApiUrl,
   [string]$LocalS3AccessKeyId,
-  [string]$LocalS3Region = 'local'
+  [string]$LocalS3Region = 'local',
+  [string]$ProductionS3Endpoint,
+  [string]$ProductionS3Region,
+  [switch]$ProductionReadOnlyApproved
 )
 
 . (Join-Path $PSScriptRoot 'Recovery.Common.ps1')
@@ -70,12 +73,20 @@ if ($SourceMode -eq 'LocalApi') {
   }
 } else {
   Write-Host 'Storage export permits LIST/HEAD/GET only. The temporary S3 secret remains in this process.'
-  $endpoint = (Read-Host 'Supabase S3 endpoint (https://...)').Trim()
-  $region = (Read-Host 'S3 region').Trim()
+  if ($ProductionReadOnlyApproved) {
+    if ([string]::IsNullOrWhiteSpace($ProductionS3Endpoint) -or [string]::IsNullOrWhiteSpace($ProductionS3Region)) {
+      throw 'Prepared Storage export requires approved non-secret endpoint and region.'
+    }
+    $endpoint = $ProductionS3Endpoint.Trim()
+    $region = $ProductionS3Region.Trim()
+  } else {
+    $endpoint = (Read-Host 'Supabase S3 endpoint (https://...)').Trim()
+    $region = (Read-Host 'S3 region').Trim()
+  }
   $connection = Get-ValidatedS3Connection -Endpoint $endpoint -Region $region
   $accessId = (Read-Host 'Temporary S3 access key ID').Trim()
   $secureSecret = Read-Host 'Temporary S3 secret access key (hidden)' -AsSecureString
-  if ((Read-Host 'Type LIST GET ONLY to confirm source write/delete is forbidden') -cne 'LIST GET ONLY') {
+  if (-not $ProductionReadOnlyApproved -and (Read-Host 'Type LIST GET ONLY to confirm source write/delete is forbidden') -cne 'LIST GET ONLY') {
     throw 'Storage read-only confirmation was not provided.'
   }
   try {
