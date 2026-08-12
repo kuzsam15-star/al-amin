@@ -17,7 +17,8 @@ not been approved.
 
 1. Confirm an incident-free maintenance window and name the recovery operator
    and independent verifier.
-2. Approve the proposed RPO/RTO in `RECOVERY_POLICY.md`.
+2. Confirm that the approved RPO/RTO in `RECOVERY_POLICY.md` still fit the
+   incident and generation being created.
 3. Choose one database source:
    - an eligible Supabase recovery point and owner-approved Restore to a New
      Project; or
@@ -28,8 +29,10 @@ not been approved.
 7. Create an evidence directory outside the repository. Raw dumps, object paths,
    credentials, and object bytes must never be copied into Git.
 
-Current stop condition: the toolkit and synthetic preflight are complete, but
-Owner Gate 1 has not authorized reading production rows or Storage bytes.
+Owner Gates 1 and 2 were completed for the dated 2026-08-12 export: the owner
+authorized read-only access and approved RPO/RTO, then confirmed deletion of the
+temporary S3 key before encryption. Any future generation requires fresh owner
+authorization and a new temporary credential.
 
 ## 3. Database recovery
 
@@ -57,10 +60,11 @@ temporary libpq service/password file, never a credential-bearing argument. It:
 7. restores only into a prefix-validated loopback disposable target;
 8. keeps credentials, row contents, and object paths out of logs.
 
-Pinned age/rclone tools live outside Git. The complete workflow passed a
-synthetic local source/export/encrypt/destroy/restore/reconcile/cleanup test.
-Production execution remains blocked until Owner Gate 1; the operator never
-shares connection data or keys with Codex.
+Pinned age/rclone tools live outside Git. The complete workflow passed both a
+synthetic local source/export/encrypt/destroy/restore/reconcile/cleanup test and
+the dated owner-approved production-derived read-only export with two matching
+isolated restores. Each future production generation still requires a fresh
+Owner Gate 1; the operator never shares connection data or keys with Codex.
 
 ### 3.3 Database reconciliation
 
@@ -153,9 +157,11 @@ Each rehearsal uses a fresh isolated target:
 8. record duration, achieved RPO/RTO, discrepancies, and cleanup;
 9. destroy only the isolated target after owner approval.
 
-Two independent matching rehearsals are required. Rehearsal 1 and Rehearsal 2
-are currently **NOT RUN** because no approved production-derived artifacts or
-isolated target exist.
+Two independent Level 2 rehearsals of the production-derived encrypted artifact
+completed on 2026-08-13. Both reconciled 47 tables, 5 Auth users, and 36 Storage
+objects with matching row counts and content hashes, then removed all disposable
+resources. A Level 3 configuration rehearsal remains pending and must use an
+owner-approved isolated project or equivalent target.
 
 ## 9. Cleanup
 

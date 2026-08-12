@@ -34,7 +34,7 @@
 | SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | Open — confirmed control gap | yes |
 | SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | Open — partly live confirmed | yes |
 | SEC-012 | High | Нет проверяемого Git/CI/release provenance | Open — evidence gap | yes |
-| SEC-013 | High | Backup/restore не доказаны | Open — evidence gap | yes |
+| SEC-013 | High | Backup/restore не доказаны | Partially mitigated — Level 2 proven; config/cadence open | yes |
 | SEC-014 | High | Отсутствует Supabase SSR Proxy; причина старых reuse events гипотетична | Open — config confirmed | yes |
 | SEC-015 | Medium | Четыре SECURITY DEFINER public views | Open — confirmed live | yes |
 | SEC-016 | Medium | Избыточные grants/default ACL/RPC EXECUTE/search_path | Open — confirmed live | yes |
@@ -209,16 +209,16 @@
 
 ### SEC-013 — Backup/restore не доказаны
 
-- **Severity / status:** High; Open — evidence gap.
+- **Severity / status:** High; Partially mitigated — production-derived Level 2 restore proven; Level 3/config and recurring operations open.
 - **Область:** availability, ransomware/operator error, DR.
 - **Объекты:** `SECURITY_OPERATIONS.md:23-29`; Supabase database, Storage objects, Auth/config/secrets.
-- **Доказательство — факт:** есть только требования к backup, но нет job/config, off-site copy, RPO/RTO, restore result или Storage-copy evidence. Database backup не восстанавливает содержимое Storage автоматически.
+- **Доказательство — факт:** owner-approved encrypted database + Storage generation создана вне Git; RPO/RTO утверждены; два fresh isolated local restore совпали по 47 table counts, 5 Auth users и SHA-256 всех 36 Storage objects. Temporary S3 key удалён до encryption, plaintext и disposable resources очищены. Critical Dashboard/secret configuration не применена и не проверена в isolated project; automated cadence, retention generations, incident-time RTO и lost-key exercise ещё отсутствуют.
 - **Сценарий:** ошибочная миграция, cleanup bug или compromise уничтожает rows/media; команда не может доказуемо восстановить согласованный snapshot.
 - **Ущерб / вероятность:** необратимая потеря PII/media и длительный outage; вероятность средняя, impact высокий.
 - **Исправление:** зашифрованные DB + Storage + config backups, раздельные credentials/off-site/immutability, RPO/RTO; автоматическая проверка; quarterly isolated restore с reconciliation и documented evidence.
 - **Тесты:** restore в isolated project, row/object/hash counts, Auth/config checklist, point-in-time objectives, lost-key exercise.
 - **Rollback/forward-fix:** backup changes additive; не удалять предыдущие copies до успешной проверки новой цепочки.
-- **Launch blocker:** yes до реальных данных. **Уверенность:** High для отсутствия repo evidence; внешние controls могут существовать, но не представлены.
+- **Launch blocker:** yes до Level 3 config rehearsal и operational cadence/retention evidence. **Уверенность:** High; Level 2 подтверждён production-derived artifact и двумя совпавшими isolated restore, остаточный gap задокументирован.
 
 ### SEC-014 — Отсутствует Supabase SSR Proxy
 

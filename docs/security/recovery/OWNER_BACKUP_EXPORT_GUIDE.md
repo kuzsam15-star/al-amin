@@ -2,15 +2,15 @@
 
 ## Current gate
 
-Owner Gate 1 and the provisional RPO/RTO were approved. The recovery toolkit is
-locally verified, including two full Supabase S3 SigV4 list/download regressions.
-Production export remains owner-operated and read-only.
+The first owner-approved production-derived export and two isolated restores
+completed successfully on 2026-08-12/13. RPO/RTO targets are owner-approved.
+Future generations remain owner-operated and read-only and require fresh Owner
+Gate 1 authorization plus a new temporary S3 key.
 
-The next owner-approved run will, for the first time, read real AL-AMIN database
-rows and Storage object bytes. It will not change the database, Storage, Auth,
-configuration, or application. Plaintext exists only in an ACL-protected local
-temporary directory until an authenticated encrypted archive is verified, then
-the toolkit removes that directory.
+Each run reads real AL-AMIN database rows and Storage object bytes without
+changing the database, Storage, Auth, configuration, or application. Plaintext
+exists only in an ACL-protected local temporary directory until an authenticated
+encrypted archive is verified, then the toolkit removes that directory.
 
 ## What Viktor prepares
 
@@ -39,7 +39,8 @@ link, paid add-on, password reset, or production write is required.
    Dashboard. They are not written to command history, Git, or reports.
 5. Select the existing external backup folder and create the archive passphrase.
 6. Wait for `Encrypted export PASS`.
-7. Immediately delete the exact temporary S3 key in Supabase Dashboard.
+7. Immediately delete the exact temporary S3 key in Supabase Dashboard before
+   encryption continues.
 8. Return to the security workstream and write only: `временный S3 ключ удалён`.
    Do not show the key.
 9. After Gate 2 is recorded, run the BAT again, choose **2**, confirm revocation,

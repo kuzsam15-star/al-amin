@@ -2,118 +2,113 @@
 
 ## 1. Evidence record
 
-- Date: 2026-08-11
-- P0-11 starting commit: `64e3c988e99b71154d76aab2cbb97718cabdfa4c`
-- Supabase CLI inspected locally: 2.113.0
-- Production inspection mode: metadata-only/read-only
-- Production rows or Storage objects read: no
-- Production mutations: none
-- Verdict: **MANUAL_OWNER_APPROVAL_REQUIRED**
-- Achieved recovery level: **Level 0 — documentation only**
+- Production-derived export completed: 2026-08-12.
+- Two independent isolated local restores completed: 2026-08-13.
+- Source access: owner-approved database read and Storage `LIST`/`HEAD`/`GET` only.
+- Production mutations: none.
+- Temporary S3 key: owner-confirmed deleted before encryption.
+- Credentials persisted: no.
+- Verdict: **PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS**.
 
-## 2. Backup capability evidence
+Level 2 proves recoverability of the database, Auth database state, and Storage
+object bytes. Level 3 is not claimed because the non-database Supabase project
+configuration still contains manual/secret re-entry items that were not applied
+and verified in an isolated project.
 
-Read-only project evidence confirms the organization is on the Free plan. Under
-the current official Supabase model:
+## 2. Encrypted backup evidence
 
-- automatic daily backups are available on Pro, Team, and Enterprise, not Free;
-- PITR is not enabled/eligible under the current Free plan;
-- Restore to a New Project is paid-plan/physical-backup functionality and creates
-  another billable project;
-- no current-plan managed recovery point is available to select;
-- database backups omit Storage object bytes;
-- Restore to a New Project omits Storage objects/settings, Edge Functions, Auth
-  settings/API keys, Realtime settings, and several database/project settings.
+The owner-operated workflow created one age-encrypted recovery archive and one
+redacted report outside the repository. The final ciphertext size and SHA-256
+match the redacted report. The archive passphrase is owner-held and was never
+provided to Codex, Git, process arguments, environment variables, or reports.
 
-No plan purchase or project creation was attempted.
+The plaintext export was removed after authenticated encryption. Final checks
+found zero protected recovery work directories and no persisted source
+credential. Raw database rows, Auth records, Storage paths, object bytes, and
+credentials are not present in Git evidence.
 
-## 3. Database proof
+## 3. Database and Auth proof
 
-| Item | Result |
-| --- | --- |
-| Recovery source | NOT AVAILABLE — no managed point and no owner-approved logical artifact |
-| Isolated target | NOT CREATED — paid/cost gate and no artifact |
-| Restore | NOT RUN |
-| Catalog reconciliation | NOT RUN |
-| Per-table row counts | NOT RUN; no production rows were queried |
-| Schema/catalog hashes | Specification complete; no source artifact to compare |
-| Migration coherence | NOT RUN against a restored target |
+| Check | Restore 1 | Restore 2 |
+| --- | ---: | ---: |
+| Restored tables reconciled | 47 | 47 |
+| Auth users reconciled | 5 | 5 |
+| Per-table row counts | PASS | PASS |
+| Isolated target | disposable local | fresh disposable local |
+| Cleanup | PASS | PASS |
 
-The verified no-data bootstrap is reproducibility evidence, not a production
-backup and not a substitute for a production-derived restore artifact.
+Both restores used PostgreSQL 17 tooling and fresh loopback-only Supabase
+targets. The source database was exported read-only; restore SQL ran only in the
+disposable local targets. No production row values were written to logs or
+documentation.
 
 ## 4. Storage proof
 
-| Item | Result |
-| --- | --- |
-| Mechanism selected | Official S3-compatible/Storage download path, owner-operated |
-| Buckets in scope | `avatars`, `profile-media` |
-| Object artifact | NOT CREATED |
-| Object count / total bytes | NOT READ |
-| Redacted path/content hash manifest | NOT CREATED |
-| Isolated restore | NOT RUN |
-| Count/hash reconciliation | NOT RUN |
+| Check | Restore 1 | Restore 2 |
+| --- | ---: | ---: |
+| Restored objects reconciled | 36 | 36 |
+| Per-object content SHA-256 | PASS | PASS |
+| Source operations | `LIST`/`HEAD`/`GET` only | not contacted |
+| Target operations | disposable local restore | fresh disposable local restore |
+| Cleanup | PASS | PASS |
 
-Production credentials were neither requested nor used. No Storage object row,
-path, byte, or user file was read.
+The source export covered the fixed `avatars` and `profile-media` buckets.
+Object paths and bytes remain only inside the encrypted owner-held artifact;
+documentation contains aggregate counts only. The temporary S3 credential was
+deleted before encryption and was not reused for restore.
 
 ## 5. Configuration proof
 
-`CONFIG_RECOVERY_MANIFEST.json` records the currently evidenced non-secret
-configuration and marks unknown/manual/secret fields explicitly. It covers Auth,
-Storage, Realtime, database extensions/settings, Edge Functions, and project
-settings without storing project identifiers or secrets.
+The redacted `CONFIG_RECOVERY_MANIFEST.json` was packaged and its format was
+validated in both restores. Database-backed policies and configuration restored
+with the database were exercised by healthy local Auth, PostgREST, Storage, and
+Kong services.
 
-Result: specification complete, isolated application **NOT RUN**. Redirect URLs,
-external provider/SMTP secrets, Realtime settings, compute class, custom domains,
-network restrictions, and API configuration still require owner inspection or
-re-entry. The machine-readable manifest contains 16 explicit `MUST_REENTER`
-markers; this is a recovery work queue, not missing secret values in Git.
+Level 3 remains pending because Dashboard/project configuration that requires
+manual inspection or secret re-entry was not applied to an isolated cloud
+project. This includes provider/SMTP secret presence, redirect allowlists,
+session/MFA controls, Realtime settings, custom domains, network restrictions,
+compute/region choices, and API configuration.
 
-## 6. Rehearsals and scenario coverage
+## 6. Deterministic two-run result
 
-| Proof | Result | Reason |
-| --- | --- | --- |
-| Rehearsal 1 | NOT RUN | No authenticated DB/Storage artifacts and no approved isolated target |
-| Rehearsal 2 | NOT RUN | Same gate; repeating synthetic bootstrap would not prove recoverability |
-| Accidental DB mutation | PROCEDURE REVIEWED ONLY | No production-derived restore point |
-| Project-level DB loss | PROCEDURE REVIEWED ONLY | No production-derived restore point |
-| Deleted Storage object | PROCEDURE REVIEWED ONLY | No object artifact |
-| Bucket-wide loss | PROCEDURE REVIEWED ONLY | No object artifact |
-| Bad migration | PROCEDURE REVIEWED ONLY | No isolated production-derived DB restore |
-| Credential/config loss | PROCEDURE REVIEWED ONLY | Manual/secret fields unresolved |
-| Complete project loss | PROCEDURE REVIEWED ONLY | All three proof domains incomplete |
-| SEC-001 partial deployment | PROCEDURE REVIEWED ONLY | SEC-001 was not deployed |
+The two independent summaries matched on:
 
-## 7. Deterministic PASS criteria
+- 47 reconciled tables;
+- 5 Auth users;
+- 36 Storage objects;
+- every approved table row count;
+- every Storage object content hash;
+- config manifest format version;
+- pre-Phase-A SEC-001 recovery state;
+- successful project-specific cleanup.
 
-- Database: normalized catalog hash and every approved per-table count match;
-  zero unexplained catalog/migration difference.
-- Storage: source, encrypted artifact, and isolated target match per-bucket count,
-  total bytes, and every content hash; missing/corrupt count is zero.
-- Configuration: every manifest field is captured, manual, or re-entered; unknown
-  count is zero for required fields; isolated checks pass.
-- RPO/RTO: actual measured values meet owner-approved targets.
-- Cleanup: all temporary credentials and isolated resources are accounted for.
+Final residual resources: zero containers, zero named recovery networks, zero
+named recovery volumes, and zero plaintext recovery work directories.
 
-None of these execution criteria was marked PASS without evidence.
+## 7. RPO/RTO decision
 
-## 8. Exact blockers and owner action
+Viktor approved the RPO/RTO targets recorded in `RECOVERY_POLICY.md`. This proof
+validates the restore mechanism but does not establish an automated backup
+cadence or measure a production incident RTO. The current Free-plan/manual
+export process therefore does not by itself prove that every approved target is
+continuously met.
 
-1. Approve the proposed RPO/RTO and retention policy.
-2. Choose either a paid managed restore path or an owner-operated logical dump.
-3. If using managed restore, approve the displayed paid-plan/new-project cost.
-4. Generate encrypted DB and Storage artifacts outside Codex using ephemeral
-   owner-held credentials.
-5. Approve a new isolated target and provide only redacted artifact metadata to
-   the verification process.
+## 8. Remaining gap and next gate
 
-No credential should be sent to Codex. The next stage must build/review the
-owner-side wrapper and run the first isolated restore only after these approvals.
+The next recovery control is a configuration-only Level 3 rehearsal in an
+owner-approved isolated project or equivalent environment. It must apply all
+non-secret configuration, re-enter required secrets without exposing them, and
+verify Auth/provider/session/network behavior. It must not restore into or
+mutate production.
 
-## 9. Cleanup and invariants
+Until that gate passes, the correct status is Level 2 rather than full project
+disaster recovery readiness.
 
-No database, project, container, network, volume, Storage object, credential, or
-temporary backup file was created by this stage. Therefore there are no residual
-recovery resources to remove. Production, remote Supabase state, SEC-001 release
-state, historical migrations, and the verified baseline remain unchanged.
+## 9. Invariants
+
+- Production was read only for the approved export and was never a restore target.
+- No production mutation, migration, Auth change, or Storage write/delete occurred.
+- No production credential or data was committed or printed in evidence.
+- Historical migrations and the verified pre-hardening baseline were unchanged.
+- The encrypted owner-held artifact remains outside the repository.

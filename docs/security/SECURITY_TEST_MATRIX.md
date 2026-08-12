@@ -129,7 +129,7 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 | ST-09 | owner/bot | Много uploads/bytes/objects | Burst upload | Durable quota/rate deny | Quota/rate отсутствуют; direct API доступен | FAIL | Route/policies |
 | ST-10 | anon | Public media URL | Cache-busting query burst | Canonical cache key/prebuilt derivative | Route ignores extra query but per-request work возможен; не load-tested | NOT RUN | `/api/media/view`; edge unknown |
 | ST-11 | anon/owner | Published/own draft | GET `/api/media/view`/`source` | Public только approved; private только owner/mod | Dynamic local published projection/canonical read and private submission boundaries pass | PASS (local) | MEDIA-002, 003, 007, 014 + view cases |
-| ST-12 | operator | Takedown/restore fixture | Delete reference/purge cache/restore object | Предсказуемый purge и recoverability | SEC-001 source-dereference survival passes; takedown/cache/restore remains unproved | PASS (SEC-001 local) / NOT RUN (restore) | MEDIA-007; SEC-006/013 remain open |
+| ST-12 | operator | Takedown/restore fixture | Delete reference/purge cache/restore object | Предсказуемый purge и recoverability | Production-derived DB/Auth/Storage restore and hash reconciliation pass twice; takedown/cache behavior remains unproved | PASS (restore Level 2) / NOT RUN (takedown/cache) | Recovery proof; SEC-006/013 remain open |
 
 ## 5. Auth, sessions и privileged access
 
@@ -187,7 +187,7 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 | OP-06 | auditor | Source/build/env | Exact secret/signature scan | Server secrets absent from source/client | Exact configured server secrets not found outside env | PASS | Git history unavailable; anon key expected |
 | OP-07 | CI | Canonical Git worktree | Required release workflow | Review + tests + scans + signed artifact | `.git`/CI/provenance absent | NOT RUN | Provided root not Git worktree |
 | OP-08 | operator | Empty disposable project | Clean DB bootstrap/catalog diff | Reproducible secure state | Static migration chain fails order; not executed | FAIL | README/schema/migration analysis |
-| OP-09 | operator | Isolated restore target | Restore DB+Storage+config | Meet RPO/RTO and reconcile hashes | No evidence/job/result | NOT RUN | `SECURITY_OPERATIONS.md` only |
+| OP-09 | operator | Isolated restore target | Restore DB+Storage+config | Meet RPO/RTO and reconcile hashes | Two production-derived local restores reconcile 47 tables, 5 Auth users and 36 object hashes; config application and incident RTO remain open | PASS (Level 2) / NOT RUN (Level 3) | `docs/security/recovery/RECOVERY_PROOF.md` |
 | OP-10 | auditor | Public staging/production URL | TLS/headers/cookies/cache/CORS scan | Match source policy and secure cookies | URL/config evidence unavailable | NOT RUN | `next.config.mjs` is source only |
 | OP-11 | auditor | Live Supabase | Security/performance advisors | No unaccepted Error/High; bounded debt | 34 security + 33 performance notices | FAIL | Read-only advisor run |
 | OP-12 | auditor | Returned Auth-log sample | Count reuse/abuse/limit events в последних 100 возвращённых entries | No unexplained anomalies в полном согласованном окне | В выборке 100 entries: 0 target events; это не доказывает чистоту всех 24h | NOT RUN | Ограниченная read-only выборка; historical 75 не опровергнуты |
@@ -259,6 +259,6 @@ Evidence: `docs/security/SEC-001_LOCAL_VERIFICATION.md`,
 `docs/security/SEC-001_ADVERSARIAL_REVIEW.md`, and
 `docs/security/SEC-001_DEPLOYMENT_REHEARSAL.md`.
 
-Concurrency, production Auth/headers/monitoring, dependency/provenance,
-backup/restore и sustained abuse остаются `NOT_AUTOMATED`; это не PASS и не
-понижение release-blocker severity.
+Concurrency, production Auth/headers/monitoring, dependency/provenance, Level 3
+configuration recovery/cadence и sustained abuse остаются `NOT_AUTOMATED`; это
+не PASS и не понижение release-blocker severity.

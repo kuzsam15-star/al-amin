@@ -300,7 +300,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** DB+Storage backup/restore не доказаны.
 - **Severity:** High; launch blocker.
 - **Affected components:** Database, Storage, Auth/config inventory, RPO/RTO и disaster recovery.
-- **Current evidence:** Нет job/config/off-site copy/restore report или Storage bytes proof; database backup сам по себе не восстанавливает Storage objects.
+- **Current evidence:** Production-derived encrypted DB+Storage generation создана вне Git и дважды восстановлена в fresh isolated local Supabase targets: 47 table counts, 5 Auth users и 36 Storage object hashes совпали; cleanup оставил 0 ресурсов. Level 3 configuration application, recurring cadence/retention, incident-time RTO и lost-key exercise остаются открыты.
 - **Threat:** Destructive bug/operator compromise уничтожает rows/media без coherent recovery.
 - **Expected secure behavior:** Encrypted separated DB+Storage+critical-config backup, immutable retention и регулярный isolated restore с reconciliation.
 - **Files likely affected:** Operations runbooks/config/evidence records, `docs/security/SECURITY_OPERATIONS.md` при его создании на отдельном этапе.
@@ -309,10 +309,10 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Backup changes additive; старые copies сохраняются до многократной проверки новой chain; restore только в isolated target.
 - **Risk of fixing:** Средний — retention/custody mistake может уничтожить единственную рабочую copy.
 - **Dependencies:** P0-01/P0-02, isolated restore project, admin backup access, approved RPO/RTO и secret custody.
-- **Status:** Open — P0-11 Level 0 policy/runbook evidence prepared. The current
-  Free plan has no managed daily recovery point or PITR; no owner-approved
-  logical DB/Storage artifacts or paid isolated target exist, so DB+Storage+config
-  restore and reconciliation remain unproved. `MANUAL_OWNER_APPROVAL_REQUIRED`.
+- **Status:** Partially mitigated — `PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS`.
+  Database/Auth/Storage recovery is proven twice against the owner-approved
+  encrypted artifact; Level 3 project configuration and recurring operational
+  controls remain open. Severity and launch-blocker status are unchanged.
 
 ### SEC-014 — Supabase SSR Proxy/session lifecycle
 

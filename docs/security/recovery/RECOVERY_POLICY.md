@@ -15,10 +15,11 @@ target. A database-only restore is insufficient. Supabase documents that
 database backups do not contain Storage object bytes, and that Restore to a New
 Project does not copy Storage objects/settings or most project-level settings.
 
-Current stage status: **MANUAL_OWNER_APPROVAL_REQUIRED**. Evidence is Level 0
-(documentation only). The current Free plan supplies neither an automatic daily
-backup recovery point nor PITR. No owner-approved logical database artifact,
-Storage artifact, or paid isolated project exists.
+Current stage status: **PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS**. An
+owner-approved encrypted logical database and Storage artifact was restored and
+reconciled in two independent disposable local Supabase targets. The current
+Free plan still supplies neither an automatic daily backup recovery point nor
+PITR, and Level 3 project-configuration recovery remains pending.
 
 Official references:
 
@@ -57,9 +58,10 @@ Read-only inspection on 2026-08-11 established:
   fallback;
 - latest managed recovery point: none available through the current-plan
   automatic-backup model;
-- owner-created logical dump: technically possible, but no approved artifact
-  was provided or created in this stage;
-- Storage object backup: separate owner-operated export is required.
+- owner-created logical dump: one approved encrypted generation now exists
+  outside Git and passed two isolated local restores;
+- Storage object backup: the same encrypted generation contains the separate
+  owner-operated Storage export and passed content-hash reconciliation.
 
 PITR must not be purchased automatically. Current official example pricing is
 approximately USD 100/month for seven days, USD 200/month for fourteen days,
@@ -67,15 +69,17 @@ and USD 400/month for twenty-eight days, before other required paid resources.
 The exact organization-specific total must be shown to and approved by the
 owner before purchase.
 
-## 4. Proposed RPO and RTO
+## 4. Approved RPO and RTO
 
-These values are recommendations, not approved business commitments.
+Viktor approved these recovery objectives on 2026-08-11. Approval establishes
+the targets; it does not claim that the current manual Free-plan process meets
+them continuously.
 
 | Domain | MVP RPO | MVP RTO | Mature target RPO | Mature target RTO | Status |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Database | 24 hours | 8 hours | 15 minutes | 2 hours | OWNER_DECISION_REQUIRED |
-| Storage objects | 24 hours | 12 hours | 4 hours | 4 hours | OWNER_DECISION_REQUIRED |
-| Critical configuration | Every approved config change | 4 hours | Every approved config change | 2 hours | OWNER_DECISION_REQUIRED |
+| Database | 24 hours | 8 hours | 15 minutes | 2 hours | OWNER_APPROVED_TARGET |
+| Storage objects | 24 hours | 12 hours | 4 hours | 4 hours | OWNER_APPROVED_TARGET |
+| Critical configuration | Every approved config change | 4 hours | Every approved config change | 2 hours | OWNER_APPROVED_TARGET |
 
 The mature database target requires a paid managed backup/PITR decision. The
 Storage target requires an encrypted scheduled export because Supabase database

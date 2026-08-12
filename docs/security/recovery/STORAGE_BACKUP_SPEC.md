@@ -15,8 +15,8 @@ generation is mandatory.
 
 ## 2. Owner-operated wrapper contract
 
-No executable wrapper is committed at Level 0. The future reviewed wrapper must
-meet all of these requirements before it receives credentials:
+The reviewed owner-operated wrapper is implemented under `scripts/recovery`.
+It meets these requirements before it receives credentials:
 
 - dry-run is the default; `--capture` and `--restore` are explicit and mutually
   exclusive;
@@ -38,8 +38,9 @@ meet all of these requirements before it receives credentials:
 - no source deletion exists, and target cleanup is a separately approved action;
 - failures close the run and preserve the prior verified generation.
 
-This stage did not create an untested credential-handling script. Tool selection,
-credential issuance, and artifact location require owner review first.
+The wrapper passed synthetic local regression and the dated production-derived
+read-only export with two isolated restores. Credential issuance and artifact
+location remain owner decisions for every future generation.
 
 ## 3. Capture manifest
 
@@ -116,10 +117,12 @@ existing canonical object.
 
 ## 8. Current proof status
 
-- Source object inventory: NOT READ.
-- Encrypted backup artifact: NOT CREATED.
-- Isolated target: NOT CREATED.
-- Restore: NOT RUN.
-- Hash/count reconciliation: NOT RUN.
-- Reason: owner-held credentials, artifact storage, and isolated target approval
-  are absent.
+- Source object inventory: READ under owner-approved read-only access.
+- Encrypted backup artifact: CREATED outside Git; authenticated and hash-checked.
+- Isolated targets: two fresh loopback-only disposable Supabase projects.
+- Restore: PASS twice.
+- Object count: 36 in each restore.
+- Per-object content-hash reconciliation: PASS twice.
+- Source mutations: none; operations were restricted to `LIST`/`HEAD`/`GET`.
+- Temporary S3 key: owner-confirmed deleted before encryption.
+- Residual plaintext or disposable resources: zero.

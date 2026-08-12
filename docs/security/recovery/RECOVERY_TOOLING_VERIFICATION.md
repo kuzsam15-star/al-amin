@@ -2,15 +2,38 @@
 
 Date: 2026-08-11
 
-Last regression update: 2026-08-12
+Last production-derived proof: 2026-08-13
 
 ## Verdict
 
-`SYNTHETIC_LOCAL_PREFLIGHT_PASS`
+`PRODUCTION_DERIVED_LEVEL_2_RESTORE_PASS`
 
-The owner-operated tooling is ready for Owner Gate 1. Recovery Level 3 is **not
-yet proven** because no production row or object was read and no
-production-derived artifact was restored.
+The owner-operated tooling completed an encrypted production-derived read-only
+export and two independent isolated local restores. Recovery Level 3 is **not
+yet proven** because manual/secret project configuration has not been applied
+and verified in an isolated cloud project.
+
+## Production-derived proof
+
+The 2026-08-12/13 owner-operated run produced an authenticated age-encrypted
+artifact outside Git. The owner confirmed deletion of the temporary S3 key
+before encryption. Ciphertext size and SHA-256 match the redacted external
+report, credentials were not persisted, and production mutation is recorded as
+false.
+
+Two fresh loopback-only Supabase targets independently restored and reconciled:
+
+| Check | Restore 1 | Restore 2 |
+| --- | ---: | ---: |
+| Tables | 47 | 47 |
+| Auth users | 5 | 5 |
+| Storage objects | 36 | 36 |
+| Row counts | PASS | PASS |
+| Storage content hashes | PASS | PASS |
+| Cleanup | PASS | PASS |
+
+The two summaries matched and final verification found zero recovery containers,
+networks, volumes, or plaintext work directories.
 
 ## Verified toolchain
 
@@ -173,10 +196,9 @@ production identifier.
 - Supabase Storage error codes: <https://supabase.com/docs/guides/storage/debugging/error-codes>
 - PostgreSQL 17 `pg_restore`: <https://www.postgresql.org/docs/17/app-pgrestore.html>
 
-## Remaining owner gates
+## Remaining owner gate
 
-1. Owner Gate 1: authorize the real read-only export and provisional RPO/RTO.
-2. Owner Gate 2: after export, confirm the temporary S3 key was deleted.
-
-No production export, restore, paid action, or production mutation occurred in
-this verification.
+Owner Gates 1 and 2 are complete: the read-only export/RPO/RTO were approved and
+temporary S3 key deletion was confirmed. The remaining gate is a Level 3
+configuration-only rehearsal in an owner-approved isolated project. No paid
+action or production mutation occurred.
