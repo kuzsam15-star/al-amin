@@ -23,6 +23,13 @@ only into the local hidden prompt after the workstream explicitly opens the
 gate. The export stops after encryption and requires deletion of the temporary
 S3 key before any production-derived restore.
 
+After Storage LIST/GET completes, the S3 credential is cleared from process
+memory and encryption stays locked until the owner confirms deletion of the
+exact temporary key. Passphrase encryption and archive authentication each
+allow up to three hidden attempts while retaining the completed export only in
+the protected working directory; a mismatch does not repeat production reads.
+Exhausting the bounded attempts removes plaintext and any partial output.
+
 ## Pinned portable tools
 
 Tools live outside Git at `%LOCALAPPDATA%\AL-AMIN-Recovery\tools`:

@@ -217,6 +217,24 @@ function Get-PathSafeHash {
   } finally { [Array]::Clear($bytes, 0, $bytes.Length) }
 }
 
+function Invoke-RecoveryOperationWithRetry {
+  param(
+    [Parameter(Mandatory)][scriptblock]$Operation,
+    [Parameter(Mandatory)][scriptblock]$CleanupFailedAttempt,
+    [Parameter(Mandatory)][string]$RetryMessage,
+    [Parameter(Mandatory)][string]$FailureMessage,
+    [ValidateRange(1,5)][int]$MaxAttempts = 3
+  )
+
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    $exitCode = & $Operation $attempt
+    if ([int]$exitCode -eq 0) { return }
+    & $CleanupFailedAttempt
+    if ($attempt -lt $MaxAttempts) { Write-Host $RetryMessage }
+  }
+  throw $FailureMessage
+}
+
 function Get-ValidatedS3Connection {
   param(
     [Parameter(Mandatory)][string]$Endpoint,

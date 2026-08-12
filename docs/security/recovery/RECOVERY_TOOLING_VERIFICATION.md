@@ -125,6 +125,14 @@ bucket hash. The full preflight first exports two empty buckets and asserts
 zero counts/bytes plus that hash before seeding and repeating the normal
 two-object export/restore proof.
 
+The next owner run completed database and Storage export but the two hidden
+`age` passphrase entries did not match. No ciphertext was emitted, protected
+plaintext was removed, and the temporary S3 key was deleted. The workflow now
+gates encryption on owner confirmation that the exact key was deleted and
+retries encryption/authentication locally up to three times without repeating
+production export. A deterministic synthetic retry test proves one mismatch
+then success, bounded failure/cleanup, and deletion-gate ordering.
+
 ## Security review
 
 - Git, source, verified baseline, historical migrations, and package files are

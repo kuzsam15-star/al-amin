@@ -86,21 +86,38 @@ try {
     } else {
       & (Join-Path $PSScriptRoot 'Export-AlAminStorageBackup.ps1') -SourceMode ProductionS3 -OutputDirectory $storage
     }
+    Write-Host 'Storage export PASS. The temporary S3 credential has been cleared from process memory.'
+    Write-Host 'Delete the exact temporary S3 key in Supabase Dashboard before encryption.'
+    if ((Read-Host 'After deletion, type TEMPORARY S3 KEY DELETED') -cne 'TEMPORARY S3 KEY DELETED') {
+      throw 'Encryption remains locked until temporary S3 key deletion is confirmed.'
+    }
     Copy-Item -LiteralPath (Join-Path $repo 'docs\security\recovery\CONFIG_RECOVERY_MANIFEST.json') -Destination $config
     $zip = Join-Path $work 'payload.zip'
     Compress-Archive -LiteralPath $database,$storage,$config -DestinationPath $zip -CompressionLevel Optimal
     $archive = Join-Path $destination ("AL-AMIN-recovery-{0}.zip.age" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
     Write-Host 'Create the archive passphrase in the age prompt. Codex never receives it.'
-    & $script:AgePath --passphrase -o $archive $zip
-    if ($LASTEXITCODE -ne 0) { throw 'Encryption failed.' }
+    Invoke-RecoveryOperationWithRetry -Operation {
+      param($attempt)
+      & $script:AgePath --passphrase -o $archive $zip
+      return [int]$LASTEXITCODE
+    } -CleanupFailedAttempt {
+      if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
+    } -RetryMessage 'Passphrase confirmation did not complete. Retry the hidden age prompt; the production export will not repeat.' -FailureMessage 'Encryption failed after three local passphrase attempts.'
     $testZip = Join-Path $work 'integrity-test.zip'
     Write-Host 'Re-enter the passphrase once to authenticate the encrypted archive.'
-    & $script:AgePath --decrypt -o $testZip $archive
-    if ($LASTEXITCODE -ne 0 -or (Get-Sha256Lower $testZip) -ne (Get-Sha256Lower $zip)) { throw 'Encrypted archive integrity verification failed.' }
+    Invoke-RecoveryOperationWithRetry -Operation {
+      param($attempt)
+      & $script:AgePath --decrypt -o $testZip $archive
+      if ($LASTEXITCODE -ne 0) { return [int]$LASTEXITCODE }
+      if ((Get-Sha256Lower $testZip) -ne (Get-Sha256Lower $zip)) { return 2 }
+      return 0
+    } -CleanupFailedAttempt {
+      if (Test-Path -LiteralPath $testZip) { Remove-Item -LiteralPath $testZip -Force }
+    } -RetryMessage 'Archive authentication did not complete. Re-enter the same passphrase; the production export will not repeat.' -FailureMessage 'Encrypted archive integrity verification failed after three local passphrase attempts.'
     Remove-Item -LiteralPath $testZip,$zip -Force
     $report = [ordered]@{
       format_version = 1
-      status = 'EXPORT_COMPLETE_S3_KEY_DELETION_REQUIRED'
+      status = 'EXPORT_COMPLETE_S3_KEY_DELETION_OWNER_CONFIRMED'
       created_utc = (Get-Date).ToUniversalTime().ToString('o')
       archive_file = [IO.Path]::GetFileName($archive)
       archive_size = (Get-Item -LiteralPath $archive).Length
@@ -115,8 +132,8 @@ try {
     $report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $destination 'AL-AMIN-recovery-export-redacted.json') -Encoding UTF8
     Remove-ProtectedRecoveryDirectory -Path $work
     $work = $null
-    Write-Host 'Encrypted export PASS. Delete the exact temporary S3 key in Supabase Dashboard now.'
-    Write-Host 'Do not start restore until the security workstream records the temporary S3 key as deleted.'
+    Write-Host 'Encrypted export PASS. Temporary S3 key deletion was owner-confirmed before encryption.'
+    Write-Host 'The security workstream must still record the completed deletion before restore.'
   } finally {
     if ($work -and (Test-Path -LiteralPath $work)) { Remove-ProtectedRecoveryDirectory -Path $work }
   }
