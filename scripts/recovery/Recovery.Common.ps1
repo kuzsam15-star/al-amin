@@ -280,6 +280,7 @@ function Invoke-ReadOnlyS3BucketExport {
     RCLONE_CONFIG_SOURCE_ENDPOINT = $connection.Endpoint
     RCLONE_CONFIG_SOURCE_REGION = $connection.Region
     RCLONE_CONFIG_SOURCE_FORCE_PATH_STYLE = 'true'
+    RCLONE_CONFIG_SOURCE_LIST_VERSION = '2'
     RCLONE_CONFIG_SOURCE_V2_AUTH = 'false'
     RCLONE_CONFIG_SOURCE_USE_ACCELERATE_ENDPOINT = 'false'
     RCLONE_S3_ACCESS_KEY_ID = $null
@@ -320,7 +321,7 @@ function Invoke-ReadOnlyS3BucketExport {
       $priorPreference = $ErrorActionPreference
       $ErrorActionPreference = 'Continue'
       try {
-        & $script:RclonePath lsf "source:$bucket" --max-depth 1 --config NUL --log-level ERROR 2>$null | Out-Null
+        & $script:RclonePath lsf "source:$bucket" --max-depth 1 --s3-list-version 2 --config NUL --log-level ERROR 2>$null | Out-Null
         $probeExit = $LASTEXITCODE
       } finally {
         $ErrorActionPreference = $priorPreference
@@ -334,7 +335,7 @@ function Invoke-ReadOnlyS3BucketExport {
       $priorPreference = $ErrorActionPreference
       $ErrorActionPreference = 'Continue'
       try {
-        & $script:RclonePath copy "source:$bucket" $bucketOut --immutable --metadata --check-first --no-traverse --config NUL --log-level ERROR 2>$null | Out-Null
+        & $script:RclonePath copy "source:$bucket" $bucketOut --immutable --metadata --check-first --no-traverse --s3-list-version 2 --config NUL --log-level ERROR 2>$null | Out-Null
         $copyExit = $LASTEXITCODE
       } finally {
         $ErrorActionPreference = $priorPreference

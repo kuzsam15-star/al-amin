@@ -18,4 +18,10 @@ try { Get-ValidatedS3Connection -Endpoint 'https://abcdefghijklmnopqrst.storage.
 try { Get-ValidatedS3Connection -Endpoint 'https://abcdefghijklmnopqrst.storage.supabase.co/storage/v1/s3?unsafe=1' -Region 'eu-west-2' | Out-Null } catch { $checks.query_blocked = $true }
 
 if ($checks.Values -contains $false) { throw 'S3 endpoint/region validation regression failed.' }
+
+$commonSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Recovery.Common.ps1') -Raw
+if (($commonSource | Select-String -Pattern '--s3-list-version 2' -AllMatches).Matches.Count -ne 2 -or
+    $commonSource -notmatch "RCLONE_CONFIG_SOURCE_LIST_VERSION = '2'") {
+  throw 'Supabase S3 ListObjects V2 pin regression failed.'
+}
 $checks | ConvertTo-Json -Compress

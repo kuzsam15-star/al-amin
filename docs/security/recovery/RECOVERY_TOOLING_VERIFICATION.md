@@ -77,12 +77,13 @@ were both zero. No production endpoint or credential was used.
 
 ## Supabase S3 SigV4 regression
 
-The first owner-approved Storage attempt stopped fail-closed with HTTP 403
-`SignatureDoesNotMatch` on read-only `ListObjects` for `avatars`. The temporary
-S3 key was deleted immediately; no Storage object, database row, Auth state, or
-production configuration was changed. Because endpoint/region/key input was
-intentionally never persisted, the individual mismatching signer input cannot
-be reconstructed after key deletion.
+Two owner-approved Storage attempts stopped fail-closed with HTTP 403
+`SignatureDoesNotMatch` on read-only `ListObjects` for `avatars`. The first
+temporary S3 key was deleted immediately. Neither attempt read an object or
+changed a Storage object, database row, Auth state, or production
+configuration. Because endpoint/region/key input is intentionally never
+persisted, an individual signer input cannot be reconstructed after a key is
+deleted.
 
 Official Supabase documentation requires AWS Signature Version 4, the exact
 project region, matching access-key ID/secret, and an endpoint ending in
@@ -97,6 +98,9 @@ The corrected boundary now:
 - forces path-style SigV4 with provider `Other`, disables legacy V2 signing,
   ignores persistent rclone config, and clears unrelated AWS/rclone credential
   and session-token sources for the child process;
+- pins the S3 ListObjects API to V2 for both the fail-fast probe and copy,
+  following current Supabase troubleshooting guidance for rclone; this removes
+  the remaining managed/local divergence caused by rclone's default V1 list;
 - performs a silent read-only `ListObjects` probe for each fixed bucket before
   download, and returns only a redacted failure classification;
 - keeps the only production operations as list/download.

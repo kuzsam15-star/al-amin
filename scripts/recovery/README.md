@@ -67,6 +67,8 @@ The authenticated `age` ciphertext contains one ZIP payload:
 - Production Storage requires the exact official Supabase SigV4 contract: an
   HTTPS project host, endpoint path `/storage/v1/s3`, and the exact Dashboard
   region. A read-only `ListObjects` probe must pass before any byte is copied.
+  Both the probe and copy pin ListObjects V2 because current Supabase guidance
+  documents an incompatibility with rclone's default V1 listing behavior.
   The pinned rclone process ignores persistent config and clears unrelated
   AWS/rclone credential sources while using the temporary key in process memory.
   It only lists/copies from the two fixed source buckets; no sync, move, upload,
