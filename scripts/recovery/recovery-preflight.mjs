@@ -104,6 +104,8 @@ async function run() {
   try {
     source = await createLocalStack({ runNumber: 1, repoRoot, supabaseBin, dockerBin, env, projectPrefix: 'alamin-recovery-source' });
     const fixtures = await seedSyntheticSource(source);
+    const pgpassProbe = await ps('Test-AlAminPgpassIsolation.ps1', ['-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
+    const pgpassIsolation = JSON.parse(pgpassProbe.stdout.trim().split(/\r?\n/u).at(-1));
     await ps('Export-AlAminDatabaseBackup.ps1', ['-SourceMode','LocalContainer','-OutputDirectory',databaseDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl]);
     await ps('Export-AlAminStorageBackup.ps1', ['-SourceMode','LocalApi','-OutputDirectory',storageDir,'-LocalContainer',source.container,'-LocalProjectId',source.projectId,'-LocalApiUrl',source.apiUrl], { ALAMIN_RECOVERY_LOCAL_SERVICE_KEY: source.serviceRoleKey });
     await copyFile(join(repoRoot, 'docs', 'security', 'recovery', 'CONFIG_RECOVERY_MANIFEST.json'), join(configDir, 'CONFIG_RECOVERY_MANIFEST.json'));
@@ -127,6 +129,7 @@ async function run() {
     return {
       status: 'PASS',
       source: fixtures,
+      pgpassIsolation,
       restored: { tableCount: verifyResult.TableCount, authUsers: verifyResult.AuthUserCount, storageObjects: verifyResult.StorageObjectCount },
       databaseRowCountsMatch: verifyResult.RowCountsMatch,
       storageHashesMatch: verifyResult.StorageHashesMatch,

@@ -53,8 +53,11 @@ The authenticated `age` ciphertext contains one ZIP payload:
 ## Safety and interruption
 
 - Production database access uses an ACL-protected temporary libpq service and
-  password file mounted read-only into an official PostgreSQL 17 container.
-  The password and connection URL never appear in process arguments.
+  password file. Credential content crosses into the official PostgreSQL 17
+  container only over stdin, is materialized in a private `0700` tmpfs, and is
+  checked as `0600` before libpq may connect. The password and connection URL
+  never appear in process arguments, environment variables, bind mounts, or
+  logs.
 - Production Storage uses process-scoped rclone configuration and only `copy`
   from the two fixed source buckets. No sync, move, upload, overwrite, or delete
   command exists.

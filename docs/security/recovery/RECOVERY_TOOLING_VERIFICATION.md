@@ -2,6 +2,8 @@
 
 Date: 2026-08-11
 
+Last regression update: 2026-08-12
+
 ## Verdict
 
 `SYNTHETIC_LOCAL_PREFLIGHT_PASS`
@@ -58,12 +60,30 @@ Final safe result:
 | Raw artifacts remaining | 0 |
 | Disposable Docker resources remaining | 0 |
 
+## Pgpass isolation regression
+
+The owner-operated production path initially stopped fail-closed because a
+Windows bind-mounted `pgpass` appeared group/world-accessible inside Linux.
+PostgreSQL correctly ignored it. The credential boundary now transports the
+temporary service and password file contents over container stdin, recreates
+them inside a private `tmpfs`, applies and verifies directory mode `0700` and
+file mode `0600`, and only then executes an allowlisted PostgreSQL client.
+
+The 2026-08-12 synthetic regression established a real libpq connection using
+that exact boundary and then completed the full export/encrypt/destroy/restore/
+reconcile flow. Result: `PASS`; 48 table counts, one synthetic Auth user, and
+two Storage object hashes matched; raw artifacts and residual Docker resources
+were both zero. No production endpoint or credential was used.
+
 ## Security review
 
 - Git, source, verified baseline, historical migrations, and package files are
   never recovery targets.
 - Production DB credentials use hidden input and an ACL-protected temporary
-  `PGSERVICEFILE`/`PGPASSFILE`; secrets and URLs are absent from process args.
+  source file. Credential bytes are carried to a private container tmpfs only
+  over stdin; the directory is checked as `0700` and both `PGSERVICEFILE` and
+  `PGPASSFILE` are checked as `0600` before connection. Secrets and URLs are
+  absent from process args, environment variables, bind mounts, and logs.
 - Production Storage credentials are process-scoped rclone environment values;
   no persistent rclone/AWS config exists.
 - Fixed production source buckets are downloaded only. No source PUT, COPY,

@@ -92,20 +92,19 @@ if ($SourceMode -eq 'LocalContainer') {
       Write-Utf8NoBom -Path $passFile -Value "${hostName}:${port}:${database}:${user}:${escaped}`n"
     } finally { $plainPassword = $null; $escaped = $null }
 
-    $mountOut = ([IO.Path]::GetFullPath($OutputDirectory) -replace '\\','/')
-    $mountService = ([IO.Path]::GetFullPath($serviceFile) -replace '\\','/')
-    $mountPass = ([IO.Path]::GetFullPath($passFile) -replace '\\','/')
-    $common = @('run','--rm','--network','bridge','-e','PGSERVICEFILE=/run/secrets/pg_service.conf','-e','PGPASSFILE=/run/secrets/pgpass','-v',"${mountOut}:/backup:rw",'-v',"${mountService}:/run/secrets/pg_service.conf:ro",'-v',"${mountPass}:/run/secrets/pgpass:ro",$script:PostgresImage)
-    & $script:DockerPath @common pg_dump -Fc -d service=alamin_source --schema=public --schema=private --schema=auth --schema=storage --schema=supabase_migrations --exclude-table-data=storage.objects --file=/backup/database.backup 2>$null
-    if ($LASTEXITCODE -ne 0) { throw 'Production database dump failed.' }
-    $roles = & $script:DockerPath @common pg_dumpall -d service=alamin_source --roles-only --no-role-passwords 2>$null
-    if ($LASTEXITCODE -ne 0) { throw 'Production roles export failed.' }
+    Invoke-RecoveryPostgresClient -ServiceFile $serviceFile -PassFile $passFile -WritableBackupDirectory $OutputDirectory -ClientArguments @(
+      'pg_dump','-Fc','-d','service=alamin_source','--schema=public','--schema=private','--schema=auth','--schema=storage','--schema=supabase_migrations','--exclude-table-data=storage.objects','--file=/backup/database.backup'
+    ) | Out-Null
+    $roles = Invoke-RecoveryPostgresClient -ServiceFile $serviceFile -PassFile $passFile -ClientArguments @(
+      'pg_dumpall','-d','service=alamin_source','--roles-only','--no-role-passwords'
+    )
     Write-Utf8NoBom -Path $rolesPath -Value (($roles -join "`n") + "`n")
 
     $query = {
       param([string]$Sql)
-      $result = & $script:DockerPath @common psql -X -A -t -v ON_ERROR_STOP=1 -d service=alamin_source -c $Sql 2>$null
-      if ($LASTEXITCODE -ne 0) { throw 'A read-only production inventory query failed.' }
+      $result = Invoke-RecoveryPostgresClient -ServiceFile $serviceFile -PassFile $passFile -ClientArguments @(
+        'psql','-X','-A','-t','-v','ON_ERROR_STOP=1','-d','service=alamin_source','-c',$Sql
+      )
       return ($result -join "`n").Trim()
     }
     $inventory = Build-Inventory $query

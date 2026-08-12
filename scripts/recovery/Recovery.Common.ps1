@@ -52,6 +52,7 @@ function Assert-GitGuard {
   $status = & git -c "safe.directory=$root" -C $root status --short
   if ($AllowRecoveryCandidateChanges -and $status) {
     $allowed = @(
+      '.gitattributes',
       'scripts/recovery/',
       'docs/security/recovery/OWNER_BACKUP_EXPORT_GUIDE.md',
       'docs/security/recovery/RECOVERY_TOOLING_VERIFICATION.md',
@@ -116,6 +117,89 @@ function ConvertFrom-SecureStringTransient {
 function Write-Utf8NoBom {
   param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][AllowEmptyString()][string]$Value)
   [IO.File]::WriteAllText($Path, $Value, [Text.UTF8Encoding]::new($false))
+}
+
+function Invoke-RecoveryPostgresClient {
+  param(
+    [Parameter(Mandatory)][string]$ServiceFile,
+    [Parameter(Mandatory)][string]$PassFile,
+    [Parameter(Mandatory)][string[]]$ClientArguments,
+    [string]$Network = 'bridge',
+    [string]$WritableBackupDirectory
+  )
+
+  foreach ($credentialPath in @($ServiceFile, $PassFile)) {
+    if (-not (Test-Path -LiteralPath $credentialPath -PathType Leaf)) {
+      throw 'A required temporary PostgreSQL credential file is missing.'
+    }
+    if (-not (Test-IsPathInside -Child $credentialPath -Parent $script:RecoveryWorkRoot)) {
+      throw 'PostgreSQL credential files must remain inside the protected recovery work root.'
+    }
+  }
+  if ($ClientArguments.Count -eq 0 -or $ClientArguments[0] -notin @('pg_dump','pg_dumpall','psql')) {
+    throw 'The isolated PostgreSQL client command is outside the recovery allowlist.'
+  }
+  if ($Network -ne 'bridge' -and $Network -notmatch '^container:supabase_db_alamin-recovery-(source|target)-[a-z0-9-]+$') {
+    throw 'PostgreSQL client network mode is outside the recovery allowlist.'
+  }
+  if ($WritableBackupDirectory) {
+    Assert-OutsideRepository -Path $WritableBackupDirectory
+    if (-not (Test-Path -LiteralPath $WritableBackupDirectory -PathType Container)) {
+      throw 'PostgreSQL backup output directory does not exist.'
+    }
+  }
+
+  $serviceBytes = $null
+  $passBytes = $null
+  $servicePayload = $null
+  $passPayload = $null
+  $argumentPayloads = $null
+  $stdinPayload = $null
+  try {
+    $serviceBytes = [IO.File]::ReadAllBytes($ServiceFile)
+    $passBytes = [IO.File]::ReadAllBytes($PassFile)
+    $servicePayload = [Convert]::ToBase64String($serviceBytes)
+    $passPayload = [Convert]::ToBase64String($passBytes)
+    $argumentPayloads = @($ClientArguments | ForEach-Object {
+      [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($_))
+    })
+    $stdinPayload = "$servicePayload`n$passPayload`n$($argumentPayloads.Count)`n$($argumentPayloads -join "`n")`n"
+
+    # Credential content crosses the Docker boundary only on stdin. The client
+    # receives freshly materialized files in a private tmpfs after exact mode
+    # checks. No password is placed in args, environment, bind mounts, or logs.
+    $bootstrapFile = Join-Path (Get-RecoveryRepositoryRoot) 'scripts\recovery\Invoke-IsolatedPostgresClient.sh'
+    if (-not (Test-Path -LiteralPath $bootstrapFile -PathType Leaf)) {
+      throw 'The isolated PostgreSQL client bootstrap is missing.'
+    }
+    $mountBootstrap = ([IO.Path]::GetFullPath($bootstrapFile) -replace '\\','/')
+    $dockerArguments = @(
+      'run','--rm','-i','--pull','never','--network',$Network,
+      '--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
+      '--tmpfs','/run/secrets:rw,noexec,nosuid,nodev,mode=0700,size=1m',
+      '-e','PGSERVICEFILE=/run/secrets/pg_service.conf',
+      '-e','PGPASSFILE=/run/secrets/pgpass',
+      '-v',"${mountBootstrap}:/opt/alamin/Invoke-IsolatedPostgresClient.sh:ro"
+    )
+    if ($WritableBackupDirectory) {
+      $mountOut = ([IO.Path]::GetFullPath($WritableBackupDirectory) -replace '\\','/')
+      $dockerArguments += @('-v', "${mountOut}:/backup:rw")
+    }
+    $dockerArguments += @($script:PostgresImage,'sh','/opt/alamin/Invoke-IsolatedPostgresClient.sh')
+
+    $output = @($stdinPayload | & $script:DockerPath @dockerArguments 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+      throw 'The isolated PostgreSQL client failed before completing the requested read-only operation.'
+    }
+    return $output
+  } finally {
+    if ($serviceBytes) { [Array]::Clear($serviceBytes, 0, $serviceBytes.Length) }
+    if ($passBytes) { [Array]::Clear($passBytes, 0, $passBytes.Length) }
+    $servicePayload = $null
+    $passPayload = $null
+    $argumentPayloads = $null
+    $stdinPayload = $null
+  }
 }
 
 function Get-Sha256Lower {
