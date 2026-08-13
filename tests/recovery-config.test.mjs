@@ -23,8 +23,8 @@ test("Level 3 recovery manifest is complete and fail-closed", async () => {
   assert.equal(manifest.format_version, 2);
   assert.equal(manifest.recovery_level, 3);
   assert.equal(manifest.status, "RECOVERY_LEVEL_3_PROVEN");
-  assert.equal(manifest.fields.length, 67);
-  assert.equal(new Set(manifest.fields.map(({ id }) => id)).size, 67);
+  assert.equal(manifest.fields.length, 73);
+  assert.equal(new Set(manifest.fields.map(({ id }) => id)).size, 73);
   assert.ok(manifest.fields.every(({ classification }) => allowed.has(classification)));
 
   const counts = Object.fromEntries(
@@ -35,7 +35,7 @@ test("Level 3 recovery manifest is complete and fail-closed", async () => {
   );
   assert.deepEqual(counts, {
     PROVEN_RESTORABLE: 13,
-    PROVEN_MANUAL_REENTRY: 48,
+    PROVEN_MANUAL_REENTRY: 54,
     PROVEN_NOT_APPLICABLE: 6,
     UNKNOWN_BLOCKER: 0,
   });
@@ -54,7 +54,7 @@ test("manual recovery fields have actionable non-secret checklists", async () =>
     ({ classification }) => classification === "PROVEN_MANUAL_REENTRY",
   );
 
-  assert.equal(manual.length, 48);
+  assert.equal(manual.length, 54);
   for (const field of manual) {
     assert.equal(typeof field.recovery, "string", `${field.id}: recovery`);
     assert.ok(field.recovery.length > 0, `${field.id}: recovery`);
@@ -66,7 +66,7 @@ test("manual recovery fields have actionable non-secret checklists", async () =>
   }
 });
 
-test("secret re-entry map names seven sources without storing values", async () => {
+test("secret re-entry map names nine sources without storing values", async () => {
   const manifest = await loadManifest();
   const expected = new Set([
     "DATABASE_PASSWORD",
@@ -76,9 +76,11 @@ test("secret re-entry map names seven sources without storing values", async () 
     "UNISENDER_GO_API_KEY",
     "EMAIL_WORKER_SECRET",
     "TEMPORARY_S3_SECRET_ACCESS_KEY",
+    "TURNSTILE_SECRET_KEY",
+    "FEEDBACK_FINGERPRINT_SECRET",
   ]);
 
-  assert.equal(manifest.secrets.length, 7);
+  assert.equal(manifest.secrets.length, 9);
   assert.deepEqual(new Set(manifest.secrets.map(({ name }) => name)), expected);
   for (const secret of manifest.secrets) {
     assert.equal(secret.status, "MUST_REENTER", secret.name);

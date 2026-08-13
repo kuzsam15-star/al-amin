@@ -94,7 +94,7 @@ is never encoded as `PASS`.
 
 ## 7. Coverage
 
-The active suite contains 124 cases. It covers:
+The active suite contains 136 cases. It covers:
 
 - private/base-table reads and cross-owner isolation;
 - application protected columns, ownership, status, update, and delete,
@@ -106,7 +106,10 @@ The active suite contains 124 cases. It covers:
   privilege probe;
 - named application/revision moderation state machines with invalid-state,
   replay, expected-version and concurrent-winner assertions;
-- anonymous and authenticated feedback insertion;
+- anonymous/authenticated direct feedback denial, protected-field and duplicate
+  bypasses, service-only exact insertion, target eligibility, idempotent replay,
+  content duplicate handling, atomic rate limits, and future-column fail-closed
+  behavior;
 - account-profile mirrored fields;
 - real AAL1 negative and AAL2 positive sessions;
 - allowlisted revision-decision RPC plus catalog function ACL/search-path
@@ -162,3 +165,12 @@ denial and AAL2 success; current database membership is rechecked at mutation
 time. SEC-010 is not closed: private reads, mandatory enrollment/recovery,
 recent-auth and complete session downgrade/revocation remain separate gates.
 See `SEC-003_LOCAL_VERIFICATION.md`.
+
+For SEC-004, the expanded red phase produced 108 PASS and 28 XFAIL in both
+independent runs. After the service-only gateway migration, both final runs
+produced 124 PASS and 12 unrelated XFAIL, with no XPASS, FAIL, or SKIP. The 16
+SEC-004 expectations cover direct grants/policies, anonymous/authenticated
+inserts, protected fields, duplicates, function ACL, exact server inserts,
+idempotency conflict/replay, duplicate content, target eligibility, concurrent
+rate limiting, and future-column inheritance. See
+`SEC-004_LOCAL_VERIFICATION.md`.

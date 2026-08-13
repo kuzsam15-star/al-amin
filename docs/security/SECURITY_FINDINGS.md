@@ -25,7 +25,7 @@
 | SEC-001 | High | Замена опубликованного media через прямой Storage API | LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE — live open | yes |
 | SEC-002 | High | Владелец заявки читает moderator-only колонки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
-| SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | Open — confirmed live | yes |
+| SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
 | SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | Open — confirmed | yes |
 | SEC-007 | High | Race создаёт дубли заявок | Open — confirmed design flaw | yes |
@@ -101,7 +101,7 @@
 
 ### SEC-004 — Anonymous feedback bypass, spam и PII accumulation
 
-- **Severity / status:** High; Open — confirmed locally and live.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; live remains open.
 - **Область:** public forms, direct PostgREST, spam, CSRF-like cross-origin submission, retention.
 - **Объекты:** `public.reviews`, `public.complaints`; `/api/reviews`, `/api/complaints`; `supabase/schema.sql:95-96` и действующие live policies/grants.
 - **Доказательство — факт:** live `anon` и `authenticated` имеют INSERT в обе таблицы. Policy отзывов ограничивает лишь publication/evidence flags; policy жалоб — status. Route handlers не имеют Origin/content-type/body-size/CAPTCHA/rate/idempotency controls и полностью буферизуют JSON. Direct REST обходит route validation и позволяет задать лишние колонки, включая complaint `internal_notes`.
@@ -109,6 +109,7 @@
 - **Ущерб / вероятность:** PII accumulation, abusive content, cost/availability, возможная подделка protected metadata; вероятность высокая после публикации endpoint.
 - **Исправление:** если feature не запускается — deny и disable. Иначе revoke anon/auth table INSERT, controlled server/Edge gateway, strict allowlist/schema/content type/stream limit, CAPTCHA, durable throttling, idempotency, eligibility checks, moderation queue и retention.
 - **Тесты:** direct anon/auth PostgREST deny; cross-origin simple request deny; oversized/duplicate/burst tests на staging; protected-field injection deny; valid gateway request succeeds once.
+- **Локальная реализация:** forward migration отзывает прямые INSERT grants/policies, добавляет private abuse ledger и service-only `submit_feedback_v1`; Node gateway применяет exact Origin/JSON/streamed 8 KiB/allowlist/normalization, server-side Turnstile, HMAC fingerprint, idempotency, target eligibility и generic errors. Два final clean-room run: 124 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. SEC-011 retention и остальная область SEC-017 не закрыты.
 - **Rollback/forward-fix:** gateway сначала поддержать и протестировать, затем revoke direct DML. Не откатывать через возвращение anonymous INSERT.
 - **Launch blocker:** yes. **Уверенность:** High.
 

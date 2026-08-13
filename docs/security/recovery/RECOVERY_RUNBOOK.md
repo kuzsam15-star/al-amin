@@ -105,8 +105,8 @@ Use `CONFIG_RECOVERY_MANIFEST.json` as the redacted checklist. Apply non-secret
 values to the isolated target and manually re-enter secrets from the owner's
 secret manager. Never copy secret values into the manifest.
 
-Manifest v2 contains 67 fields: 13 locally restorable, 48 exact manual re-entry
-items, six proven not applicable, and zero critical unknowns. Seven secret names
+Manifest v2 contains 73 fields: 13 locally restorable, 54 exact manual re-entry
+items, six proven not applicable, and zero critical unknowns. Nine secret names
 are `MUST_REENTER`; their values remain with the owner, external provider,
 replacement-project Dashboard, or deployment secret store. Follow
 `CONFIG_RECOVERY_REHEARSAL.md` for the verified command, expected evidence, and
@@ -116,6 +116,13 @@ Required manual checks include Auth providers, email confirmation, redirect URL
 allowlist, MFA/session controls, SMTP/provider secret presence, Storage bucket
 configuration, Realtime settings, extensions, region/compute, custom domains,
 network restrictions, and API settings. Unknown values block a Level 3 result.
+
+The SEC-004 application gateway additionally requires exact re-entry of the
+approved HTTPS origin, reviewed trusted-proxy mode, Turnstile public site key,
+and expected hostname. `TURNSTILE_SECRET_KEY` and
+`FEEDBACK_FINGERPRINT_SECRET` are server-only `MUST_REENTER` values. They are
+never recovered from Git or the Supabase database. The feedback gateway remains
+fail-closed until all six fields are present and verified.
 
 ## 6. Disaster scenarios
 
@@ -170,10 +177,11 @@ Each rehearsal uses a fresh isolated target:
 Two independent Level 2 rehearsals of the production-derived encrypted artifact
 completed on 2026-08-13. Both reconciled 47 tables, 5 Auth users, and 36 Storage
 objects with matching row counts and content hashes, then removed all disposable
-resources. Two additional independent Level 3 configuration rehearsals used
-different disposable project IDs and ports. They matched on all 67 manifest
-fields, seven secret mappings, 48 manual checklists, local service/configuration
-checks, complete-project-loss walkthrough, and zero residual resources.
+resources. The Level 3 configuration rehearsal was rerun after the SEC-004
+configuration contract was added, using two different disposable project IDs
+and ports. It matched on all 73 manifest fields, nine secret mappings, 54 manual
+checklists, local service/configuration checks, complete-project-loss
+walkthrough, and zero residual resources.
 
 ## 9. Cleanup
 

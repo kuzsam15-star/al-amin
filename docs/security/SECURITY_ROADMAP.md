@@ -153,6 +153,7 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 - **Доказательство выхода:** direct PostgREST deny; cross-origin simple request deny; duplicate/burst/oversize/protected-field tests; один valid synthetic submission создаёт одну минимальную row.
 - **Rollback/forward-fix:** gateway canary перед revoke; при false positive корректировать threshold, не открывать base table.
 - **Зависимости:** P0-01/02; решение Product запускать ли feedback.
+- **Локальный статус:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Direct anon/auth INSERT закрыт forward migration; server-only gateway, CAPTCHA/origin/body/allowlist, HMAC fingerprint, atomic rate/idempotency/duplicate/eligibility controls проверены. Два final run: 124 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Live deployment и hosting-specific origin/proxy/Turnstile configuration не выполнялись; SEC-011 и остальная область SEC-017 остаются open.
 
 ### P0-07 — Атомарные заявки, решения, audit и email events
 

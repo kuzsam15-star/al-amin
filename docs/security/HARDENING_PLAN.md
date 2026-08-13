@@ -167,7 +167,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Gateway canary до revoke; при проблеме выключить submission, но не возвращать anonymous INSERT.
 - **Risk of fixing:** Средний/высокий — false positives могут блокировать legitimate feedback, incomplete gateway сохранит bypass.
 - **Dependencies:** P0-01/P0-02, product launch decision, CAPTCHA/rate infrastructure, retention policy.
-- **Status:** Open — confirmed locally and live; tests not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; 16 SEC-004 expectations PASS in two independent clean-room runs; live remains open. SEC-011 retention and non-feedback SEC-017 scope remain separate.
 
 ### SEC-005 — Нереплейный database bootstrap
 

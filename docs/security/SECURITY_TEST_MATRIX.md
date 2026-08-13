@@ -312,3 +312,26 @@ SEC-018 scope.
 Evidence: `docs/security/changes/SEC-003_MODERATOR_ADMIN_BOUNDARY.md` and
 `docs/security/SEC-003_LOCAL_VERIFICATION.md`. Remote Supabase was not
 contacted, so these results do not close the live findings.
+
+### 10.3 P0-06 SEC-004 feedback-gateway execution
+
+The expanded red phase ran twice at **108 PASS / 28 XFAIL / 0 XPASS / 0
+FAIL / 0 SKIP**. Sixteen cases mapped to SEC-004: `CAT-007`,
+`FEEDBACK-001..003`, and `FEEDBACK-006..017`.
+
+After the forward migration and server gateway, two fresh runs matched at
+**124 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**. DB-05, DB-06,
+and DB-22 are PASS locally; feedback-specific RT-03/RT-04/AU-08 are exercised
+by 17 targeted Node tests covering exact Origin, JSON-only and streamed 8 KiB
+limit, CAPTCHA failure, field injection, idempotency, duplicate and concurrent
+rate behavior. RT-13 is covered structurally by typed SDK/RPC parameters,
+strict UUID/text normalization, no dynamic SQL, and malformed/injection-field
+tests. OP-13 remains NOT RUN because retention is SEC-011 scope.
+
+Database lint remained 0/0/0. Advisors were 4 ERROR / 8 WARN / 1 INFO; the
+single INFO is the RLS-enabled private gateway ledger without a direct policy,
+and no new ERROR/WARN appeared. Remote Supabase was not contacted, so live
+DB-05/06/22 remain open pending consolidated pre-launch deployment.
+
+Evidence: `docs/security/changes/SEC-004_SAFE_FEEDBACK_GATEWAY.md` and
+`docs/security/SEC-004_LOCAL_VERIFICATION.md`.

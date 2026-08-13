@@ -660,7 +660,12 @@ async function runCatalogCases(recorder, stack, toolchain, env) {
   const feedbackPolicies = Number(await queryLocalSql(stack, toolchain.dockerBin, env, `
     select count(*) from pg_policies where schemaname='public' and tablename in ('reviews','complaints') and cmd='INSERT';
   `));
-  recorder.record('CAT-007', feedbackPolicies === 0, `${feedbackPolicies} direct feedback INSERT policies remain`);
+  const feedbackClientInsertGrants = Number(await queryLocalSql(stack, toolchain.dockerBin, env, `
+    select count(*) from (values ('anon'::name),('authenticated'::name)) as role_name(name)
+    cross join (values ('reviews'::name),('complaints'::name)) as relation_name(name)
+    where has_table_privilege(role_name.name, format('public.%I', relation_name.name), 'INSERT');
+  `));
+  recorder.record('CAT-007', feedbackPolicies === 0 && feedbackClientInsertGrants === 0, `${feedbackPolicies} direct feedback INSERT policies and ${feedbackClientInsertGrants} client INSERT grants remain`);
 
   const webpOnly = (await queryLocalSql(stack, toolchain.dockerBin, env, `
     select allowed_mime_types = array['image/webp']::text[] from storage.buckets where id='profile-media';
@@ -762,6 +767,124 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('FEEDBACK-003', await attemptInsert({ actor: users.userA.client, service, table: 'reviews', value: { id: authReviewId, specialist_id: ids.specialistA, body: 'Synthetic authenticated review body long enough for local validation.', would_hire_again: true, is_published: false, evidence_checked: false } }), 'authenticated direct review insert checked through service-side existence');
   recorder.record('FEEDBACK-004', await attemptUpdate({ actor: users.moderator.client, service, table: 'reviews', id: ids.reviewUnpublished, changes: { is_published: true }, verifyField: 'is_published', restoreValue: false }), 'direct moderator review mutation boundary evaluated');
   recorder.record('FEEDBACK-005', await attemptUpdate({ actor: users.moderator.client, service, table: 'complaints', id: ids.complaintA, changes: { status: 'resolved' }, verifyField: 'status', restoreValue: 'new' }), 'direct moderator complaint mutation boundary evaluated');
+  const authComplaintId = randomUUID();
+  recorder.record('FEEDBACK-006', await attemptInsert({ actor: users.userA.client, service, table: 'complaints', value: { id: authComplaintId, specialist_id: ids.specialistA, reason: 'Synthetic auth reason', description: 'Synthetic authenticated complaint description for local validation.', reporter_contact: 'auth@example.invalid', status: 'new' } }), 'authenticated direct complaint insert checked through service-side existence');
+  const protectedComplaintId = randomUUID();
+  recorder.record('FEEDBACK-007', await attemptInsert({ actor: anon, service, table: 'complaints', value: { id: protectedComplaintId, specialist_id: ids.specialistA, reason: 'Synthetic protected reason', description: 'Synthetic complaint attempting a protected field through direct Data API.', reporter_contact: 'protected@example.invalid', status: 'new', internal_notes: 'Synthetic client-controlled internal note' } }), 'client-controlled complaint internal_notes insert checked without logging content');
+  const duplicateBody = 'Synthetic duplicate review body long enough for deterministic local validation.';
+  const duplicateReviewIds = [randomUUID(), randomUUID()];
+  await anon.from('reviews').insert(duplicateReviewIds.map((id) => ({ id, specialist_id: ids.specialistA, body: duplicateBody, would_hire_again: true, is_published: false, evidence_checked: false })));
+  const duplicateDirectRows = await service.from('reviews').select('id').in('id', duplicateReviewIds);
+  recorder.record('FEEDBACK-008', !duplicateDirectRows.error && duplicateDirectRows.data?.length === 0, 'duplicate direct submissions were checked by row cardinality without logging content');
+
+  const gatewaySignature = 'public.submit_feedback_v1(text,uuid,uuid,text,text,text,text,text,boolean,text,text,text)';
+  const gatewayExists = (await queryLocalSql(stack, toolchain.dockerBin, env, `select to_regprocedure('${gatewaySignature}') is not null;`)) === 't';
+  if (!gatewayExists) {
+    for (const id of ['FEEDBACK-009','FEEDBACK-010','FEEDBACK-011','FEEDBACK-012','FEEDBACK-013','FEEDBACK-014','FEEDBACK-015','FEEDBACK-016','FEEDBACK-017']) {
+      recorder.record(id, false, 'service-only atomic feedback gateway is absent in the pre-fix catalog');
+    }
+  } else {
+    const hashLabel = (value) => createHash('sha256').update(`${stack.projectId}:${value}`).digest('hex');
+    const invokeGateway = (overrides = {}) => service.rpc('submit_feedback_v1', {
+      p_feedback_type: 'review',
+      p_target_id: ids.specialistA,
+      p_actor_id: null,
+      p_network_fingerprint: hashLabel('network-default'),
+      p_idempotency_key_hash: hashLabel(`idempotency-${randomUUID()}`),
+      p_payload_hash: hashLabel(`payload-${randomUUID()}`),
+      p_body: 'Synthetic gateway review body long enough for the validated contract.',
+      p_contact: 'gateway@example.invalid',
+      p_would_hire_again: true,
+      p_reason: null,
+      p_description: null,
+      p_materials_links: null,
+      ...overrides,
+    });
+    const resultRow = (result) => Array.isArray(result.data) ? result.data[0] : result.data;
+    const gatewayAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
+      select not has_function_privilege('anon','${gatewaySignature}','EXECUTE')
+        and not has_function_privilege('authenticated','${gatewaySignature}','EXECUTE')
+        and has_function_privilege('service_role','${gatewaySignature}','EXECUTE');
+    `)) === 't';
+    const anonGateway = await anon.rpc('submit_feedback_v1', {
+      p_feedback_type: 'review', p_target_id: ids.specialistA, p_actor_id: null,
+      p_network_fingerprint: hashLabel('acl-network'), p_idempotency_key_hash: hashLabel('acl-idem'),
+      p_payload_hash: hashLabel('acl-payload'), p_body: 'Synthetic denied RPC review body long enough for validation.',
+      p_contact: null, p_would_hire_again: true, p_reason: null, p_description: null, p_materials_links: null,
+    });
+    const authGateway = await users.userA.client.rpc('submit_feedback_v1', {
+      p_feedback_type: 'review', p_target_id: ids.specialistA, p_actor_id: users.userA.id,
+      p_network_fingerprint: hashLabel('acl-network-auth'), p_idempotency_key_hash: hashLabel('acl-idem-auth'),
+      p_payload_hash: hashLabel('acl-payload-auth'), p_body: 'Synthetic denied authenticated RPC review body for validation.',
+      p_contact: null, p_would_hire_again: true, p_reason: null, p_description: null, p_materials_links: null,
+    });
+    recorder.record('FEEDBACK-009', gatewayAcl && Boolean(anonGateway.error) && Boolean(authGateway.error), 'gateway function ACL and direct RPC denial verified');
+
+    const validReview = await invokeGateway({ p_network_fingerprint: hashLabel('review-network'), p_idempotency_key_hash: hashLabel('review-idem'), p_payload_hash: hashLabel('review-payload') });
+    const validReviewRow = resultRow(validReview);
+    const storedReview = validReviewRow?.feedback_id
+      ? await service.from('reviews').select('id,is_published,evidence_checked').eq('id', validReviewRow.feedback_id).maybeSingle()
+      : { data: null, error: validReview.error ?? new Error('missing result') };
+    recorder.record('FEEDBACK-010', !validReview.error && validReviewRow?.result_status === 'accepted' && storedReview.data?.is_published === false && storedReview.data?.evidence_checked === false, 'valid service gateway review created one server-controlled pending row');
+
+    const validComplaint = await invokeGateway({
+      p_feedback_type: 'complaint', p_network_fingerprint: hashLabel('complaint-network'),
+      p_idempotency_key_hash: hashLabel('complaint-idem'), p_payload_hash: hashLabel('complaint-payload'),
+      p_body: null, p_contact: 'complaint-gateway@example.invalid', p_would_hire_again: null,
+      p_reason: 'Synthetic gateway reason', p_description: 'Synthetic gateway complaint description long enough for validation.',
+      p_materials_links: 'https://example.invalid/evidence',
+    });
+    const validComplaintRow = resultRow(validComplaint);
+    const storedComplaint = validComplaintRow?.feedback_id
+      ? await service.from('complaints').select('id,status,internal_notes').eq('id', validComplaintRow.feedback_id).maybeSingle()
+      : { data: null, error: validComplaint.error ?? new Error('missing result') };
+    recorder.record('FEEDBACK-011', !validComplaint.error && validComplaintRow?.result_status === 'accepted' && storedComplaint.data?.status === 'new' && storedComplaint.data?.internal_notes === null, 'valid service gateway complaint created one server-controlled new row');
+
+    const replayArgs = { p_network_fingerprint: hashLabel('replay-network'), p_idempotency_key_hash: hashLabel('replay-idem'), p_payload_hash: hashLabel('replay-payload') };
+    const replayFirst = await invokeGateway(replayArgs);
+    const replaySecond = await invokeGateway(replayArgs);
+    const replayFirstRow = resultRow(replayFirst);
+    const replaySecondRow = resultRow(replaySecond);
+    const replayCount = replayFirstRow?.feedback_id ? Number(await queryLocalSql(stack, toolchain.dockerBin, env, `select count(*) from public.reviews where id='${replayFirstRow.feedback_id}'::uuid;`)) : 0;
+    recorder.record('FEEDBACK-012', !replayFirst.error && !replaySecond.error && replayFirstRow?.feedback_id === replaySecondRow?.feedback_id && replaySecondRow?.result_status === 'replayed' && replayCount === 1, 'same idempotency scope and payload replayed one feedback row');
+
+    const conflictFirst = await invokeGateway({ p_network_fingerprint: hashLabel('conflict-network'), p_idempotency_key_hash: hashLabel('conflict-idem'), p_payload_hash: hashLabel('conflict-payload-a') });
+    const conflictSecond = await invokeGateway({ p_network_fingerprint: hashLabel('conflict-network'), p_idempotency_key_hash: hashLabel('conflict-idem'), p_payload_hash: hashLabel('conflict-payload-b'), p_body: 'Synthetic different review content long enough for idempotency conflict.' });
+    recorder.record('FEEDBACK-013', !conflictFirst.error && Boolean(conflictSecond.error), 'idempotency conflict rejected without exposing content');
+
+    const duplicateArgs = { p_network_fingerprint: hashLabel('content-network'), p_payload_hash: hashLabel('content-payload') };
+    const contentFirst = await invokeGateway({ ...duplicateArgs, p_idempotency_key_hash: hashLabel('content-idem-a') });
+    const contentSecond = await invokeGateway({ ...duplicateArgs, p_idempotency_key_hash: hashLabel('content-idem-b') });
+    const contentFirstRow = resultRow(contentFirst);
+    const contentSecondRow = resultRow(contentSecond);
+    recorder.record('FEEDBACK-014', !contentFirst.error && !contentSecond.error && contentFirstRow?.feedback_id === contentSecondRow?.feedback_id && contentSecondRow?.result_status === 'duplicate', 'content duplicate window returned the existing result');
+
+    const ineligible = await invokeGateway({ p_target_id: ids.specialistB, p_network_fingerprint: hashLabel('ineligible-network'), p_idempotency_key_hash: hashLabel('ineligible-idem'), p_payload_hash: hashLabel('ineligible-payload') });
+    recorder.record('FEEDBACK-015', Boolean(ineligible.error), 'unpublished feedback target was rejected');
+
+    const burstFingerprint = hashLabel('burst-network');
+    const burst = await Promise.all(Array.from({ length: 6 }, (_, index) => invokeGateway({
+      p_network_fingerprint: burstFingerprint,
+      p_idempotency_key_hash: hashLabel(`burst-idem-${index}`),
+      p_payload_hash: hashLabel(`burst-payload-${index}`),
+      p_body: `Synthetic atomic burst review number ${index} long enough for gateway validation.`,
+    })));
+    recorder.record('FEEDBACK-016', burst.filter((result) => !result.error).length === 3 && burst.filter((result) => result.error).length === 3, 'concurrent burst admitted exactly the configured atomic allowance');
+
+    const futureProbe = await queryLocalSql(stack, toolchain.dockerBin, env, `
+      begin;
+      alter table public.reviews add column sec004_future_sensitive text;
+      set local role service_role;
+      select * from public.submit_feedback_v1(
+        'review','${ids.specialistA}'::uuid,null,'${hashLabel('future-network')}','${hashLabel('future-idem')}',
+        '${hashLabel('future-payload')}','Synthetic future-column gateway review body long enough for validation.',null,true,null,null,null
+      );
+      reset role;
+      select coalesce(bool_and(sec004_future_sensitive is null),false) from public.reviews where body like 'Synthetic future-column gateway review%';
+      rollback;
+    `);
+    recorder.record('FEEDBACK-017', futureProbe.split(/\r?\n/u).includes('t'), 'transactional future-column probe remained null under exact gateway insert');
+  }
 
   recorder.record('PROFILE-001', await attemptUpdate({ actor: users.userA.client, service, table: 'account_profiles', id: users.userA.id, changes: { email: 'changed@example.invalid' }, verifyField: 'email', restoreValue: `user-a-${stack.projectId.slice(-8)}@example.invalid` }), 'mirrored email mutation boundary evaluated');
   const foreignProfile = await users.userA.client.from('account_profiles').update({ display_name: 'Synthetic foreign edit' }).eq('id', users.userB.id).select('id');
