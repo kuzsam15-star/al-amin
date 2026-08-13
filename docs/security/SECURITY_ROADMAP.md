@@ -1,5 +1,20 @@
 # AL-AMIN / «Аманат»: security roadmap
 
+## Pre-launch architecture correction (2026-08-13)
+
+AL-AMIN has no deployed Next.js application, hosting provider, production URL,
+deployed source revision or production application traffic. The application is
+local-only. The remote Supabase project is a live backend and must not be
+described as a deployed production application.
+
+Current-host identity, current deployed-source SHA, source version marker,
+deployed rollback, public canary and traffic-observation gates are not
+applicable until the first hosting deployment. They are deferred, not waived.
+SEC-001 and the other backend blockers remain open. Complete the remaining P0
+fixes locally, rehearse their dependency-ordered forward migrations together,
+then use one separately approved consolidated pre-launch backend hardening
+window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
+
 Дата: **2026-08-09**  
 Исходный verdict: **BLOCKED**  
 Принцип выполнения: малые проверяемые изменения, сначала disposable staging, затем отдельное явное разрешение на production.
@@ -87,12 +102,13 @@
   два final role-matrix run: 73 PASS / 23 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
   Статус: `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`;
   production по-прежнему не изменён.
-- **P0-12 release-operations status (2026-08-13):**
-  `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`. Owner wrapper, внешний
-  checkpoint/identity fingerprint, frozen hashes, hidden credential transport,
-  backfill/observation gates, Phase B hard gate, 14/14 release tests и два
-  disposable rehearsal по 20/20 PASS. Это не `FIXED_LIVE`: P0-13 ещё требует
-  отдельного owner approval и live evidence.
+- **P0-12 release-operations status (reassessed 2026-08-13):**
+  `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`. Recovery,
+  checkpoint/identity, frozen hashes, hidden credential transport, backfill and
+  Phase B controls remain proven locally. The assumed existing hosting/source
+  deployment does not exist; those gates are deferred to first hosting. The
+  current wrapper must not be executed as written. SEC-001 remains open until
+  the consolidated pre-launch backend cutover and live evidence complete.
 
 ### P0-04 — Закрыть owner column leak applications
 
@@ -249,13 +265,12 @@
 
 ## 8. Следующий один безопасный этап
 
-**Следующий этап: P0-13 — SEC-001 controlled production deployment.**
+**Следующий этап: P0-04 — SEC-002 owner-safe applications projection and
+column boundary.**
 
-P0-11A завершил owner-approved read-only export и два matching Level 2 restore;
-P0-11B доказал configuration Level 3 двумя matching disposable runs без
-production mutation. SEC-013 имеет статус `RECOVERY_READINESS_PROVEN`, а
-recovery часть P0-03C закрыта. P0-12 PASS доказал remaining
-release-operations boundary: owner wrapper, внешний
-checkpoint/identity fingerprint, frozen hashes, backfill/observation gates и
-Phase B hard gate. Production не изменялся; P0-13 требует отдельного явного
-owner approval.
+P0-13 as a standalone immediate SEC-001 production deployment is superseded by
+the confirmed pre-launch architecture. Recovery and release rehearsals remain
+valid evidence, but source deployment/version-marker/public-traffic stages are
+deferred until first hosting. SEC-001 will be included in a separately approved
+consolidated pre-launch remote-backend hardening window after the remaining P0
+fixes are locally complete and the full ordered set has passed isolated replay.

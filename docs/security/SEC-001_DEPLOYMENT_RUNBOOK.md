@@ -2,18 +2,34 @@
 
 Date: 2026-08-11
 
-Status: `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`
+Status: `RETAINED_AS_REHEARSAL_EVIDENCE_REQUIRES_PRELAUNCH_REDESIGN`
 
 Change: immutable canonical published media
 
-This is an owner-operated plan. It does not itself authorize production access,
-deployment, backfill, or Phase B. Recovery Level 3 and the P0-12 release wrapper
-are proven locally; P0-13 still requires explicit owner authorization.
+## Pre-launch correction
 
-Use only `scripts/release/sec001/START_SEC001_RELEASE.bat`. The wrapper owns the
-external checkpoint, artifact/target verification, hidden credential prompts,
-advisory lock, aggregate backfill gates and exact Phase B confirmation. Do not
-paste these migrations into Dashboard SQL Editor or bypass the wrapper.
+There is currently no hosted AL-AMIN application, deployed source revision or
+public application traffic. The live remote Supabase project is a backend, not
+a deployed Next.js application. Therefore this runbook must not be used as an
+immediate SEC-001 deployment procedure: its source-deploy, version-marker,
+public-canary and traffic-observation assumptions do not exist yet.
+
+The applicable recovery, target, migration, backfill and enforcement controls
+must be incorporated into a dependency-ordered consolidated pre-launch backend
+hardening plan after the remaining P0 fixes are complete. Hosting and source
+provenance gates return at the first application deployment. See
+`SEC-001_PRELAUNCH_REASSESSMENT.md`.
+
+This is retained owner-operated rehearsal evidence. It does not authorize
+remote access, deployment, backfill, or Phase B. Recovery Level 3 and the
+applicable P0-12 controls are proven locally; any future consolidated pre-launch
+backend cutover still requires explicit owner authorization.
+
+Do not run `scripts/release/sec001/START_SEC001_RELEASE.bat` against the remote
+backend in its current form. A future reviewed wrapper may reuse its external
+checkpoint, artifact/target verification, hidden credential prompts, advisory
+lock, aggregate backfill gates and Phase B confirmation. Dashboard SQL paste
+and bypassing the approved future wrapper remain forbidden.
 
 ## Preconditions
 
@@ -294,18 +310,20 @@ Expected output is
 `SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=20 RUN2=20 FAIL=0`; any other result is
 a stop. The runner sanitizes remote variables and destroys only its projects.
 
-Production operation is exposed only through
-`scripts/release/sec001/START_SEC001_RELEASE.bat` after a separate P0-13 owner
-approval. Raw `psql`, Dashboard paste, `supabase db push`, linked mode, or a
-guessed hosting command remains forbidden. P0-12 did not set the approval flag,
-create an identity package, request a secret, or contact production.
+The existing `scripts/release/sec001/START_SEC001_RELEASE.bat` must not be used
+against the remote backend as written. Its assumed hosting step does not exist.
+Applicable controls may be reused only in a redesigned and reviewed
+consolidated pre-launch backend release. Raw `psql`, Dashboard paste,
+`supabase db push`, linked mode, or a guessed hosting command remains forbidden.
+P0-12 did not set the approval flag, create an identity package, request a
+secret, or contact production.
 
 ## Completion evidence
 
-SEC-001 is `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT` because recovery and
-local release-operation rows are proven; live evidence rows intentionally
-remain pending for P0-13. It may be marked fixed live only after
-the authorized Phase A/source/backfill/Phase B sequence, full canonical
-coverage, production-safe canaries, observation window, and reviewer sign-off.
-Old source media remains retained until separate SEC-006 lifecycle and SEC-013
-restore evidence authorize deletion.
+SEC-001 is `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`.
+Recovery and applicable local release-operation rows are proven; live evidence
+remains pending. It may be marked fixed live only after the authorized
+Phase A/inventory/backfill/zero-pass/Phase B backend sequence, full canonical
+coverage and reviewer sign-off. Source provenance and public canaries belong to
+the later first application deployment. Old source media remains retained until
+separate SEC-006 lifecycle and SEC-013 restore evidence authorize deletion.

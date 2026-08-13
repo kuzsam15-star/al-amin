@@ -8,6 +8,14 @@
 
 Текущий release verdict: **BLOCKED**
 
+Архитектурное уточнение 2026-08-13: AL-AMIN находится в состоянии
+**PRE-LAUNCH**. Next.js application работает только локально; hosting,
+production URL, deployed source revision и production application traffic
+отсутствуют. Remote Supabase — живой backend, но не deployed production
+application. Hosting/source-marker/public-traffic gates отложены до первого
+deployment, а backend findings остаются открытыми. См.
+`SEC-001_PRELAUNCH_REASSESSMENT.md`.
+
 Нормативные источники этого плана:
 
 - `SECURITY_FINDINGS.md` — реестр из 26 findings и зафиксированные доказательства;
@@ -105,7 +113,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала совместимый server writer и canary, затем revoke broad path; rollback отключает новый writer/переключение, но не возвращает broad Storage DML.
 - **Risk of fixing:** Высокий — неверный rollout может остановить upload, оставить orphan objects или снова открыть overwrite.
 - **Dependencies:** P0-01 controls, P0-02 reproducible DB baseline, disposable Storage fixtures, publication transaction, restore evidence.
-- **Status:** `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`; not fixed live. Adversarial review, role-matrix, recovery Level 3, the frozen owner wrapper, target/checkpoint identity model, aggregate backfill controls, Phase B hard gate, failure injection and two disposable release rehearsals PASS. Live risk remains until P0-13 owner approval, Phase A/source/canary, production inventory/backfill, observation, Phase B and post-deployment evidence complete.
+- **Status:** `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`; not fixed live. Adversarial review, role-matrix, Recovery Level 3, backfill controls, Phase B gate, failure injection and disposable rehearsals PASS. There is no deployed application, so source-version/public-canary/traffic gates are deferred until first hosting. The remote-backend risk remains until SEC-001 is included in an owner-approved consolidated pre-launch backend window with Phase A, inventory/backfill/zero pass, Phase B and live verification.
 
 ### SEC-002 — Owner column exposure
 

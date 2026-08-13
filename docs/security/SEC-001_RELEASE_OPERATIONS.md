@@ -2,9 +2,23 @@
 
 Date: 2026-08-13
 
-Status: `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`
+Status: `RETAINED_AS_REHEARSAL_EVIDENCE_REQUIRES_PRELAUNCH_REDESIGN`
 
 Production execution: **not performed and not authorized by this document**.
+
+## Pre-launch correction
+
+AL-AMIN has no deployed application or hosting target. The remote Supabase
+project is a live backend, but the Next.js application is local-only. This
+runbook was rehearsed against an assumed existing hosting deployment and must
+not be executed as written.
+
+The source-deploy, version-marker, public-canary and traffic-observation stages
+are not applicable until the first hosting deployment. They are deferred, not
+waived. The database/Storage recovery, artifact integrity, target identity,
+backfill and Phase B evidence remains useful input to a future consolidated
+pre-launch backend hardening window. See
+`SEC-001_PRELAUNCH_REASSESSMENT.md`.
 
 ## 1. Release architecture
 
@@ -73,7 +87,7 @@ its own hash. Every production mutation revalidates the manifest and checkpoint.
 |---|---|---|---|
 | Database migration | connect to the one production DB as the verified owner of the affected schemas/functions and execute only reviewed Phase A/B DDL | owner-held DB credential, entered hidden only for a migration/verification window | discard prompt value; rotate/reset only under separate owner decision if exposure is suspected |
 | Backfill | read approved application/specialist references, read/copy `profile-media`, call the one service-only cutover RPC | temporary individually revocable secret API credential; owner-held; one backfill window | owner deletes the temporary credential immediately after zero-change verification |
-| Source deployment | deploy the frozen commit through the existing hosting control plane | human-only existing hosting admin session; never received by wrapper | existing hosting session and access lifecycle |
+| Source deployment | deferred until a first hosting target exists; deploy the reviewed first-release commit | future human-only hosting admin session; never received by backend wrapper | future hosting session and access lifecycle |
 | Read-only verification | catalog and aggregate metadata only | temporary catalog-only audit identity where possible | revoke and delete after post-verification |
 
 No persistent broad service credential is committed or requested in chat. A
@@ -159,4 +173,5 @@ UUIDs, media paths/bytes, signed URLs and user content are forbidden.
 P0-12 proves the tooling and its local rehearsals. It does not set
 `ALAMIN_SEC001_PRODUCTION_APPROVED`, create an identity package, create or use a
 production credential, connect to production, deploy source, run a canary, or
-apply SQL. Those are explicit owner-controlled P0-13 actions.
+apply SQL. Remote backend mutations require a new owner-approved consolidated
+pre-launch release; hosting actions require a later first-deployment approval.

@@ -4,7 +4,25 @@ Date: 2026-08-13
 
 Starting commit: `d498bbbb5a2d3cc7c675add9cb68c424b8406387`
 
-Verdict: `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`
+Verdict: `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`
+
+## Pre-launch architecture correction
+
+There is no deployed AL-AMIN application, public application URL, hosting
+provider, deployed source revision, or production application traffic. The
+Next.js application is local-only; the remote Supabase project is a live
+backend, not a deployed production application.
+
+Consequently, current-host identity, current deployed-source SHA, a source
+version marker, deployed-source rollback, public canary and traffic-observation
+gates are not applicable now. They are deferred until the first hosting
+deployment and are not waived. `HOSTING_IDENTITY_UNKNOWN` is superseded as a
+blocker by this confirmed architecture state.
+
+SEC-001 remains open on the live remote backend. It should be included in one
+dependency-ordered, owner-approved consolidated pre-launch backend hardening
+window after the remaining P0 fixes are completed and rehearsed locally. See
+`SEC-001_PRELAUNCH_REASSESSMENT.md`. No production action is authorized here.
 
 No production or remote Supabase action was performed. This gate evaluates
 operational readiness only; it does not change the locally verified SEC-001
@@ -14,15 +32,17 @@ implementation and does not close the live finding.
 
 The SEC-001 implementation remains independently verified locally. Recovery
 Level 3 and the controlled release-operations boundary are now proven locally.
-Production execution still requires a new, explicit owner approval in P0-13.
+Remote-backend execution still requires a new, explicit owner approval after
+the consolidated P0 pre-launch set is complete and rehearsed.
 The former three release-operation gaps are closed as follows:
 
 1. **Migration provenance:** exact SHA-256-checked Phase A/Phase B files are
    applied by an isolated pinned client; catalog markers and the external
    checkpoint record the verified state without replaying the 18-file archive.
-2. **Source release provenance:** the checkpoint freezes the runtime Git SHA,
-   the existing hosting owner deploys exactly that SHA, and a read-only version
-   marker must match before canary.
+2. **Source release provenance:** deferred to the first application deployment.
+   There is no existing hosted source to identify or replace. The first hosted
+   build must be tied to its reviewed Git SHA by an immutable provider revision
+   or build-time marker.
 3. **Backfill operations:** the dry-run-first core now has a short-lived
    identity model, redacted durable checkpoint, 1/10/25 sequential batching,
    zero-change second pass, observation gate and exact production invocation.
@@ -165,7 +185,8 @@ failure stops the batch. The old source is never deleted.
 
 Current status: `READY_LOCAL`. The core and owner wrapper prove idempotent
 re-inventory, 1/10/25 sequential batching, external checkpoint/resume and safe
-cutover locally. Production counts and signals remain P0-13 evidence.
+cutover locally. Remote-backend counts and signals remain evidence for the
+future consolidated pre-launch cutover.
 
 ## 9. Machine-checkable Phase B gate
 
@@ -242,7 +263,9 @@ signed URLs, backups, rows, and media must never be sent to AI/chat/Git/logs.
 ## 14. Readiness checklist
 
 Status meanings: `READY` or `READY_LOCAL` is locally evidenced;
-`NOT_YET_PROVEN` needs P0-13 human/live evidence; `BLOCKED` prevents Phase A.
+`NOT_YET_PROVEN` needs human/live evidence in the future consolidated
+pre-launch cutover; `DEFERRED_FIRST_HOSTING` is inapplicable now but mandatory
+at first application deployment; `BLOCKED` prevents Phase A.
 
 | Gate | Required evidence | Status | Stop condition | Responsible actor |
 |---|---|---|---|---|
@@ -255,8 +278,8 @@ Status meanings: `READY` or `READY_LOCAL` is locally evidenced;
 | RECOVERY — config | tested redacted reconstruction checklist | `READY` | manifest drift or critical unknown | Platform owner |
 | PHASE A — artifact | exact frozen migration bytes | `READY` local | hash mismatch | DB owner |
 | PHASE A — runner | exact audited migration plus catalog/checkpoint record | `READY_LOCAL` | hash/catalog mismatch | DB owner |
-| SOURCE DEPLOY — artifact | checkpoint commit plus read-only version marker | `READY_LOCAL` | version mismatch | Release owner |
-| SOURCE DEPLOY — rollback | Phase-A-compatible forward/rollback boundary | `READY_LOCAL` | old incompatible app | Release owner |
+| SOURCE DEPLOY — artifact | first hosted build tied to reviewed Git SHA | `DEFERRED_FIRST_HOSTING` | missing first-deployment provenance | Release owner |
+| SOURCE DEPLOY — rollback | first-hosting rollback/forward-fix boundary | `DEFERRED_FIRST_HOSTING` | no compatible first-release plan | Release owner |
 | DRY RUN — wrapper | exact restricted redacted inventory command | `READY_LOCAL` | wrapper/hash mismatch | Backfill operator |
 | DRY RUN — counts | stable aggregate and zero anomalies | `NOT_YET_PROVEN` | count/anomaly drift | Operator + reviewer |
 | BACKFILL — controls | identity, checkpoint, batching, monitoring | `READY_LOCAL` | control mismatch | Backfill/Operations owner |
@@ -294,14 +317,14 @@ Expected Git output is branch `security/hardening`, frozen HEAD, and no status
 lines. Expected rehearsal output is
 `SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=20 RUN2=20 FAIL=0`. Any deviation stops.
 
-### Owner production launcher (not authorized in P0-12)
+### Owner launcher disposition after reassessment
 
-P0-13 may use only `scripts/release/sec001/START_SEC001_RELEASE.bat` after an
-explicit owner approval. It remains disabled by default, requires the external
-identity package and hidden credentials, and exposes each mutation only after
-its prerequisites. Guessing `db push`, a Dashboard paste, raw `psql`, or a
-hosting command would bypass provenance and can target the wrong state. P0-12
-did not run the launcher in production mode.
+The existing `scripts/release/sec001/START_SEC001_RELEASE.bat` must not be run
+against the remote backend as written. Its hosting/source-deploy assumptions
+are inapplicable. Its proven recovery, identity, integrity and backfill controls
+may be reused only after they are redesigned and reviewed as part of the future
+consolidated pre-launch backend release. P0-12 did not run it in production
+mode.
 
 ## 16. Final local rehearsal
 
@@ -320,11 +343,11 @@ production release-operation gates.
 
 ## 17. Release implication
 
-SEC-001 remains
-`INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; production
-readiness is now `READY_FOR_CONTROLLED_PRODUCTION_DEPLOYMENT`. It must not be
-renamed `FIXED_LIVE` or `CLOSED` before controlled live execution and evidence.
+SEC-001 remains independently reviewed and locally verified, but its remote
+status is `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`. It
+must not be renamed `FIXED_LIVE` or `CLOSED` before the controlled backend
+cutover and live evidence.
 
-Recovery and release tooling prerequisites are satisfied. The next stage is
-P0-13, which requires explicit owner approval because it will mutate production.
-No such approval or production action occurred in P0-12.
+Recovery and relevant release-tooling controls remain valid evidence. The next
+stage is P0-04 / SEC-002 local hardening, not a standalone SEC-001 remote
+deployment. No production action occurred in this reassessment.

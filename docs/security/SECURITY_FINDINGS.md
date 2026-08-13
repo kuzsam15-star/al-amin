@@ -22,7 +22,7 @@
 
 | ID | Severity | Кратко | Статус | Blocker |
 |---|---|---|---|---:|
-| SEC-001 | High | Замена опубликованного media через прямой Storage API | INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT — live open | yes |
+| SEC-001 | High | Замена опубликованного media через прямой Storage API | LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE — live open | yes |
 | SEC-002 | High | Владелец заявки читает moderator-only колонки | Open — confirmed live | yes |
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | Open — confirmed live | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | Open — confirmed live | yes |
@@ -53,7 +53,7 @@
 
 ### SEC-001 — Прямая замена опубликованного media
 
-- **Severity / status:** High; `INDEPENDENTLY_REVIEWED_LOCAL_READY_FOR_CONTROLLED_DEPLOYMENT`; исходный риск подтверждён live и остаётся launch blocker до rollout/backfill/Phase B.
+- **Severity / status:** High; `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`; исходный риск подтверждён live и остаётся launch blocker до rollout/backfill/Phase B. AL-AMIN application пока local-only, поэтому hosting/source-version gates отложены до первого deployment; remote Supabase остаётся живым backend.
 - **Область:** Storage ownership, moderation integrity, file upload, availability.
 - **Объекты:** `storage.objects`; bucket `profile-media`; `supabase/migrations/202607310001_security_hardening.sql:21-27`; `src/app/api/media/route.ts:12,24-25`; `src/app/api/media/view/route.ts:34-50`; `src/lib/media-paths.ts:1-16`.
 - **Доказательство — факт:** live ACL даёт `authenticated` `INSERT/UPDATE/DELETE` на `storage.objects`; owner policy разрешает операции под `submissions/<auth.uid()>/`. Route загружает через user client. Публичная карточка сохраняет и выдаёт тот же path. Серверное перекодирование защищает чтение, но не moderation integrity.
