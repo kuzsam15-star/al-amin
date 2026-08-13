@@ -1,6 +1,6 @@
 # AL-AMIN Local Role-Matrix Security Test Harness
 
-Date: 2026-08-11
+Date: 2026-08-13
 
 ## 1. Architecture
 
@@ -94,10 +94,12 @@ is never encoded as `PASS`.
 
 ## 7. Coverage
 
-The active suite contains 91 cases. It covers:
+The active suite contains 105 cases. It covers:
 
 - private/base-table reads and cross-owner isolation;
-- application protected columns, ownership, status, update, and delete;
+- application protected columns, ownership, status, update, and delete,
+  including the exact versioned owner projection, explicit/wildcard bypasses,
+  trusted moderation compatibility and a disposable future-column probe;
 - specialist/revision/moderator/admin boundaries;
 - anonymous and authenticated feedback insertion;
 - account-profile mirrored fields;
@@ -139,3 +141,10 @@ post-fix result is recorded in `SEC-001_LOCAL_VERIFICATION.md`. Independent
 fresh runs now produce 73 PASS and 23 non-SEC-001 XFAIL with no XPASS, FAIL,
 or SKIP. SEC-001 adds reviewed-version and concurrent-decision cases through
 `MEDIA-023`.
+
+For SEC-002, the red phase produced 74 PASS and 31 XFAIL in both independent
+runs. After the owner-safe projection migration, both fresh runs produced
+83 PASS and 22 non-SEC-002 XFAIL, with no XPASS, FAIL or SKIP. The nine
+SEC-002 expectations now PASS. `APPREAD-008` creates a synthetic future column
+only inside the disposable database and proves that grants and the explicit
+projection remain fail-closed. See `SEC-002_LOCAL_VERIFICATION.md`.

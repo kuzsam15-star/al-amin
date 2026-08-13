@@ -14,7 +14,7 @@ export default async function ApplyPage() {
   const supabase = createPublicClient();
   const [{ data: categories }, { data: application }] = await Promise.all([
     supabase ? supabase.from("categories").select("id,name,slug,group_name").eq("is_active", true).order("group_name").order("name") : Promise.resolve({ data: [] }),
-    auth.from("applications").select("id,full_name,contact,country,city,category_id,additional_category_ids,specialization,experience_years,profile_summary,description,help_topics,work_offers,main_image_path,status").eq("owner_id", user.id).in("status", ["changes_requested", "info_required"]).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    auth.from("owner_applications_v1").select("id,full_name,contact,country,city,category_id,additional_category_ids,specialization,experience_years,profile_summary,description,help_topics,work_offers,main_image_path,status").in("status", ["changes_requested", "info_required"]).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const draft = application ? {
     id: application.id,

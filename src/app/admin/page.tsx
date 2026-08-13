@@ -13,6 +13,7 @@ import { SiteContentForm } from "@/components/admin/SiteContentForm";
 import { siteContentFieldConfig, type SiteContentField } from "@/lib/site-content-fields";
 import type { SpecialistTrustBadge, TrustBadge } from "@/lib/types";
 import type { HelpTopic, WorkOffer } from "@/lib/specialist-contract.mjs";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 type Application = { id:string; full_name:string; contact:string; country:string; city:string; category_text:string; specialization:string|null; experience_years:number|null; profile_summary:string|null; description:string; help_topics:HelpTopic[]|null; work_offers:WorkOffer[]|null; services:string; links:string|null; recommendations:string|null; status:ApplicationStatus; internal_notes:string|null; applicant_message:string|null; created_at:string; updated_at:string; resubmitted_at:string|null; main_image_path:string|null; gallery_paths:string[]; video_links:string[] };
@@ -28,8 +29,9 @@ const offerMeta = (offer:WorkOffer) => [modeLabel(offer.mode), offer.duration_mi
 
 export default async function AdminPage({ searchParams }:{searchParams:Promise<{section?:string;status?:string;profileStatus?:string;profileSearch?:string;notice?:string}>}) {
   const { section, status, profileStatus, profileSearch, notice } = await searchParams;
-  const { supabase, role } = await requireModerator();
-  let query = supabase.from("applications").select("*").order("created_at", { ascending:false });
+  const { role } = await requireModerator();
+  const supabase = createSupabaseAdminClient();
+  let query = supabase.from("applications").select("id,full_name,contact,country,city,category_text,specialization,experience_years,profile_summary,description,help_topics,work_offers,services,links,recommendations,status,internal_notes,applicant_message,created_at,updated_at,resubmitted_at,main_image_path,gallery_paths,video_links").order("created_at", { ascending:false });
   if (status && status in applicationStatusLabels) query = query.eq("status", status as ApplicationStatus);
   else query = query.in("status", ["new", "screening", "info_required", "changes_requested", "call_required", "call_scheduled"]);
   let profilesQuery = supabase.from("specialists").select("id,full_name,slug,status,city,verification:verifications(identity_checked,education_checked,experience_checked,qualifications_checked,references_checked,sources_checked),trust_badges:specialist_trust_badges(id,badge_id,source,assigned_at,admin_note,badge:trust_badges(id,code,title,description,icon,assignment_type,is_active,sort_order))").order("updated_at", { ascending:false });

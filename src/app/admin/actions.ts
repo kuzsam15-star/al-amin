@@ -40,10 +40,10 @@ export async function updateSiteContent(formData: FormData) {
 export async function updateApplication(formData:FormData) {
   const id=String(formData.get("id")??""); const decision=String(formData.get("decision")??""); const expectedUpdatedAt=String(formData.get("expectedUpdatedAt")??""); const notes=String(formData.get("notes")??"").trim().slice(0,5000); const applicantMessage=String(formData.get("applicantMessage")??"").trim().slice(0,5000);
   const status = decision === "request_changes" ? "changes_requested" : decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
-  if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
-  const {data: current,error:readError}=await supabase.from("applications").select("status,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
-  if(readError||!current||["approved","withdrawn"].includes(current.status)) done("invalid");
+  if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {user}=await requireModerator();
   const admin = createSupabaseAdminClient();
+  const {data: current,error:readError}=await admin.from("applications").select("status,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
+  if(readError||!current||["approved","withdrawn"].includes(current.status)) done("invalid");
   const publication = status === "approved" && current.owner_id && current.main_image_path
     ? await prepareCanonicalPublication({
         ownerId: current.owner_id,
@@ -76,10 +76,11 @@ const validId = (value: string) => /^[a-f0-9-]{36}$/i.test(value);
 export async function deleteApplication(formData: FormData) {
   const id = String(formData.get("applicationId") ?? "");
   if (!validId(id)) done("invalid");
-  const { supabase } = await requireAdmin();
-  const { data: application, error: readError } = await supabase.from("applications").select("main_image_path,gallery_paths").eq("id", id).maybeSingle();
+  await requireAdmin();
+  const admin = createSupabaseAdminClient();
+  const { data: application, error: readError } = await admin.from("applications").select("main_image_path,gallery_paths").eq("id", id).maybeSingle();
   if (readError || !application) done("delete-error");
-  const { error } = await createSupabaseAdminClient().from("applications").delete().eq("id", id);
+  const { error } = await admin.from("applications").delete().eq("id", id);
   if (error) done("delete-error");
   await removeUnreferencedProfileMedia(profileMediaPaths({ avatar_path: application.main_image_path, gallery_paths: application.gallery_paths }));
   await audit("application", id, "permanently_deleted", {});

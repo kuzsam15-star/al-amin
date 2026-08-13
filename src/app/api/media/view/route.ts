@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const [{ data: role }, { data: profile }, { data: application }, { data: revisions }] = await Promise.all([
       supabase.from("moderators").select("role").eq("user_id", user.id).maybeSingle(),
       supabase.from("specialists").select("avatar_path,gallery_paths").eq("owner_id", user.id).maybeSingle(),
-      supabase.from("applications").select("main_image_path,gallery_paths").eq("owner_id", user.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("owner_applications_v1").select("main_image_path,gallery_paths").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("specialist_revisions").select("payload").eq("owner_id", user.id).in("status", ["pending", "changes_requested"]).order("updated_at", { ascending: false }).limit(1),
     ]);
     privateAccess = role?.role === "admin" || role?.role === "moderator" || path.startsWith(`submissions/${user.id}/`)

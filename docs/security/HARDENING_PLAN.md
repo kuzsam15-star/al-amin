@@ -130,7 +130,10 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала добавить и подключить safe projection, затем отозвать base access; rollback caller допустим только к другому проверенному узкому interface.
 - **Risk of fixing:** Средний — ошибочный grant сохранит leak либо сломает cabinet reads.
 - **Dependencies:** P0-02 catalog/replay, точные owner/moderator/admin field contracts, disposable role fixtures.
-- **Status:** Open — confirmed live; tests not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`;
+  two independent clean-room runs produced 83 PASS / 22 unrelated XFAIL /
+  0 XPASS / 0 FAIL / 0 SKIP. All nine SEC-002 expectations PASS locally;
+  remote Supabase still has the confirmed pre-hardening exposure.
 
 ### SEC-003 — Moderator privilege boundaries
 

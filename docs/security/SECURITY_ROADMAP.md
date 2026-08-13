@@ -118,6 +118,13 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 - **Доказательство выхода:** direct owner запрос каждой protected column получает deny; safe projection работает; user B не видит row user A; public/anon deny.
 - **Rollback/forward-fix:** safe path сначала, revoke после switch; rollback caller, не base-table confidentiality.
 - **Зависимости:** P0-02.
+- **Local status (2026-08-13):**
+  `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. The exact
+  20-column `owner_applications_v1` contract, fail-closed column grants,
+  owner-callsite switch and trusted server moderation path replayed twice.
+  Both runs: 83 PASS / 22 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP.
+  Remote Supabase remains unchanged; deployment belongs to the consolidated
+  pre-launch backend window.
 
 ### P0-04A — Восстановить trusted-only account identity mirror
 
@@ -265,8 +272,8 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 
 ## 8. Следующий один безопасный этап
 
-**Следующий этап: P0-04 — SEC-002 owner-safe applications projection and
-column boundary.**
+**Следующий этап: P0-05 — SEC-003 moderator/admin field and transition
+boundary (with the SEC-010 AAL gate kept explicit).**
 
 P0-13 as a standalone immediate SEC-001 production deployment is superseded by
 the confirmed pre-launch architecture. Recovery and release rehearsals remain

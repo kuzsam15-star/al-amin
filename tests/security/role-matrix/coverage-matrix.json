@@ -8,7 +8,8 @@
   "entries": [
     {"role":"ROLE-ANON","resource":"account_profiles","action":"SELECT","coverage":"AUTOMATED","cases":["PROFILE-003"]},
     {"role":"ROLE-USER-A/USER-B","resource":"account_profiles","action":"UPDATE","coverage":"AUTOMATED","cases":["PROFILE-001","PROFILE-002"]},
-    {"role":"ROLE-USER-A/USER-B/OWNER","resource":"applications","action":"SELECT/UPDATE/DELETE","coverage":"AUTOMATED","cases":["READ-002","READ-003","READ-004","READ-005","APP-001","APP-002","APP-003","APP-004","APP-005"]},
+    {"role":"ROLE-USER-A/USER-B/OWNER","resource":"applications/owner_applications_v1","action":"SELECT/UPDATE/DELETE","coverage":"AUTOMATED","cases":["READ-002","READ-003","READ-004","READ-005","APPREAD-001","APPREAD-002","APPREAD-003","APPREAD-004","APPREAD-005","APPREAD-008","APPREAD-009","APP-001","APP-002","APP-003","APP-004","APP-005"]},
+    {"role":"ROLE-MODERATOR-AAL1/ROLE-SERVICE-BACKEND","resource":"applications moderation columns","action":"SELECT","coverage":"AUTOMATED","cases":["APPREAD-006","APPREAD-007"]},
     {"role":"ROLE-MODERATOR-AAL1","resource":"applications","action":"STATUS_CHANGE/AAL1_SENSITIVE_ACTION","coverage":"AUTOMATED","cases":["ROLE-003"]},
     {"role":"ROLE-OWNER","resource":"application_events","action":"SELECT","coverage":"AUTOMATED","cases":["EVENT-001","EVENT-002"]},
     {"role":"ROLE-USER-A/MODERATOR","resource":"audit_log","action":"INSERT","coverage":"AUTOMATED","cases":["AUDIT-002","AUDIT-003"]},

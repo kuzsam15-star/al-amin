@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const [{ data: profile }, { data: pending }, { data: application }] = await Promise.all([
     supabase.from("specialists").select("avatar_path,gallery_paths").eq("owner_id", user.id).maybeSingle(),
     supabase.from("specialist_revisions").select("payload").eq("owner_id", user.id).eq("status", "pending").maybeSingle(),
-    supabase.from("applications").select("main_image_path,gallery_paths").eq("owner_id", user.id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("owner_applications_v1").select("main_image_path,gallery_paths").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const allowed = new Set<string>([
     ...(profile ? [profile.avatar_path, ...(profile.gallery_paths ?? [])].filter((item): item is string => typeof item === "string") : []),

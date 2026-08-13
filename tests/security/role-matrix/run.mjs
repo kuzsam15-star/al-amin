@@ -18,6 +18,29 @@ const requiredConfirmation = '1';
 const requiredProjectPrefix = 'alamin-role-matrix-';
 const requiredSupabaseVersion = '2.113.0';
 const requiredDockerContext = 'desktop-linux';
+const ownerApplicationColumns = [
+  'id',
+  'full_name',
+  'contact',
+  'country',
+  'city',
+  'category_id',
+  'additional_category_ids',
+  'specialization',
+  'experience_years',
+  'profile_summary',
+  'description',
+  'help_topics',
+  'work_offers',
+  'main_image_path',
+  'gallery_paths',
+  'status',
+  'applicant_message',
+  'created_at',
+  'updated_at',
+  'resubmitted_at',
+];
+const ownerApplicationSelect = ownerApplicationColumns.join(',');
 
 const casesDocument = JSON.parse(await readFile(join(here, 'cases.json'), 'utf8'));
 const expectedDocument = JSON.parse(await readFile(join(here, 'expected-failures.json'), 'utf8'));
@@ -624,6 +647,57 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('READ-006', deniedOrEmpty(await anon.from('specialists').select('id')), 'anonymous base specialist read returned no rows');
   recorder.record('READ-007', deniedOrEmpty(await anon.from('reviews').select('id')), 'anonymous base review read boundary evaluated');
   recorder.record('READ-008', deniedOrEmpty(await anon.from('verifications').select('id')), 'anonymous base verification read returned no rows');
+
+  const ownerProjection = await users.userA.client.from('owner_applications_v1').select(ownerApplicationSelect).eq('id', ids.appA);
+  const ownerProjectionReady = !ownerProjection.error && ownerProjection.data?.length === 1;
+  recorder.record('APPREAD-001', ownerProjectionReady, 'versioned owner application contract availability evaluated');
+  const ownerBaseWildcard = await users.userA.client.from('applications').select('*').eq('id', ids.appA);
+  recorder.record('APPREAD-002', Boolean(ownerBaseWildcard.error), 'base wildcard projection boundary evaluated without logging row values');
+  const ownerProjectionWildcard = await users.userA.client.from('owner_applications_v1').select('*').eq('id', ids.appA);
+  const ownerProjectionKeys = Object.keys(ownerProjectionWildcard.data?.[0] ?? {}).sort();
+  recorder.record(
+    'APPREAD-003',
+    !ownerProjectionWildcard.error
+      && ownerProjectionWildcard.data?.length === 1
+      && JSON.stringify(ownerProjectionKeys) === JSON.stringify([...ownerApplicationColumns].sort()),
+    'versioned owner projection exposes exactly the stable allowlist',
+  );
+  const foreignProjection = await users.userB.client.from('owner_applications_v1').select('id').eq('id', ids.appA);
+  recorder.record('APPREAD-004', ownerProjectionReady && !foreignProjection.error && foreignProjection.data?.length === 0, 'foreign owner projection returned no rows');
+  const anonymousProjection = await anon.from('owner_applications_v1').select('id').eq('id', ids.appA);
+  recorder.record('APPREAD-005', ownerProjectionReady && deniedOrEmpty(anonymousProjection), 'anonymous owner-projection access denied');
+  const moderatorProtected = await users.moderator.client.from('applications').select('internal_notes,call_at').eq('id', ids.appA);
+  recorder.record('APPREAD-006', Boolean(moderatorProtected.error) || moderatorProtected.data?.length === 0, 'moderator client cannot read protected base columns directly');
+  const backendProtected = await service.from('applications').select('internal_notes,call_at').eq('id', ids.appA);
+  recorder.record('APPREAD-007', !backendProtected.error && backendProtected.data?.length === 1, 'trusted backend retained protected moderation read without logging values');
+  const projectionProtected = await users.userA.client.from('owner_applications_v1').select('internal_notes,call_at').eq('id', ids.appA);
+  recorder.record('APPREAD-009', ownerProjectionReady && Boolean(projectionProtected.error), 'protected fields are absent from the versioned owner contract');
+
+  await queryLocalSql(stack, toolchain.dockerBin, env, `
+    alter table public.applications
+      add column sec002_future_sensitive text not null default 'Synthetic future secret';
+    notify pgrst, 'reload schema';
+  `);
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 750));
+  const futureCatalog = (await queryLocalSql(stack, toolchain.dockerBin, env, `
+    select
+      not has_column_privilege('authenticated','public.applications','sec002_future_sensitive','SELECT')
+      and not exists (
+        select 1 from information_schema.columns
+        where table_schema='public' and table_name='owner_applications_v1'
+          and column_name='sec002_future_sensitive'
+      );
+  `)) === 't';
+  const futureBaseRead = await users.userA.client.from('applications').select('sec002_future_sensitive').eq('id', ids.appA);
+  const futureProjectionRead = await users.userA.client.from('owner_applications_v1').select('*').eq('id', ids.appA);
+  recorder.record(
+    'APPREAD-008',
+    ownerProjectionReady
+      && futureCatalog
+      && Boolean(futureBaseRead.error)
+      && !Object.hasOwn(futureProjectionRead.data?.[0] ?? {}, 'sec002_future_sensitive'),
+    'synthetic future column remained ungranted and absent from the versioned projection',
+  );
 
   recorder.record('APP-001', await attemptUpdate({ actor: users.userA.client, service, table: 'applications', id: ids.appB, changes: { applicant_message: 'Synthetic foreign edit' }, verifyField: 'applicant_message', restoreValue: null }), 'foreign application update did not persist');
   recorder.record('APP-002', await attemptDelete({ actor: users.userA.client, service, table: 'applications', id: ids.appB }), 'foreign application delete did not persist');

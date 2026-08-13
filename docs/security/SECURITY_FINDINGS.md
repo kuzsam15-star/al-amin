@@ -23,7 +23,7 @@
 | ID | Severity | Кратко | Статус | Blocker |
 |---|---|---|---|---:|
 | SEC-001 | High | Замена опубликованного media через прямой Storage API | LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE — live open | yes |
-| SEC-002 | High | Владелец заявки читает moderator-only колонки | Open — confirmed live | yes |
+| SEC-002 | High | Владелец заявки читает moderator-only колонки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | Open — confirmed live | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | Open — confirmed live | yes |
 | SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
@@ -66,14 +66,23 @@
 
 ### SEC-002 — Утечка внутренних колонок заявки владельцу
 
-- **Severity / status:** High; Open — confirmed live.
+- **Severity / status:** High;
+  `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; original
+  exposure remains confirmed live until the forward migration is included in
+  the approved consolidated pre-launch backend deployment.
 - **Область:** BOLA/column authorization, PII, moderation confidentiality.
 - **Объекты:** `public.applications`; `supabase/schema.sql:27-35`; owner policy из `supabase/migrations/202607280002_product-test-fixes.sql:66-67`; target migration `20260809001646...:12-14`; safe UI projection `src/app/cabinet/page.tsx:17-20`.
 - **Доказательство — факт:** live `authenticated` имеет table-level `SELECT`; owner RLS разрешает всю собственную строку. RLS фильтрует строки, но не колонки. В таблице есть `internal_notes`, `call_at` и workflow metadata. UI выбирает безопасный subset, но direct PostgREST может запросить остальные колонки.
 - **Сценарий эксплуатации:** пользователь с валидной сессией вызывает `/rest/v1/applications?select=internal_notes,call_at,...` для своей строки, обходя UI projection.
 - **Ущерб / вероятность:** раскрытие внутренних заметок, планов звонка и moderation context; вероятность высокая, запрос тривиален.
-- **Исправление:** убрать authenticated SELECT с base table; выдать owner-safe view/RPC/server route с точным allowlist. Moderator read отделить. При необходимости применить column privileges, но не полагаться на них без integration tests.
-- **Тесты:** owner может читать только разрешённые поля; выбор каждой protected column запрещён; user B не читает row user A; moderator/admin получают только ожидаемые проекции.
+- **Локальная реализация:** forward migration отзывает broad table SELECT,
+  выдаёт `authenticated` exact 20-column ACL и explicit-column
+  `owner_applications_v1` (`security_invoker` + `security_barrier`). Owner
+  callers переведены на view; trusted moderation reads используют server-only
+  client. Remote Supabase не изменён.
+- **Тесты:** red phase дважды воспроизвёл 9 SEC-002 XFAIL. Два финальных
+  clean-room run: 83 PASS / 22 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP;
+  все SEC-002 cases PASS, включая synthetic future-column regression.
 - **Rollback/forward-fix:** сначала добавить совместимую safe projection и перевести UI, затем revoke base SELECT. Откат — вернуть приложение на предыдущий endpoint, не открывая private columns.
 - **Launch blocker:** yes. **Уверенность:** High.
 

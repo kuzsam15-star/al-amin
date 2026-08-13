@@ -58,7 +58,7 @@
 
 | Ресурс | anon | user A/B / owner | moderator | admin | service backend | Текущий audit state |
 |---|---|---|---|---|---|---|
-| `applications` | all D | base all D; owner-safe `S:G` | `S/U:G,A2` | `S/U/D:G,A2` | scoped S/I/U/D | Direct I/U/D закрыты, но base owner S сейчас открыт: DB-03 |
+| `applications` | all D | base all D; owner-safe `S:G` | `S/U:G,A2` | `S/U/D:G,A2` | scoped S/I/U/D | SEC-002 contract PASS locally via `owner_applications_v1`; live remote remains open pending consolidated deployment: DB-02/03/04/23 |
 | `specialist_revisions` | all D | own `S/I/U:G`; direct all D | `S/U:G,A2` | `S/U/D:G,A2` | scoped S/I/U/D | Direct I/U/D закрыт; полный runtime CRUD: DB-20 |
 | `specialists` | base all D; `S:Pub` | base all D; changes via revision G | allowlisted `S/U:G,A2`; I/D D | lifecycle `S/I/U/D:G,A2` | scoped S/I/U/D | Broad moderator U нарушает contract: DB-07 |
 | `verifications` | base all D; `S:Pub` | base all D | allowlisted `S/I/U/D:G,A2` | `S/I/U/D:G,A2` | scoped S/I/U/D | Broad moderator all-policy: DB-08 |
@@ -89,9 +89,9 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 | MIG-07 | all roles | Пустой disposable Supabase project | Replay canonical schema/migrations, затем role matrix | Полный replay без ошибок, catalog равен expected | Не запускалось; static order содержит broken dependencies | FAIL | `202607280001` до owner_id; `202607290003/4` до revisions |
 | MIG-08 | operator | Disposable staging + paired server code | Deploy/forward-fix/rollback rehearsal | No downtime/data loss; exact rollback grants | Не запускалось; rollback artefact отсутствует | NOT RUN | Требуется безопасная ветка/окружение |
 | DB-01 | all | Live catalog | Проверить `relrowsecurity` public/storage tables | RLS enabled | Включена на всех обнаруженных tables | PASS | Live table metadata |
-| DB-02 | owner | Owner application row существует | Direct `select=safe_fields` | Только owner-safe fields | UI делает safe projection; dynamic REST не запускался | NOT RUN | `src/app/cabinet/page.tsx:17-20` |
-| DB-03 | owner | То же | Direct `select=internal_notes,call_at` | 403/column denied | Live table SELECT + owner row policy разрешают columns | FAIL | `applications`; live ACL/policy; SEC-002 |
-| DB-04 | user B | UUID application user A известен | Direct SELECT/UPDATE/DELETE чужого UUID | 0 rows/deny | Owner predicate подтверждён; dynamic request не отправлялся | NOT RUN | Owner policy `(select auth.uid())=owner_id` |
+| DB-02 | owner | Owner application row существует | Direct `select=safe_fields` | Только owner-safe fields | Local v1 projection returns exactly 20 reviewed fields in 2/2 runs; remote not deployed | PASS LOCAL / LIVE OPEN | `APPREAD-001/003`; SEC-002 local verification |
+| DB-03 | owner | То же | Direct `select=internal_notes,call_at` | 403/column denied | Local explicit protected and base wildcard reads denied in 2/2 runs; live table SELECT remains open | PASS LOCAL / FAIL LIVE | `READ-005`, `APPREAD-002/009`; SEC-002 |
+| DB-04 | user B | UUID application user A известен | Direct SELECT/UPDATE/DELETE чужого UUID | 0 rows/deny | Local safe projection returns no foreign row and direct foreign mutations remain denied in 2/2 runs | PASS LOCAL | `APPREAD-004`; owner RLS |
 | DB-05 | anon/auth | Public API key/session | Direct INSERT `reviews` | Deny; только gateway | Live INSERT privilege=true и permissive policy | FAIL | Live ACL/policy; `/api/reviews` |
 | DB-06 | anon/auth | То же | Direct INSERT `complaints` с `internal_notes` | Deny/protected field rejected | Live INSERT privilege=true; column allowlist отсутствует | FAIL | Live ACL/policy; `/api/complaints` |
 | DB-07 | moderator AAL1 | Moderator membership | Direct UPDATE specialist `owner_id/status/...` | Deny; named AAL2 transition only | Live authenticated UPDATE + broad moderator policy | FAIL | `specialists`; policy; admin actions |
@@ -110,9 +110,24 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 | DB-20 | all roles | Own/foreign revision fixtures | S/I/U/D + submit/decide RPC для каждого role | Owner only G on own; direct DML deny; moderator/admin named AAL2 transitions | Direct I/U/D deny подтверждён live; SELECT/BOLA/RPC transitions динамически не проверены | NOT RUN | Target migration + revision policies/actions |
 | DB-21 | anon/owner/mod/admin | Published/unpublished specialist + verification | Full base S/I/U/D, foreign UUID, owner_id/protected-field/status substitutions | Public view S only; owner changes via revision; moderator/admin narrow AAL2 G | Direct broad authenticated U уже противоречит contract | FAIL | Live specialist/verification ACL/policies; DB-07/08 |
 | DB-22 | anon/auth/mod/admin | Feedback fixtures | Full S/I/U/D + moderation RPC, protected fields и чужой UUID | Submission only G; moderation narrow AAL2 G; direct base all D | Anon/auth direct I подтверждён live; остальные runtime cells не запускались | FAIL | Live review/complaint grants/policies; DB-05/06 |
-| DB-23 | owner/mod/admin/service | Application fixtures v1/v2 | Full S/I/U/D, чужой UUID, owner_id/status/protected fields, decision RPC | Client direct all D; owner-safe S G; moderator/admin named AAL2 G | I/U/D deny live; owner base S leak; server owner_id/audit limitations | FAIL | Target migration; DB-03/09/15 |
+| DB-23 | owner/mod/admin/service | Application fixtures v1/v2 | Full S/I/U/D, чужой UUID, owner_id/status/protected fields, decision RPC | Client direct all D; owner-safe S G; moderator/admin named AAL2 G | SEC-002 read boundary PASS locally; transition/AAL/audit portions remain open under SEC-003/010/018 | PARTIAL | `APPREAD-001..009`; DB-03/09/15 |
 | DB-24 | profile owner | Own hidden/draft specialist и revision | Direct UPDATE `specialists.status='published'`, protected publication fields и revision status/payload | Deny; публикация только named moderator/admin AAL2 transaction | Specialist owner policy не разрешает UPDATE, revision direct DML revoked; runtime request не отправлялся | NOT RUN | Live policies/ACL; target migration |
 | DB-25 | owner/mod/admin | Versioned RPC list и fixtures | Прямой invoke каждого exposed business/trigger RPC, включая `apply_specialist_revision` | Owner deny internal/privileged RPC; moderator/admin only named AAL2 RPC; trigger funcs not callable | 10/11 definer functions exposed anon/auth, что уже нарушает default-deny contract; dynamic body/exploit matrix не выполнена | FAIL | Live `pg_proc` ACL + function bodies; DB-11 |
+
+### 3.1 SEC-002 local owner-projection regression
+
+| Cases | Secure expectation | Final result |
+|---|---|---|
+| READ-005, APPREAD-002, APPREAD-009 | protected columns and base/projection wildcard bypass unavailable | PASS in 2/2 clean-room runs |
+| APPREAD-001, APPREAD-003 | owner v1 projection is usable and has exactly the 20 reviewed columns | PASS in 2/2 clean-room runs |
+| APPREAD-004, APPREAD-005 | foreign owner and anon cannot obtain the projection row | PASS in 2/2 clean-room runs |
+| APPREAD-006 | moderator client session cannot directly read protected base columns | PASS in 2/2 clean-room runs |
+| APPREAD-007 | trusted local service backend retains explicit moderation read | PASS in 2/2 clean-room runs |
+| APPREAD-008 | a synthetic future sensitive base column receives no grant and is absent from the view | PASS in 2/2 clean-room runs |
+
+These results are local implementation evidence, not live closure. The remote
+catalog remains in the pre-hardening state until an owner-approved consolidated
+pre-launch backend deployment.
 
 ## 4. Storage и media
 

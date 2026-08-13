@@ -20,6 +20,16 @@
     {"id":"READ-007","role":"ROLE-ANON","resource":"reviews","action":"SELECT","expected":"no direct base-table rows"},
     {"id":"READ-008","role":"ROLE-ANON","resource":"verifications","action":"SELECT","expected":"no direct base-table rows"},
 
+    {"id":"APPREAD-001","role":"ROLE-OWNER","resource":"owner_applications_v1","action":"SELECT","expected":"own allowlisted application contract is readable"},
+    {"id":"APPREAD-002","role":"ROLE-OWNER","resource":"applications","action":"SELECT","expected":"base-table select=* is unavailable"},
+    {"id":"APPREAD-003","role":"ROLE-OWNER","resource":"owner_applications_v1","action":"SELECT","expected":"select=* returns exactly the versioned allowlist"},
+    {"id":"APPREAD-004","role":"ROLE-USER-B","resource":"owner_applications_v1","action":"SELECT","expected":"foreign owner projection returns no rows"},
+    {"id":"APPREAD-005","role":"ROLE-ANON","resource":"owner_applications_v1","action":"SELECT","expected":"anonymous projection access is denied"},
+    {"id":"APPREAD-006","role":"ROLE-MODERATOR-AAL1","resource":"applications.internal_notes/call_at","action":"SELECT","expected":"moderator client cannot bypass the server moderation contract"},
+    {"id":"APPREAD-007","role":"ROLE-SERVICE-BACKEND","resource":"applications.internal_notes/call_at","action":"SELECT","expected":"trusted backend retains required moderation read"},
+    {"id":"APPREAD-008","role":"ROLE-OWNER","resource":"applications.future_sensitive_column","action":"SELECT","expected":"future columns are denied and absent from the versioned projection"},
+    {"id":"APPREAD-009","role":"ROLE-OWNER","resource":"owner_applications_v1.internal_notes/call_at","action":"SELECT","expected":"protected columns do not exist in the owner projection"},
+
     {"id":"APP-001","role":"ROLE-USER-A","resource":"applications","action":"UPDATE","expected":"cannot update user B row"},
     {"id":"APP-002","role":"ROLE-USER-A","resource":"applications","action":"DELETE","expected":"cannot delete user B row"},
     {"id":"APP-003","role":"ROLE-OWNER","resource":"applications.owner_id","action":"UPDATE","expected":"cannot transfer ownership"},

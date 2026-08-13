@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -51,9 +52,27 @@ test('SEC-001 release state machine completes two independent deterministic rehe
   assert.deepEqual(classifications[1], classifications[0]);
 });
 
-test('SEC-001 production release manifest verifies every frozen artifact', async () => {
-  const result = await verifyArtifactManifest(process.cwd(), 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json');
-  assert.equal(result.checked.length, 42);
+test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-launch source drift', async () => {
+  const manifestPath = 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json';
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  assert.equal(manifest.artifacts.length, 42);
+  const mismatches = [];
+  for (const artifact of manifest.artifacts) {
+    const bytes = await readFile(artifact.path);
+    const actual = createHash('sha256').update(bytes).digest('hex').toUpperCase();
+    if (actual !== artifact.sha256) mismatches.push(artifact.id);
+  }
+  assert.deepEqual(mismatches.sort(), [
+    'admin-actions',
+    'admin-page',
+    'deployment-runbook',
+    'media-source-route',
+    'media-view-route',
+  ]);
+  await assert.rejects(
+    verifyArtifactManifest(process.cwd(), manifestPath),
+    /ARTIFACT_HASH_MISMATCH_/u,
+  );
 });
 
 test('SEC-001 release failure injections fail closed', async (t) => {
