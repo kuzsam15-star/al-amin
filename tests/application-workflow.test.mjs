@@ -50,5 +50,6 @@ test("application moderation keeps actions ordered and blocks changing approved 
   const reject = page.indexOf("Отклонить");
   assert.ok(approve >= 0 && approve < changes && changes < reject);
   assert.match(page, /admin-danger-actions/);
-  assert.match(actions, /\["approved","withdrawn"\]\.includes\(current\.status\)/);
+  assert.match(actions, /\["new","screening","info_required","changes_requested","call_required","call_scheduled"\]\.includes\(current\.status\)/);
+  assert.match(actions, /moderator_decide_application/);
 });

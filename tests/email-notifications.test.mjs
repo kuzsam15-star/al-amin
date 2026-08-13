@@ -100,6 +100,7 @@ test("public brand and transactional sender are configured independently of inte
   assert.match(manifest, /brand\.name/);
   assert.match(migration, /create table if not exists public\.site_content/);
   assert.match(migration, /Admins update site content/);
-  assert.match(admin, /requireAdmin\(\)/);
+  assert.match(admin, /requireAdminAal2\(\)/);
+  assert.match(admin, /admin_update_site_content/);
   assert.match(admin, /updateSiteContent/);
 });

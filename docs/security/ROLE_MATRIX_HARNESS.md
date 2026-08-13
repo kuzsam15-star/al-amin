@@ -94,13 +94,18 @@ is never encoded as `PASS`.
 
 ## 7. Coverage
 
-The active suite contains 105 cases. It covers:
+The active suite contains 124 cases. It covers:
 
 - private/base-table reads and cross-owner isolation;
 - application protected columns, ownership, status, update, and delete,
   including the exact versioned owner projection, explicit/wildcard bypasses,
   trusted moderation compatibility and a disposable future-column probe;
 - specialist/revision/moderator/admin boundaries;
+- direct moderator protected-field, lifecycle, verification, badge, feedback
+  and audit-write denial, including a transaction-rolled-back future-column
+  privilege probe;
+- named application/revision moderation state machines with invalid-state,
+  replay, expected-version and concurrent-winner assertions;
 - anonymous and authenticated feedback insertion;
 - account-profile mirrored fields;
 - real AAL1 negative and AAL2 positive sessions;
@@ -148,3 +153,12 @@ runs. After the owner-safe projection migration, both fresh runs produced
 SEC-002 expectations now PASS. `APPREAD-008` creates a synthetic future column
 only inside the disposable database and proves that grants and the explicit
 projection remain fail-closed. See `SEC-002_LOCAL_VERIFICATION.md`.
+
+For SEC-003 and the P0-05 mutation-scoped part of SEC-010, the red phase
+produced 88 PASS and 36 XFAIL in both independent runs. After the named-action,
+role and AAL migration, both final runs produced 108 PASS and 16 unrelated
+XFAIL, with no XPASS, FAIL or SKIP. Real local TOTP proves sensitive admin AAL1
+denial and AAL2 success; current database membership is rechecked at mutation
+time. SEC-010 is not closed: private reads, mandatory enrollment/recovery,
+recent-auth and complete session downgrade/revocation remain separate gates.
+See `SEC-003_LOCAL_VERIFICATION.md`.

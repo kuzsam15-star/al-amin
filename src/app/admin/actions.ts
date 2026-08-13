@@ -2,15 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin, requireModerator } from "@/lib/auth";
-import { applicationStatusLabels, profileStatusLabels, type ApplicationStatus, type ProfileStatus } from "@/lib/types";
+import { requireAdminAal2, requireModerator } from "@/lib/auth";
+import { profileStatusLabels, type ProfileStatus } from "@/lib/types";
 import { profileMediaPaths, removeUnreferencedProfileMedia } from "@/lib/media-cleanup";
-import { processEmailQueue, retryEmailNotification as retryEmail } from "@/lib/email/queue";
+import { processEmailQueue } from "@/lib/email/queue";
 import { siteContentFields, validateSiteContent } from "@/lib/site-content-fields";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { prepareCanonicalPublication } from "@/lib/published-media";
 
-async function audit(entityType:string, entityId:string, action:string, details:Record<string,unknown>) { const { supabase,user } = await requireModerator(); await supabase.from("audit_log").insert({ actor_id:user.id,entity_type:entityType,entity_id:entityId,action,details }); }
 function done(notice="saved", returnTo="/admin"):never { revalidatePath("/"); revalidatePath("/admin"); revalidatePath("/specialists"); revalidatePath("/cabinet"); redirect(`${returnTo}?notice=${notice}`); }
 function contentDone(notice: string): never { redirect(`/admin?section=settings&notice=${notice}`); }
 const alwaysHighRisk = new Set(["avatar_path","gallery_paths","public_contact","portfolio_links","video_links","full_name","category_id","additional_category_ids"]);
@@ -26,13 +25,12 @@ const isRiskyRevision = (profile: Record<string, unknown>, payload: Record<strin
 };
 
 export async function updateSiteContent(formData: FormData) {
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireAdminAal2();
   const patch = Object.fromEntries(siteContentFields.map((field) => [field, String(formData.get(field) ?? "").trim()])) as Record<(typeof siteContentFields)[number], string>;
   const validation = validateSiteContent(patch);
   if (!validation.valid) contentDone(`content-invalid-${validation.field}`);
-  const { error } = await supabase.from("site_content").update(patch).eq("id", true);
+  const { error } = await supabase.rpc("admin_update_site_content", { p_content: patch });
   if (error) contentDone("save-error");
-  await audit("site_content", "default", "updated", { fields: Object.keys(patch) });
   revalidatePath("/"); revalidatePath("/about"); revalidatePath("/rules"); revalidatePath("/privacy"); revalidatePath("/support");
   contentDone("content-saved");
 }
@@ -40,10 +38,10 @@ export async function updateSiteContent(formData: FormData) {
 export async function updateApplication(formData:FormData) {
   const id=String(formData.get("id")??""); const decision=String(formData.get("decision")??""); const expectedUpdatedAt=String(formData.get("expectedUpdatedAt")??""); const notes=String(formData.get("notes")??"").trim().slice(0,5000); const applicantMessage=String(formData.get("applicantMessage")??"").trim().slice(0,5000);
   const status = decision === "request_changes" ? "changes_requested" : decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
-  if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {user}=await requireModerator();
+  if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
   const admin = createSupabaseAdminClient();
   const {data: current,error:readError}=await admin.from("applications").select("status,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
-  if(readError||!current||["approved","withdrawn"].includes(current.status)) done("invalid");
+  if(readError||!current||!["new","screening","info_required","changes_requested","call_required","call_scheduled"].includes(current.status)) done("invalid");
   const publication = status === "approved" && current.owner_id && current.main_image_path
     ? await prepareCanonicalPublication({
         ownerId: current.owner_id,
@@ -55,7 +53,7 @@ export async function updateApplication(formData:FormData) {
     : null;
   if (status === "approved" && !publication) done("save-error");
   const {error}=status === "approved"
-    ? await admin.rpc("approve_application_with_canonical_media", {
+    ? await admin.rpc("approve_application_with_canonical_media_v2", {
         application_uuid: id,
         reviewer_uuid: user.id,
         expected_updated_at: expectedUpdatedAt,
@@ -63,10 +61,15 @@ export async function updateApplication(formData:FormData) {
         avatar_descriptor: publication!.avatar,
         gallery_descriptors: publication!.gallery,
       })
-    : await admin.from("applications").update({status,internal_notes:notes||null,applicant_message:status === "changes_requested" ? applicantMessage : null}).eq("id",id);
+    : await supabase.rpc("moderator_decide_application", {
+        p_application_id: id,
+        p_expected_updated_at: expectedUpdatedAt,
+        p_decision: decision,
+        p_internal_note: notes || null,
+        p_applicant_message: status === "changes_requested" ? applicantMessage : null,
+      });
   if(error) done("save-error");
   // The database trigger publishes one profile atomically when status becomes approved.
-  await audit("application",id,status === "approved" ? "approved_and_published" : status,{ hasApplicantMessage: Boolean(applicantMessage) });
   await processEmailQueue(5).catch(() => undefined); done();
 }
 
@@ -76,14 +79,13 @@ const validId = (value: string) => /^[a-f0-9-]{36}$/i.test(value);
 export async function deleteApplication(formData: FormData) {
   const id = String(formData.get("applicationId") ?? "");
   if (!validId(id)) done("invalid");
-  await requireAdmin();
+  const { supabase } = await requireAdminAal2();
   const admin = createSupabaseAdminClient();
   const { data: application, error: readError } = await admin.from("applications").select("main_image_path,gallery_paths").eq("id", id).maybeSingle();
   if (readError || !application) done("delete-error");
-  const { error } = await admin.from("applications").delete().eq("id", id);
+  const { error } = await supabase.rpc("admin_delete_application", { p_application_id: id });
   if (error) done("delete-error");
   await removeUnreferencedProfileMedia(profileMediaPaths({ avatar_path: application.main_image_path, gallery_paths: application.gallery_paths }));
-  await audit("application", id, "permanently_deleted", {});
   done("deleted");
 }
 
@@ -91,10 +93,12 @@ export async function deleteApplication(formData: FormData) {
 export async function archiveApplication(formData: FormData) {
   const id = String(formData.get("applicationId") ?? "");
   if (!validId(id)) done("invalid");
-  await requireAdmin();
-  const { error } = await createSupabaseAdminClient().from("applications").update({ status: "withdrawn" }).eq("id", id);
+  const { supabase } = await requireAdminAal2();
+  const admin = createSupabaseAdminClient();
+  const { data: application, error: readError } = await admin.from("applications").select("status").eq("id", id).maybeSingle();
+  if (readError || !application) done("invalid");
+  const { error } = await supabase.rpc("admin_transition_application", { p_application_id: id, p_expected_status: application.status, p_target_status: "withdrawn" });
   if (error) done("save-error");
-  await audit("application", id, "archived", {});
   done("archived");
 }
 
@@ -102,10 +106,9 @@ export async function archiveApplication(formData: FormData) {
 export async function restoreApplication(formData: FormData) {
   const id = String(formData.get("applicationId") ?? "");
   if (!validId(id)) done("invalid");
-  await requireAdmin();
-  const { error } = await createSupabaseAdminClient().from("applications").update({ status: "new" }).eq("id", id).eq("status", "withdrawn");
+  const { supabase } = await requireAdminAal2();
+  const { error } = await supabase.rpc("admin_transition_application", { p_application_id: id, p_expected_status: "withdrawn", p_target_status: "new" });
   if (error) done("save-error");
-  await audit("application", id, "restored_from_archive", {});
   done("restored");
 }
 
@@ -113,13 +116,12 @@ export async function restoreApplication(formData: FormData) {
 export async function deleteRevision(formData: FormData) {
   const id = String(formData.get("revisionId") ?? "");
   if (!validId(id)) done("invalid");
-  const { supabase } = await requireAdmin();
+  const { supabase } = await requireAdminAal2();
   const { data: revision, error: readError } = await supabase.from("specialist_revisions").select("payload").eq("id", id).maybeSingle();
   if (readError || !revision) done("delete-error");
-  const { error } = await createSupabaseAdminClient().from("specialist_revisions").delete().eq("id", id);
+  const { error } = await supabase.rpc("admin_delete_revision", { p_revision_id: id });
   if (error) done("delete-error");
   await removeUnreferencedProfileMedia(profileMediaPaths(revision.payload as Record<string, unknown>));
-  await audit("specialist_revision", id, "permanently_deleted", {});
   done("deleted");
 }
 export async function decideRevision(formData: FormData) {
@@ -151,7 +153,7 @@ export async function decideRevision(formData: FormData) {
   const { error } = decision === "request_changes"
     ? await supabase.rpc("request_specialist_revision_changes", { revision_uuid: id, note })
     : decision === "approve" && mediaChanged
-      ? await admin.rpc("apply_specialist_revision_with_canonical_media", {
+      ? await admin.rpc("apply_specialist_revision_with_canonical_media_v2", {
           revision_uuid: id,
           reviewer_uuid: user.id,
           expected_updated_at: expectedUpdatedAt,
@@ -167,11 +169,10 @@ export async function decideRevision(formData: FormData) {
     const candidates = decision === "reject" ? proposed.filter((path) => !published.includes(path)) : [];
     await removeUnreferencedProfileMedia(candidates);
   }
-  await audit("specialist_revision", id, decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "changes_requested", { note: note || null });
   await processEmailQueue(5).catch(() => undefined);
   done();
 }
-export async function retryEmailNotification(formData: FormData) { const id=String(formData.get("notificationId")??""); if(!validId(id)) done("invalid"); await requireModerator(); const {error}=await retryEmail(id); if(error) done("save-error"); await processEmailQueue(1).catch(()=>undefined); done("saved"); }
+export async function retryEmailNotification(formData: FormData) { const id=String(formData.get("notificationId")??""); if(!validId(id)) done("invalid"); const {supabase}=await requireAdminAal2(); const {error}=await supabase.rpc("admin_retry_email_notification",{p_notification_id:id}); if(error) done("save-error"); await processEmailQueue(1).catch(()=>undefined); done("saved"); }
 export async function approveSafeRevisions(formData: FormData) {
   const ids = formData.getAll("revisionId").map(String).filter((id) => /^[a-f0-9-]{36}$/i.test(id));
   if (!ids.length) done("invalid");
@@ -182,7 +183,7 @@ export async function approveSafeRevisions(formData: FormData) {
     const payload = row.payload as Record<string, unknown>;
     if (!specialist || isRiskyRevision(specialist, payload)) continue;
     const { error } = await supabase.rpc("apply_specialist_revision", { revision_uuid: row.id, approve: true, note: "Автоматически одобрено: только низкорисковые изменения." });
-    if (!error) await audit("specialist_revision", row.id, "approved_low_risk_batch", { risk: "low" });
+    if (error) continue;
   }
   done();
 }
@@ -190,14 +191,9 @@ export async function updateProfile(formData:FormData) {
   const id=String(formData.get("id")??"");
   const status=String(formData.get("status")??"") as ProfileStatus;
   if(!validId(id) || !profileStatusLabels[status]) done("invalid");
-  const {supabase,user}=await requireModerator();
-  const {data:profile,error:readError}=await supabase.from("specialists").select("id,slug,published_at").eq("id",id).maybeSingle();
+  const {supabase}=await requireAdminAal2();
+  const {data:profile,error:readError}=await supabase.from("specialists").select("id,slug,status").eq("id",id).maybeSingle();
   if(readError||!profile) done("invalid");
-
-  const now=new Date().toISOString();
-  const profilePatch:Record<string,unknown>={status};
-  if(status==="published"&&!profile.published_at) profilePatch.published_at=now;
-  if((await supabase.from("specialists").update(profilePatch).eq("id",id)).error) done("save-error");
 
   const facts={
     identity_checked:formData.get("identityChecked")==="on",
@@ -206,46 +202,34 @@ export async function updateProfile(formData:FormData) {
     qualifications_checked:formData.get("qualificationsChecked")==="on",
     references_checked:formData.get("referencesChecked")==="on",
   };
-  const hasFacts=Object.values(facts).some(Boolean);
   const parsedSources=Number.parseInt(String(formData.get("sourcesChecked")??"0"),10);
   const sources_checked=Number.isInteger(parsedSources)?Math.min(999,Math.max(0,parsedSources)):0;
-  const factsResult=hasFacts
-    ? await supabase.from("verifications").upsert({specialist_id:id,...facts,sources_checked,checked_by:user.id,checked_at:now},{onConflict:"specialist_id"})
-    : await supabase.from("verifications").delete().eq("specialist_id",id);
-  if(factsResult.error) done("save-error");
-
-  await audit("specialist",id,"profile_and_verification_updated",{status,verification_fields:Object.entries(facts).filter(([,value])=>value).map(([key])=>key),sources_checked:hasFacts?sources_checked:0});
+  const {error}=await supabase.rpc("admin_update_specialist_controls",{
+    p_specialist_id:id,p_expected_status:profile.status,p_target_status:status,
+    p_identity_checked:facts.identity_checked,p_education_checked:facts.education_checked,
+    p_experience_checked:facts.experience_checked,p_qualifications_checked:facts.qualifications_checked,
+    p_references_checked:facts.references_checked,p_sources_checked:sources_checked,
+  });
+  if(error) done("save-error");
   revalidatePath(`/specialists/${profile.slug}`);
   done();
 }
 export async function updateTrustBadges(formData: FormData) {
   const profileId = String(formData.get("profileId") ?? "");
   if (!validId(profileId)) done("invalid");
-  const { supabase, user } = await requireAdmin();
-  const [{ data: profile, error: profileError }, { data: manualBadges, error: badgeError }, { data: currentAssignments, error: assignmentError }] = await Promise.all([
+  const { supabase } = await requireAdminAal2();
+  const [{ data: profile, error: profileError }, { data: manualBadges, error: badgeError }] = await Promise.all([
     supabase.from("specialists").select("id,slug").eq("id", profileId).maybeSingle(),
     supabase.from("trust_badges").select("id,code").eq("assignment_type", "manual").eq("is_active", true),
-    supabase.from("specialist_trust_badges").select("id,badge_id,source").eq("specialist_id", profileId).eq("source", "manual"),
   ]);
-  if (profileError || !profile || badgeError || assignmentError) done("save-error");
+  if (profileError || !profile || badgeError) done("save-error");
   const allowedIds = new Set((manualBadges ?? []).map((badge) => badge.id));
   const selectedIds = new Set(formData.getAll("badgeId").map(String).filter((id) => allowedIds.has(id)));
-  const assignedIds = new Set((currentAssignments ?? []).map((assignment) => assignment.badge_id));
-  const insertRows = [...selectedIds].filter((badgeId) => !assignedIds.has(badgeId)).map((badge_id) => ({ specialist_id: profileId, badge_id, assigned_by: user.id, source: "manual", admin_note: null }));
-  const deleteIds = [...assignedIds].filter((badgeId) => !selectedIds.has(badgeId));
-  if (insertRows.length) {
-    const { error } = await supabase.from("specialist_trust_badges").insert(insertRows);
-    if (error) done("save-error");
-  }
-  if (deleteIds.length) {
-    const { error } = await supabase.from("specialist_trust_badges").delete().eq("specialist_id", profileId).eq("source", "manual").in("badge_id", deleteIds);
-    if (error) done("save-error");
-  }
-  await audit("specialist", profileId, "trust_badges_updated", { assigned_badge_ids: [...selectedIds], added: insertRows.map((row) => row.badge_id), removed: deleteIds });
+  const { error } = await supabase.rpc("admin_set_manual_trust_badges", { p_specialist_id: profileId, p_badge_ids: [...selectedIds] });
+  if (error) done("save-error");
   revalidatePath(`/specialists/${profile.slug}`);
   done("badges-saved");
 }
-export async function archivePublicProfile(formData: FormData) { const id=String(formData.get("profileId")??""); const requestedPath=String(formData.get("returnTo")??""); const returnTo=requestedPath === "/specialists" ? "/specialists" : "/admin"; if(!validId(id)) done("invalid",returnTo); const {supabase}=await requireAdmin(); const {data:profile,error:readError}=await supabase.from("specialists").select("id,slug").eq("id",id).maybeSingle(); if(readError||!profile) done("invalid",returnTo); const {error}=await supabase.from("specialists").update({status:"archived"}).eq("id",id); if(error) done("save-error",returnTo); await audit("specialist",id,"archived_from_public",{}); revalidatePath(`/specialists/${profile.slug}`); done("archived",returnTo); }
-export async function restorePublicProfile(formData: FormData) { const id=String(formData.get("profileId")??""); if(!validId(id)) done("invalid"); const {supabase}=await requireAdmin(); const {data: profile,error:readError}=await supabase.from("specialists").select("id,status,slug").eq("id",id).maybeSingle(); if(readError||!profile||!["archived","suspended"].includes(profile.status)) done("invalid"); const {error}=await supabase.from("specialists").update({status:"published"}).eq("id",id); if(error) done("save-error"); await audit("specialist",id,"restored_to_public",{from:profile.status}); revalidatePath(`/specialists/${profile.slug}`); done("restored"); }
-export async function moderateFeedback(formData:FormData) { const id=String(formData.get("id")??""); const kind=String(formData.get("kind")??""); const publish=String(formData.get("publish")??"")==="yes"; const {supabase}=await requireModerator(); if(!id || !["review","complaint"].includes(kind)) return; if(kind === "review") await supabase.from("reviews").update({is_published:publish,evidence_checked:true}).eq("id",id); else await supabase.from("complaints").update({status:publish?"resolved":"dismissed"}).eq("id",id); await audit(kind,id,publish?"approved":"dismissed",{}); revalidatePath("/admin"); }
-export async function updateAvatar(profileId:string,avatarPath:string) { const {supabase}=await requireModerator(); if(!/^[a-f0-9-]+\/avatar\.webp$/i.test(avatarPath)) return; await supabase.from("specialists").update({avatar_path:avatarPath}).eq("id",profileId); await audit("specialist",profileId,"avatar_uploaded",{}); revalidatePath("/admin"); revalidatePath("/specialists"); }
+export async function archivePublicProfile(formData: FormData) { const id=String(formData.get("profileId")??""); const requestedPath=String(formData.get("returnTo")??""); const returnTo=requestedPath === "/specialists" ? "/specialists" : "/admin"; if(!validId(id)) done("invalid",returnTo); const {supabase}=await requireAdminAal2(); const {data:profile,error:readError}=await supabase.from("specialists").select("id,status,slug").eq("id",id).maybeSingle(); if(readError||!profile) done("invalid",returnTo); const {error}=await supabase.rpc("admin_transition_specialist",{p_specialist_id:id,p_expected_status:profile.status,p_target_status:"archived"}); if(error) done("save-error",returnTo); revalidatePath(`/specialists/${profile.slug}`); done("archived",returnTo); }
+export async function restorePublicProfile(formData: FormData) { const id=String(formData.get("profileId")??""); if(!validId(id)) done("invalid"); const {supabase}=await requireAdminAal2(); const {data: profile,error:readError}=await supabase.from("specialists").select("id,status,slug").eq("id",id).maybeSingle(); if(readError||!profile||!["archived","suspended"].includes(profile.status)) done("invalid"); const {error}=await supabase.rpc("admin_transition_specialist",{p_specialist_id:id,p_expected_status:profile.status,p_target_status:"published"}); if(error) done("save-error"); revalidatePath(`/specialists/${profile.slug}`); done("restored"); }
+export async function moderateFeedback(formData:FormData) { const id=String(formData.get("id")??""); const kind=String(formData.get("kind")??""); const publish=String(formData.get("publish")??"")==="yes"; const {supabase}=await requireModerator(); if(!validId(id)||!["review","complaint"].includes(kind)) return; const result=kind==="review"?await supabase.rpc("moderate_review",{p_review_id:id,p_publish:publish}):await supabase.rpc("moderate_complaint",{p_complaint_id:id,p_target_status:publish?"resolved":"dismissed"}); if(result.error) done("save-error"); revalidatePath("/admin"); }

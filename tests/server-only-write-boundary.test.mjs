@@ -63,9 +63,11 @@ test("client-controlled owner, status, contract and moderation fields are outsid
 test("moderation table writes that lose authenticated grants also use the service path", async () => {
   const actions = await read("src/app/admin/actions.ts");
   assert.match(actions, /const admin = createSupabaseAdminClient\(\)/);
-  assert.match(actions, /admin\.from\("applications"\)\.delete/);
-  assert.match(actions, /admin\.from\("applications"\)\.update/);
-  assert.match(actions, /createSupabaseAdminClient\(\)\.from\("specialist_revisions"\)\.delete/);
+  assert.match(actions, /admin_delete_application/);
+  assert.match(actions, /admin_transition_application/);
+  assert.match(actions, /admin_delete_revision/);
+  assert.doesNotMatch(actions, /from\("applications"\)\.update/);
+  assert.doesNotMatch(actions, /from\("specialist_revisions"\)\.delete/);
   assert.match(actions, /requireModerator\(\)/);
-  assert.match(actions, /requireAdmin\(\)/);
+  assert.match(actions, /requireAdminAal2\(\)/);
 });

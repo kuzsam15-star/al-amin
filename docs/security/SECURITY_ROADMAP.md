@@ -138,6 +138,7 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 ### P0-05 — Зафиксировать moderator/admin/field/transition boundary
 
 - **Findings:** SEC-003, SEC-010.
+- **Локальный статус:** `SEC-003 IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; SEC-010 mutation gate `PARTIAL_LOCAL_VERIFIED`. Два final clean-room run совпали: 108 PASS / 16 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Remote backend не изменён.
 - **Владелец:** Product moderation owner + App/DB owners.
 - **Работа:** документировать state machine и ownership/verification field ownership; строгий runtime enum; named transactional RPC/actions; admin-only role/archive/block/restore/owner operations; revoke broad table UPDATE/columns. Требовать fresh AAL2 на server и DB boundary.
 - **Доказательство выхода:** direct action/REST/RPC matrix для каждого status/protected field; moderator не меняет owner/admin lifecycle; admin positive paths; AAL1 всегда deny.
@@ -272,8 +273,8 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 
 ## 8. Следующий один безопасный этап
 
-**Следующий этап: P0-05 — SEC-003 moderator/admin field and transition
-boundary (with the SEC-010 AAL gate kept explicit).**
+**Следующий этап: P0-06 — закрыть прямые feedback writes и ввести безопасный
+gateway (SEC-004, with SEC-011/017 dependencies kept explicit).**
 
 P0-13 as a standalone immediate SEC-001 production deployment is superseded by
 the confirmed pre-launch architecture. Recovery and release rehearsals remain

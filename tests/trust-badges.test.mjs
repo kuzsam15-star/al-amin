@@ -30,10 +30,9 @@ test("legacy publication badges are retained but no longer define verification",
 
 test("manual badges are an admin-only audited operation", () => {
   assert.match(adminActions, /export async function updateTrustBadges/);
-  assert.match(adminActions, /requireAdmin\(\)/);
+  assert.match(adminActions, /requireAdminAal2\(\)/);
   assert.match(adminActions, /eq\("assignment_type", "manual"\)/);
-  assert.match(adminActions, /eq\("source", "manual"\)/);
-  assert.match(adminActions, /"trust_badges_updated"/);
+  assert.match(adminActions, /admin_set_manual_trust_badges/);
 });
 
 test("public cards render compact accessible indicators and no supporter ranking", () => {

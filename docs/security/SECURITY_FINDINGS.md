@@ -24,14 +24,14 @@
 |---|---|---|---|---:|
 | SEC-001 | High | Замена опубликованного media через прямой Storage API | LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE — live open | yes |
 | SEC-002 | High | Владелец заявки читает moderator-only колонки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
-| SEC-003 | High | Модератор обходит admin-only transitions/protected fields | Open — confirmed live | yes |
+| SEC-003 | High | Модератор обходит admin-only transitions/protected fields | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | Open — confirmed live | yes |
 | SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
 | SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | Open — confirmed | yes |
 | SEC-007 | High | Race создаёт дубли заявок | Open — confirmed design flaw | yes |
 | SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | Open — confirmed design flaw | yes |
 | SEC-009 | High | Уязвимые production dependencies | Open — confirmed | yes |
-| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | Open — confirmed control gap | yes |
+| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL_LOCAL_VERIFIED — mutation gate implemented; private reads/enrollment/recent-auth live open | yes |
 | SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | Open — partly live confirmed | yes |
 | SEC-012 | High | Нет проверяемого Git/CI/release provenance | Open — evidence gap | yes |
 | SEC-013 | High | Backup/restore не доказаны | Partially mitigated — Level 2 proven; config/cadence open | yes |
@@ -88,14 +88,14 @@
 
 ### SEC-003 — Вертикальное повышение полномочий модератора
 
-- **Severity / status:** High; Open — confirmed live.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; original live exposure remains open until the consolidated pre-launch backend deployment.
 - **Область:** moderator/admin boundary, protected fields, status transitions, verification integrity.
 - **Объекты:** `public.specialists`, `public.verifications`; policy `Moderators update specialists`; `src/app/admin/actions.ts:141-167,200-201`; `src/app/admin/page.tsx:100-120`; `src/lib/types.ts:55-57`; migrations `202607290003...:91-96`, `202608070001...:478-481`.
 - **Доказательство — факт:** live `authenticated` имеет UPDATE на обе таблицы; RLS проверяет роль модератора, но не колонки/transition. Generic `updateProfile()` требует только moderator и принимает все `ProfileStatus`; UI показывает `published`, `suspended`, `blocked`, `archived`, хотя archive/restore actions требуют admin. Runtime test через object lookup не является строгим own-key allowlist.
 - **Сценарий эксплуатации:** модератор вызывает Server Action или прямой PostgREST и меняет `owner_id`, status, slug, publication/verification attribution, contact/media content, обходя admin-only workflow.
 - **Ущерб / вероятность:** захват/самопубликация профиля, подделка verification, обход блокировки; высокая вероятность для скомпрометированного или злонамеренного модератора.
-- **Исправление:** явная transition matrix и field allowlist; admin-only для block/archive/restore и role/owner changes; узкие transactional RPC/server mutations; revoke generic table UPDATE/column privileges; база повторяет ту же границу.
-- **Тесты:** moderator попытка каждого status transition, `owner_id`, verification actor и protected field; admin positive paths; prototype-key inputs; direct REST bypass.
+- **Локальная реализация:** forward migration отзывает privileged client DML и broad moderator policies, вводит named row-locked state transitions, exact field allowlists, current database membership checks, authoritative audit actor и fixed `search_path`. Admin lifecycle, deletion, role, verification, badge, category, content and retry actions требуют signed AAL2 в server action и DB function. Moderator AAL1 сохраняет только именованные application/revision/feedback decisions; owner/slug/publication fields остаются недоступны.
+- **Тесты:** red phase дважды дал 88 PASS / 36 XFAIL. После реализации два независимых clean-room run совпали: 108 PASS / 16 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Direct moderator field/status/verification/badge/audit writes, future-column inheritance, invalid/replayed/concurrent decisions, stale-role action, admin AAL1 denials and real local TOTP AAL2 positives PASS. SEC-008/018 целиком не закрыты.
 - **Rollback/forward-fix:** сначала узкие RPC и callers, затем revoke broad UPDATE/policies. Forward-fix предпочтителен; не расширять admin membership как workaround.
 - **Launch blocker:** yes. **Уверенность:** High.
 
@@ -182,11 +182,13 @@
 - **Severity / status:** High; Open — confirmed control gap; dashboard enrollment unknown.
 - **Область:** privileged access, session theft, vertical escalation.
 - **Объекты:** `src/lib/auth.ts:4-17`; все privileged Server Actions/routes; DB role helpers/policies.
-- **Доказательство — факт:** поиск не нашёл MFA/AAL/AAL2/recent-auth enforcement. `requireModerator()` проверяет только valid user и membership row. Привилегированные DB paths также не проверяют AAL2.
+- **Доказательство — факт:** live pre-hardening backend не имеет доказанного MFA/AAL2/recent-auth enforcement. До P0-05 `requireModerator()` проверял только valid user и membership row, а privileged DB paths не проверяли AAL2.
 - **Сценарий эксплуатации:** украденная обычная сессия модератора сразу позволяет читать заявки, публиковать/изменять профили и управлять email/moderation.
 - **Ущерб / вероятность:** массовая integrity/privacy compromise; вероятность средняя, impact высокий.
 - **Исправление:** обязательное MFA enrollment privileged accounts; `aal2` + recent-auth check на каждом privileged server boundary и в sensitive DB RPC/policy; recovery/admin bootstrap procedure.
-- **Тесты:** AAL1 session получает deny для всех moderator/admin mutations и private reads; AAL2 succeeds; downgrade/expired/revoked token deny; direct RPC/REST не обходит gate.
+- **Локальная реализация P0-05:** sensitive admin mutations теперь дважды gated: server получает текущий Auth assurance level, а named DB functions требуют current admin membership и signed JWT `aal2`. Real local TOTP AAL1 denial/AAL2 positive paths, direct DML/RPC bypass and stale membership mutation denial PASS. Moderator AAL1 допускается только для утверждённого narrow moderation subset.
+- **Остаётся открытым:** mandatory enrollment/recovery, recent-auth semantics, privileged private-read gate, downgrade/expired/revoked multi-tab behavior and live Auth Dashboard configuration. Поэтому SEC-010 остаётся launch blocker и не считается полностью исправленным.
+- **Тесты:** mutation slice прошёл два одинаковых clean-room run (108 PASS / 16 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP). Полный target всё ещё требует AAL1 deny/AAL2 succeeds для private reads, enrollment/recovery и expired/downgraded/revoked sessions.
 - **Rollback/forward-fix:** staged enrollment с break-glass account, журналом и сроком; не отключать gate из-за одного потерянного factor — использовать audited recovery.
 - **Launch blocker:** yes. **Уверенность:** High для отсутствия code gate; Low для dashboard enrollment state.
 

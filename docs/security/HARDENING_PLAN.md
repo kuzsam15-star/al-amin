@@ -141,7 +141,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Модератор обходит admin-only transitions и protected fields.
 - **Severity:** High; launch blocker.
 - **Affected components:** admin actions, specialist/verification workflow, role boundary, publication state.
-- **Current evidence:** Broad UPDATE и role-based RLS не ограничивают колонки/переходы; generic action принимает все значения `ProfileStatus`.
+- **Current evidence:** Live pre-hardening backend сохраняет broad UPDATE и role-based RLS без column/transition boundary. Local P0-05 заменил generic mutation на named functions and exact actions; remote Supabase не изменён.
 - **Threat:** Moderator изменяет owner/status/slug/verification attribution или выполняет admin-only transition.
 - **Expected secure behavior:** Утверждённая transition matrix, field allowlist, AAL2 и узкие transactional mutations с совпадающим DB enforcement.
 - **Files likely affected:** `src/app/admin/actions.ts`, `src/app/admin/page.tsx`, `src/lib/types.ts`, новая forward migration и role tests.
@@ -150,7 +150,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала deploy narrow RPC/caller, затем revoke broad UPDATE; не расширять membership или grants как workaround.
 - **Risk of fixing:** Высокий — неполная state machine может заблокировать moderation или оставить обход.
 - **Dependencies:** P0-02, утверждённая state machine, AAL2 design, stable actor/audit contract.
-- **Status:** Open — confirmed live; tests not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; два независимых clean-room run по 108 PASS / 16 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; live finding остаётся open.
 
 ### SEC-004 — Anonymous writes
 
@@ -260,7 +260,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Нет AAL2/MFA gate для privileged actions.
 - **Severity:** High; launch blocker.
 - **Affected components:** Auth, moderator/admin routes/actions, privileged RPC/policy boundary.
-- **Current evidence:** Код не проверяет MFA/AAL2/recent-auth; `requireModerator()` доказывает только user и membership; dashboard enrollment неизвестен.
+- **Current evidence:** P0-05 локально добавил server + DB AAL2 gate для sensitive admin mutations и current database role checks. Privileged reads, mandatory enrollment/recovery, recent-auth и live Dashboard configuration остаются недоказанными.
 - **Threat:** Украденная AAL1 session получает immediate privileged access.
 - **Expected secure behavior:** Обязательное enrollment/recovery и fresh AAL2 на каждом privileged server и sensitive DB boundary; direct REST/RPC bypass невозможен.
 - **Files likely affected:** `src/lib/auth.ts`, privileged routes/actions, session helpers и Auth tests.
@@ -269,7 +269,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Staged enrollment с audited break-glass/recovery; нельзя просто отключать gate при потере factor.
 - **Risk of fixing:** Высокий operational risk — неверный rollout может lock out administrators.
 - **Dependencies:** P0-02/P0-05, staging privileged accounts, recovery process, Auth settings access, SSR session design.
-- **Status:** Open — confirmed control gap; dashboard enrollment unverified.
+- **Status:** `PARTIAL_LOCAL_VERIFIED`; mutation slice PASS в двух clean-room runs, но finding остаётся launch blocker до private-read/session/enrollment coverage и pre-launch deployment.
 
 ### SEC-011 — Leaked-password/Auth abuse controls
 

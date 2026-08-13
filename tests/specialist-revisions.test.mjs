@@ -89,7 +89,8 @@ test("only admins can permanently remove moderation records without deleting pro
   assert.match(deletionMigration, /Admin deletes specialist revisions[\s\S]*for delete[\s\S]*public\.is_admin\(\)/);
   assert.match(adminActions, /export async function deleteApplication/);
   assert.match(adminActions, /export async function deleteRevision/);
-  assert.match(adminActions, /requireAdmin\(\)/);
+  assert.match(adminActions, /requireAdminAal2\(\)/);
+  assert.match(adminActions, /admin_delete_revision/);
   assert.match(adminActions, /removeUnreferencedProfileMedia/);
   assert.doesNotMatch(adminActions, /from\("specialists"\)\.delete\(/);
   assert.doesNotMatch(adminActions, /callAt/);

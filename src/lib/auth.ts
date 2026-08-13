@@ -17,6 +17,14 @@ export async function requireAdmin() {
   return context;
 }
 
+/** Sensitive administrator mutations require a signed Supabase Auth AAL2 session. */
+export async function requireAdminAal2() {
+  const context = await requireAdmin();
+  const { data, error } = await context.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error || data.currentLevel !== "aal2") redirect("/admin?notice=aal2-required");
+  return context;
+}
+
 /** Public pages use this only to reveal compact controls to a signed-in admin. */
 export async function getOptionalRole() {
   const supabase = await createSupabaseServerClient();

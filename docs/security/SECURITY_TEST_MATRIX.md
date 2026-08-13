@@ -94,25 +94,25 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 | DB-04 | user B | UUID application user A известен | Direct SELECT/UPDATE/DELETE чужого UUID | 0 rows/deny | Local safe projection returns no foreign row and direct foreign mutations remain denied in 2/2 runs | PASS LOCAL | `APPREAD-004`; owner RLS |
 | DB-05 | anon/auth | Public API key/session | Direct INSERT `reviews` | Deny; только gateway | Live INSERT privilege=true и permissive policy | FAIL | Live ACL/policy; `/api/reviews` |
 | DB-06 | anon/auth | То же | Direct INSERT `complaints` с `internal_notes` | Deny/protected field rejected | Live INSERT privilege=true; column allowlist отсутствует | FAIL | Live ACL/policy; `/api/complaints` |
-| DB-07 | moderator AAL1 | Moderator membership | Direct UPDATE specialist `owner_id/status/...` | Deny; named AAL2 transition only | Live authenticated UPDATE + broad moderator policy | FAIL | `specialists`; policy; admin actions |
-| DB-08 | moderator AAL1 | Moderator membership | Direct UPDATE verification actor/protected fields | Deny | Live authenticated UPDATE + moderator policy | FAIL | `verifications`; `202608070001...` |
-| DB-09 | moderator | Два concurrent decisions | Parallel approve/reject expected-version RPC | Один commit, второй conflict | RPC/locking/version absent | FAIL | `src/app/admin/actions.ts:42-49` |
+| DB-07 | moderator AAL1 | Moderator membership | Direct UPDATE specialist `owner_id/status/slug/future field` | Deny; named AAL2 transition only | Local direct writes and future-column inheritance denied in 2/2 runs; live broad policy remains | PASS LOCAL / FAIL LIVE | `SPEC-003/004/006/007`, `ROLE-009/010`; SEC-003 |
+| DB-08 | moderator AAL1 | Moderator membership | Direct UPDATE verification actor/protected fields | Deny | Local direct moderator/admin-AAL1 writes denied and AAL2 named action allowed in 2/2 runs; live policy remains | PASS LOCAL / FAIL LIVE | `SPEC-005`, `ROLE-008/009/010`; SEC-003/010 |
+| DB-09 | moderator | Два concurrent application decisions | Parallel named expected-version RPC | Один commit, второй conflict | Local row-lock/version path produced exactly one winner in 2/2 runs; full cross-entity/outbox SEC-008 remains open | PARTIAL LOCAL / FAIL LIVE | `MOD-003/004/005`; SEC-008 residual |
 | DB-10 | auditor | Live four views | Inspect owner/options/columns/filters | Safe public contract без definer bypass | Columns/filters narrow, но `security_invoker=false`; 4 Advisor ERROR | FAIL | Four `published_*` views |
 | DB-11 | anon/auth | Live function catalog | Invoke allowlisted RPC only | Internal/trigger/definer EXECUTE denied | 10/11 SECURITY DEFINER functions executable | FAIL | Live function ACL snapshot |
 | DB-12 | auditor | Live ACL catalog | Inspect default privileges | Future table/function private by default | Broad table privileges/function EXECUTE inherited | FAIL | Live `pg_default_acl` |
 | DB-13 | auditor | Live function catalog | Inspect `proconfig/search_path` | Fixed/empty path for sensitive functions | 8 mutable-path warnings; target guards correct | FAIL | Security Advisor + `pg_proc` |
 | DB-14 | auditor | Live data API schema | Public projection column snapshot | Нет private contacts/moderation fields | Текущие four view projections узкие | PASS | Live view definitions; limited to current version |
 | DB-15 | service | Application created by service role | Inspect audit actor | Explicit actor/request ID | `auth.uid()` может быть NULL | FAIL | `record_application_event()`, server writes |
-| DB-16 | moderator/admin | Role rows существуют; AAL2 fixture | Moderator пытается I/U/D `moderators`; admin выполняет named role change | Moderator deny; admin AAL2 one audited mutation | Admin/self-read policies найдены, но AAL2/atomic audit отсутствуют; dynamic role request не отправлялся | FAIL | `moderators` policies; AU-05/AD-01 |
+| DB-16 | moderator/admin | Role rows существуют; real local TOTP AAL2 fixture | Moderator/admin AAL1 пытается direct role change; stale membership invokes named privileged action | Direct role mutation deny; current DB role required; admin AAL2 named role function only | Local direct AAL1/stale-role paths denied; named AAL2 function has exact ACL but positive membership mutation intentionally not exercised | PARTIAL LOCAL / FAIL LIVE | `ROLE-006/007`; migration ACL; AU-05 |
 | DB-17 | user A/B | Два `account_profiles` | S/U/I/D own и foreign UUID, включая `email` | Только own S; updates через trusted Auth sync/G; foreign deny | Live authenticated UPDATE=true и policy `Users update own account profile` разрешает весь own row, включая `email`; recorded migration содержит DROP этого policy | FAIL | Live ACL/`pg_policies`; `202607300001_security_hardening.sql:24-26`; SEC-025 |
-| DB-18 | owner/mod/admin/service | Fixtures application event, notification, audit | S/I/U/D каждой таблицы и direct RPC enqueue/audit | Owner only own S; privileged read AAL2; append/mutation only transactional backend; arbitrary U/D deny | Static policies/RPC ACL изучены; direct moderator audit I и service actor gap нарушают target contract | FAIL | `application_events`, `email_notifications`, `audit_log`; SEC-018 |
+| DB-18 | owner/mod/admin/service | Fixtures application event, notification, audit | S/I/U/D каждой таблицы и direct RPC enqueue/audit | Owner only own S; privileged read AAL2; append/mutation only transactional backend; arbitrary U/D deny | Local direct moderator audit INSERT denied and touched named mutations append authoritative actor atomically; email/private-read and complete outbox coverage remain open | PARTIAL LOCAL / FAIL LIVE | `AUDIT-002/003/004`; SEC-018 residual |
 | DB-19 | anon/mod/admin | Active/inactive categories/content/badges | S/I/U/D `categories`, `site_content`, `trust_badges`, `specialist_trust_badges` | Public only safe active projection S; admin named AAL2 writes; others D | Base `site_content` public SELECT раскрывает operational `updated_by`; dynamic remaining matrix не запускалась | FAIL | `site_content`; migrations `202607290008`, `202607290010` |
-| DB-20 | all roles | Own/foreign revision fixtures | S/I/U/D + submit/decide RPC для каждого role | Owner only G on own; direct DML deny; moderator/admin named AAL2 transitions | Direct I/U/D deny подтверждён live; SELECT/BOLA/RPC transitions динамически не проверены | NOT RUN | Target migration + revision policies/actions |
-| DB-21 | anon/owner/mod/admin | Published/unpublished specialist + verification | Full base S/I/U/D, foreign UUID, owner_id/protected-field/status substitutions | Public view S only; owner changes via revision; moderator/admin narrow AAL2 G | Direct broad authenticated U уже противоречит contract | FAIL | Live specialist/verification ACL/policies; DB-07/08 |
-| DB-22 | anon/auth/mod/admin | Feedback fixtures | Full S/I/U/D + moderation RPC, protected fields и чужой UUID | Submission only G; moderation narrow AAL2 G; direct base all D | Anon/auth direct I подтверждён live; остальные runtime cells не запускались | FAIL | Live review/complaint grants/policies; DB-05/06 |
-| DB-23 | owner/mod/admin/service | Application fixtures v1/v2 | Full S/I/U/D, чужой UUID, owner_id/status/protected fields, decision RPC | Client direct all D; owner-safe S G; moderator/admin named AAL2 G | SEC-002 read boundary PASS locally; transition/AAL/audit portions remain open under SEC-003/010/018 | PARTIAL | `APPREAD-001..009`; DB-03/09/15 |
-| DB-24 | profile owner | Own hidden/draft specialist и revision | Direct UPDATE `specialists.status='published'`, protected publication fields и revision status/payload | Deny; публикация только named moderator/admin AAL2 transaction | Specialist owner policy не разрешает UPDATE, revision direct DML revoked; runtime request не отправлялся | NOT RUN | Live policies/ACL; target migration |
-| DB-25 | owner/mod/admin | Versioned RPC list и fixtures | Прямой invoke каждого exposed business/trigger RPC, включая `apply_specialist_revision` | Owner deny internal/privileged RPC; moderator/admin only named AAL2 RPC; trigger funcs not callable | 10/11 definer functions exposed anon/auth, что уже нарушает default-deny contract; dynamic body/exploit matrix не выполнена | FAIL | Live `pg_proc` ACL + function bodies; DB-11 |
+| DB-20 | all roles | Own/foreign revision fixtures | S/I/U/D + decide RPC для user/moderator/admin AAL2 | Owner only G on own; direct DML deny; moderator exact AAL1 decision; admin sensitive actions AAL2 | Local user invoke denied; moderator AAL1 and real TOTP AAL2 revision decisions succeed; replay/media safety enforced | PASS LOCAL / LIVE OPEN | `SPEC-002`, `RPC-001/002/003`, `MEDIA-008`; SEC-003 |
+| DB-21 | anon/owner/mod/admin | Published/unpublished specialist + verification | Full base S/I/U/D, foreign UUID, owner_id/protected-field/status substitutions | Public view S only; owner changes via revision; moderator direct DML denied; admin narrow AAL2 G | Local direct moderator writes denied and AAL2 named lifecycle/verification positive; live broad grants remain | PASS LOCAL / FAIL LIVE | `SPEC-001/003/004/005/006/007`, `ROLE-008/009/010` |
+| DB-22 | anon/auth/mod/admin | Feedback fixtures | Full S/I/U/D + moderation RPC, protected fields и чужой UUID | Submission only G; moderation narrow G; direct base all D | Local direct moderator UPDATE denied; anonymous/authenticated INSERT remains XFAIL under SEC-004 | PARTIAL LOCAL / FAIL LIVE | `FEEDBACK-001..005`; SEC-004 residual |
+| DB-23 | owner/mod/admin/service | Application fixtures v1/v2 | Full S/I/U/D, чужой UUID, protected fields, named decisions | Client direct all D; owner-safe S G; moderator exact decision; admin lifecycle/deletion AAL2 | SEC-002/003 local paths PASS including invalid/replay/concurrent row decisions; full SEC-008/018 and live deployment remain open | PARTIAL LOCAL / FAIL LIVE | `APPREAD-001..009`, `ROLE-013..016`, `MOD-001..005` |
+| DB-24 | profile owner | Own hidden/draft specialist и revision | Direct UPDATE publication/protected fields and revision status/payload | Deny; publication only reviewed named/server path | Local owner and moderator direct publication-field writes denied; named revision decision remains exact | PASS LOCAL / LIVE OPEN | `SPEC-001/003/004/006`, `RPC-001/002` |
+| DB-25 | owner/mod/admin | Versioned RPC list and fixtures | Direct invoke exposed business/trigger RPCs | Owner deny internal/privileged RPC; exact moderator actions; sensitive admin RPC AAL2; trigger funcs not callable | P0-05 named RPCs have exact grants/fixed path and role/AAL behavior PASS locally; unrelated legacy broad function ACL remains SEC-016 XFAIL | PARTIAL LOCAL / FAIL LIVE | `CAT-003/004`, `RPC-001..003`, `ROLE-004/005/009..016` |
 
 ### 3.1 SEC-002 local owner-projection regression
 
@@ -128,6 +128,21 @@ RPC contract для всех ресурсов: `PUBLIC`, anon и authenticated �
 These results are local implementation evidence, not live closure. The remote
 catalog remains in the pre-hardening state until an owner-approved consolidated
 pre-launch backend deployment.
+
+### 3.2 P0-05 moderator/admin boundary regression
+
+| Cases | Secure expectation | Final result |
+|---|---|---|
+| SPEC-003–SPEC-007 | moderator cannot mutate owner, lifecycle, slug, verification or a future protected field directly | PASS in 2/2 clean-room runs |
+| FEEDBACK-004/005, AUDIT-003 | moderator cannot bypass named feedback actions or forge audit rows | PASS in 2/2 clean-room runs |
+| ROLE-006–ROLE-016 | current DB membership is authoritative; direct/AAL1 admin writes deny; named AAL2 actions succeed | PASS in 2/2 clean-room runs |
+| MOD-001–MOD-005 | named moderator decisions enforce actor, states, expected version, replay and row-lock conflict | PASS in 2/2 clean-room runs |
+| RPC-001–RPC-003 | user deny, moderator AAL1 exact decision and real-TOTP AAL2 admin decision | PASS in 2/2 clean-room runs |
+
+This is local implementation evidence. SEC-003 remains live-open until the
+consolidated pre-launch backend deployment. SEC-010 is only partially covered:
+the mutation slice is verified, while private reads, enrollment/recovery,
+recent-auth and full session downgrade/revocation remain open.
 
 ## 4. Storage и media
 
@@ -154,7 +169,7 @@ pre-launch backend deployment.
 | AU-02 | anon/auth | Malicious external `next` | Login/callback redirect tests | Только local safe path | Existing tests/static helpers pass | PASS | Auth tests; `src/lib/auth-flow.ts`/navigation |
 | AU-03 | auth | Next Server Components | Inspect Proxy/cookie refresh path | Один documented Proxy updater | Proxy/middleware отсутствует; cookie errors swallowed | FAIL | `src/lib/supabase/server.ts:11-26` |
 | AU-04 | auth | Short JWT, two tabs | Concurrent expired-session navigation | One refresh; coherent cookies; no reuse | Не запускалось; current 24h logs без events | NOT RUN | Нужен limited staging |
-| AU-05 | moderator/admin AAL1 | Valid privileged membership | Любой privileged read/mutation | Deny до AAL2 | AAL2 checks отсутствуют | FAIL | `src/lib/auth.ts:4-17`; code search |
+| AU-05 | moderator/admin AAL1 | Valid privileged membership | Sensitive admin mutation; privileged read remains separate scope | Admin mutation deny до AAL2; exact moderator subset only | Local sensitive admin mutations deny at AAL1 and succeed with real TOTP AAL2 in 2/2 runs; private reads remain open | PARTIAL LOCAL / FAIL LIVE | `ROLE-004/005/009..016`; SEC-010 residual |
 | AU-06 | signup | Breached password | Register | Deny | Live Advisor: leaked-password protection disabled | FAIL | Supabase Security Advisor |
 | AU-07 | revoked user | Existing sessions/tabs | Revoke then call app/Data API/RPC | Все sessions быстро denied | Не запускалось; dashboard policy unknown | NOT RUN | Требуется Auth staging/admin procedure |
 | AU-08 | bot | Login/signup/reset/magic-link burst | Bounded generic responses | CAPTCHA/durable rate + alerts | App controls отсутствуют/Map local; Supabase config unknown | NOT RUN | Code gap confirmed, remote setting unknown |
@@ -162,7 +177,7 @@ pre-launch backend deployment.
 | AU-10 | operator | Production env config | Set public origin to HTTP | Startup/deploy fail | Helper принимает HTTP | FAIL | `src/lib/navigation.ts:35-43` |
 | AU-11 | user A/B | Known foreign UUID | Cabinet/profile/action against other owner | Deny server + DB | Owner ID filters присутствуют; dynamic role test не запускался | NOT RUN | `src/app/cabinet/actions.ts:15-65` |
 | AU-12 | user | Forged `user_metadata.role` | Call moderator boundary | Deny; DB membership authoritative | Code не использует metadata для роли | PASS | `requireModerator()` + code search |
-| AU-13 | former moderator | Membership удалено, старый JWT ещё не истёк | Повторить privileged read/action/RPC | Немедленный deny по актуальной DB role, независимо от JWT freshness | Role lookup не использует `user_metadata/app_metadata`; removal/session scenario не выполнялся | NOT RUN | `requireModerator()`/`is_moderator()` static evidence |
+| AU-13 | former moderator | Membership удалено, старый JWT ещё не истёк | Повторить named privileged mutation; privileged read remains separate scope | Немедленный mutation deny по актуальной DB role | Local role row deletion immediately denied the named mutation in 2/2 runs; privileged reads remain SEC-010 scope | PARTIAL LOCAL | `ROLE-006`; current DB membership helper |
 | AU-14 | anon/user | Один magic-link/reset code уже использован | Replay callback/code во второй вкладке/сессии | Single-use generic failure; no session fixation/open redirect | Локальный flow изучен, dynamic replay не запускался | NOT RUN | Auth callback/tests; staging required |
 
 ## 6. Public routes, CSRF, XSS, SSRF, races
@@ -177,9 +192,9 @@ pre-launch backend deployment.
 | RT-06 | user | Stored/reflected HTML payload | Render profile/review/email | Text escaped, no execution | React/email escaping; sinks not found | PASS | Static source search; runtime corpus NOT RUN |
 | RT-07 | user | `javascript:`, `data:`, external next | Submit links/redirect | Unsafe protocols/redirect reject | HTTPS validators/local redirect helpers found | PASS | Source + existing tests; production HTTP origin exception in AU-10 |
 | RT-08 | user | URL causing backend fetch | Submit profile/evidence URL | No server-side attacker fetch | User-controlled server fetch sink not found | PASS | Static source search; not proof against future paths |
-| RT-09 | moderator | Parallel approve/reject | Invoke action concurrently | Transactional single transition | Read-then-unconditional-write | FAIL | `admin/actions.ts:42-49` |
+| RT-09 | moderator | Parallel application decisions | Invoke named action concurrently with expected version | Transactional single transition | Exactly one local winner in 2/2 runs; broader cross-entity/outbox race remains SEC-008 | PARTIAL LOCAL / FAIL LIVE | `MOD-005`; SEC-008 residual |
 | RT-10 | moderator | Same-length unrelated description | Batch safe approval | Classified risky/manual | Length delta marks safe | FAIL | `admin/actions.ts:15-24`; client duplicate |
-| RT-11 | moderator | `__proto__`/valid forbidden status | Call generic updateProfile | Strict enum + role transition deny | Runtime own-key validation weak; valid admin statuses allowed | FAIL | `admin/actions.ts:141-152` |
+| RT-11 | moderator | Forbidden specialist field/status or future column | Direct DML or named action | Exact allowlist; future fields default deny; admin transition AAL2 | Generic action removed; local protected/future fields deny and AAL1/AAL2 state paths PASS in 2/2 runs | PASS LOCAL / FAIL LIVE | `SPEC-003..007`, `ROLE-009/010` |
 | RT-12 | client | Malformed input/error | Route/action failure | Generic response, no secret/stack | Не найден secret verbose path; full deployed exercise not run | NOT RUN | Static review only |
 | RT-13 | anon/auth | SQL injection corpus в UUID/text/filter-like fields | Отправить quotes, comments, boolean/time payloads через каждый public/owner/moderator input | Schema rejects invalid identifiers; text передаётся как data; query structure не меняется | Raw SQL interpolation/user-controlled SQL sink не найден; dynamic WSTG corpus не отправлялся | NOT RUN | Supabase query builder/static search; staging test required |
 
@@ -191,8 +206,8 @@ pre-launch backend deployment.
 | EM-02 | service | Provider/enqueue failure | Submit/decision action | Transaction/error visible; retry state | Enqueue errors часто swallowed | FAIL | `.catch(() => undefined)` callers |
 | EM-03 | operator | Queue has pending row | Wait scheduled interval | Verified scheduler processes + alerts | Scheduler config отсутствует | NOT RUN | Repo/hosting evidence absent |
 | EM-04 | service | Replay same event/request | Worker retry | Exactly-once business effect, safe repeated send | Full replay/idempotency not verified | NOT RUN | Requires provider/staging fixture |
-| AD-01 | moderator | Audit insert failure | Perform mutation | Entire mutation rolls back | Audit error ignored/after mutation | FAIL | `src/app/admin/actions.ts:12` |
-| AD-02 | moderator | Valid nonexistent UUID | Call legacy action | Mutation failure, no success audit | Некоторые results ignored, false audit possible | FAIL | `moderateFeedback`, `updateAvatar` |
+| AD-01 | moderator | Audit append participates in named mutation | Perform touched P0-05 mutation | Entire named mutation and authoritative audit share one DB transaction | Local touched functions append audit inside the same transaction; wider legacy operations remain SEC-018 | PARTIAL LOCAL / FAIL LIVE | P0-05 migration; `AUDIT-003`; SEC-018 residual |
+| AD-02 | moderator | Invalid/replayed target or transition | Call named action | Mutation failure, no success audit | Generic feedback/avatar actions removed; invalid/replayed decisions fail locally without state change | PASS LOCAL / LIVE OPEN | `MOD-003/004`, focused Node tests |
 | AD-03 | service | Server-only application event | Inspect actor | Explicit actor/reason/request ID | `auth.uid()` NULL path possible | FAIL | DB function + service client flow |
 | OP-01 | auditor | Local dependencies installed | `node --test tests/*.test.mjs` | All pass | 85/85 pass | PASS | Local run 2026-08-09 |
 | OP-02 | auditor | Source tree | TypeScript `--noEmit` | No errors | Pass | PASS | Local run |
@@ -277,3 +292,23 @@ Evidence: `docs/security/SEC-001_LOCAL_VERIFICATION.md`,
 Concurrency, production Auth/headers/monitoring, dependency/provenance, Level 3
 configuration recovery/cadence и sustained abuse остаются `NOT_AUTOMATED`; это
 не PASS и не понижение release-blocker severity.
+
+### 10.2 P0-05 SEC-003/SEC-010 mutation-boundary execution
+
+Before the P0-05 migration, two independent red-phase runs matched at
+**88 PASS / 36 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**. The added secure
+expectations reproduced only approved SEC-003 and mutation-scoped SEC-010
+violations.
+
+After the forward migration and exact server actions, two new independent
+disposable runs matched at **108 PASS / 16 XFAIL / 0 XPASS / 0 FAIL /
+0 SKIP**; database lint was 0/0/0, security advisors remained at the unrelated
+pre-hardening 4 ERROR / 8 WARN / 0 INFO, and cleanup passed. Every SEC-003
+expected failure was removed from the ledger after adjudication. The targeted
+SEC-010 admin-mutation cases also PASS with real local TOTP AAL2, while
+`AUDIT-004` remains XFAIL for the still-open privileged-read/session and
+SEC-018 scope.
+
+Evidence: `docs/security/changes/SEC-003_MODERATOR_ADMIN_BOUNDARY.md` and
+`docs/security/SEC-003_LOCAL_VERIFICATION.md`. Remote Supabase was not
+contacted, so these results do not close the live findings.

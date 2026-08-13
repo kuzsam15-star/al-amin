@@ -190,8 +190,9 @@ async function insertFixture(service, table, value) {
 
 async function buildFixtures(stack, service, users, toolchain, env) {
   const ids = Object.fromEntries([
-    'category', 'appA', 'appB', 'specialistA', 'specialistB', 'verificationA',
-    'reviewPublished', 'reviewUnpublished', 'revisionA', 'revisionB', 'revisionAdmin', 'revisionMedia', 'revisionRace', 'badge', 'badgeAssignment',
+    'category', 'appA', 'appB', 'appModeration', 'appReplay', 'appRace', 'appDelete', 'appLifecycle', 'appRevoked', 'appInvalid',
+    'specialistA', 'specialistB', 'verificationA', 'reviewPublished', 'reviewUnpublished', 'complaintA',
+    'revisionA', 'revisionB', 'revisionAdmin', 'revisionMedia', 'revisionRace', 'badge', 'badgeSecond', 'badgeAssignment',
     'emailA', 'emailB', 'eventPublicA', 'eventInternalA', 'eventPublicB',
   ].map((name) => [name, randomUUID()]));
   const sourcePath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
@@ -279,6 +280,23 @@ async function buildFixtures(stack, service, users, toolchain, env) {
       main_image_path: sourcePathB,
       internal_notes: 'Synthetic internal note B',
     },
+    ...[
+      [ids.appModeration, 'Synthetic Moderation', 'screening'],
+      [ids.appReplay, 'Synthetic Replay', 'screening'],
+      [ids.appRace, 'Synthetic Race', 'screening'],
+      [ids.appDelete, 'Synthetic Delete', 'withdrawn'],
+      [ids.appLifecycle, 'Synthetic Lifecycle', 'new'],
+      [ids.appRevoked, 'Synthetic Revoked', 'screening'],
+      [ids.appInvalid, 'Synthetic Invalid', 'withdrawn'],
+    ].map(([id, full_name, status]) => ({
+      ...applicationBase,
+      id,
+      owner_id: users.userA.id,
+      full_name,
+      status,
+      main_image_path: null,
+      internal_notes: 'Synthetic privileged-boundary fixture',
+    })),
   ]);
 
   const specialistBase = {
@@ -347,6 +365,14 @@ async function buildFixtures(stack, service, users, toolchain, env) {
       is_published: false,
     },
   ]);
+  await insertFixture(service, 'complaints', {
+    id: ids.complaintA,
+    specialist_id: ids.specialistA,
+    reason: 'Synthetic reason',
+    description: 'Synthetic complaint used only for local privilege-boundary verification.',
+    reporter_contact: 'complaint@example.invalid',
+    status: 'new',
+  });
   await insertFixture(service, 'site_content', {
     id: true,
     brand_name: 'Synthetic Brand',
@@ -367,6 +393,15 @@ async function buildFixtures(stack, service, users, toolchain, env) {
     title: 'Synthetic badge',
     description: 'Synthetic trust badge used only by the disposable local harness.',
     icon: 'shield',
+    assignment_type: 'manual',
+    is_active: true,
+  });
+  await insertFixture(service, 'trust_badges', {
+    id: ids.badgeSecond,
+    code: `synthetic_second_${stack.projectId.slice(-8)}`,
+    title: 'Synthetic second badge',
+    description: 'Synthetic second trust badge used only by the disposable local harness.',
+    icon: 'badge',
     assignment_type: 'manual',
     is_active: true,
   });
@@ -710,6 +745,14 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('SPEC-003', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistB, changes: { owner_id: users.moderator.id }, verifyField: 'owner_id', restoreValue: users.userB.id }), 'moderator owner reassignment boundary evaluated on a non-published profile; SEC-001 canonical constraints do not adjudicate this broader privilege finding');
   recorder.record('SPEC-004', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistA, changes: { status: 'blocked' }, verifyField: 'status', restoreValue: 'published' }), 'moderator lifecycle boundary evaluated');
   recorder.record('SPEC-005', await attemptUpdate({ actor: users.moderator.client, service, table: 'verifications', id: ids.verificationA, changes: { qualifications_checked: true }, verifyField: 'qualifications_checked', restoreValue: false }), 'moderator protected verification boundary evaluated');
+  recorder.record('SPEC-006', await attemptUpdate({ actor: users.moderator.client, service, table: 'specialists', id: ids.specialistB, changes: { slug: `unauthorized-${stack.projectId.slice(-8)}` }, verifyField: 'slug', restoreValue: `synthetic-b-${stack.projectId.slice(-8)}` }), 'moderator protected publication-identity boundary evaluated');
+  const futureFieldProbe = await queryLocalSql(stack, toolchain.dockerBin, env, `
+    begin;
+    alter table public.specialists add column sec003_future_sensitive text;
+    select has_column_privilege('authenticated','public.specialists','sec003_future_sensitive','UPDATE');
+    rollback;
+  `);
+  recorder.record('SPEC-007', !futureFieldProbe.split(/\r?\n/u).includes('t'), 'transactional future-column probe confirmed deny-by-default without retaining the column');
 
   const anonReviewId = randomUUID();
   recorder.record('FEEDBACK-001', await attemptInsert({ actor: anon, service, table: 'reviews', value: { id: anonReviewId, specialist_id: ids.specialistA, body: 'Synthetic anonymous review body long enough for local validation.', would_hire_again: false, is_published: false, evidence_checked: false } }), 'anonymous direct review insert checked through service-side existence');
@@ -717,6 +760,8 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('FEEDBACK-002', await attemptInsert({ actor: anon, service, table: 'complaints', value: { id: anonComplaintId, specialist_id: ids.specialistA, reason: 'Synthetic reason', description: 'Synthetic anonymous complaint description for local-only validation.', reporter_contact: 'anonymous@example.invalid', status: 'new' } }), 'anonymous direct complaint insert checked through service-side existence');
   const authReviewId = randomUUID();
   recorder.record('FEEDBACK-003', await attemptInsert({ actor: users.userA.client, service, table: 'reviews', value: { id: authReviewId, specialist_id: ids.specialistA, body: 'Synthetic authenticated review body long enough for local validation.', would_hire_again: true, is_published: false, evidence_checked: false } }), 'authenticated direct review insert checked through service-side existence');
+  recorder.record('FEEDBACK-004', await attemptUpdate({ actor: users.moderator.client, service, table: 'reviews', id: ids.reviewUnpublished, changes: { is_published: true }, verifyField: 'is_published', restoreValue: false }), 'direct moderator review mutation boundary evaluated');
+  recorder.record('FEEDBACK-005', await attemptUpdate({ actor: users.moderator.client, service, table: 'complaints', id: ids.complaintA, changes: { status: 'resolved' }, verifyField: 'status', restoreValue: 'new' }), 'direct moderator complaint mutation boundary evaluated');
 
   recorder.record('PROFILE-001', await attemptUpdate({ actor: users.userA.client, service, table: 'account_profiles', id: users.userA.id, changes: { email: 'changed@example.invalid' }, verifyField: 'email', restoreValue: `user-a-${stack.projectId.slice(-8)}@example.invalid` }), 'mirrored email mutation boundary evaluated');
   const foreignProfile = await users.userA.client.from('account_profiles').update({ display_name: 'Synthetic foreign edit' }).eq('id', users.userB.id).select('id');
@@ -732,29 +777,166 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('ROLE-002', await attemptUpdate({ actor: users.moderator.client, service, table: 'moderators', id: users.moderator.id, changes: { role: 'admin' }, verifyField: 'role', restoreValue: 'moderator', keyField: 'user_id' }), 'moderator self-promotion did not persist');
   recorder.record('ROLE-003', await attemptUpdate({ actor: users.moderator.client, service, table: 'applications', id: ids.appA, changes: { status: 'approved' }, verifyField: 'status', restoreValue: 'screening' }), 'AAL1 moderator status boundary evaluated');
   recorder.record('ROLE-004', await attemptUpdate({ actor: users.adminAal1.client, service, table: 'site_content', id: true, changes: { hero_title: 'Synthetic AAL1 change' }, verifyField: 'hero_title', restoreValue: 'Synthetic hero' }), 'AAL1 admin content boundary evaluated');
+  recorder.record('ROLE-007', await attemptUpdate({ actor: users.adminAal1.client, service, table: 'moderators', id: users.moderator.id, changes: { role: 'admin' }, verifyField: 'role', restoreValue: 'moderator', keyField: 'user_id' }), 'AAL1 admin direct role-assignment boundary evaluated');
+  recorder.record('ROLE-008', await attemptUpdate({ actor: users.adminAal1.client, service, table: 'verifications', id: ids.verificationA, changes: { qualifications_checked: true }, verifyField: 'qualifications_checked', restoreValue: false }), 'AAL1 admin direct verification boundary evaluated');
+  const aal1SpecialistControl = await users.adminAal1.client.rpc('admin_update_specialist_controls', {
+    p_specialist_id: ids.specialistA,
+    p_expected_status: 'published',
+    p_target_status: 'suspended',
+    p_identity_checked: true,
+    p_education_checked: true,
+    p_experience_checked: false,
+    p_qualifications_checked: false,
+    p_references_checked: false,
+    p_sources_checked: 1,
+  });
+  recorder.record('ROLE-009', Boolean(aal1SpecialistControl.error), 'AAL1 admin named specialist-control RPC was denied');
+  const aal1Delete = await users.adminAal1.client.rpc('admin_delete_application', { p_application_id: ids.appDelete });
+  recorder.record('ROLE-013', Boolean(aal1Delete.error) && await rowExists(service, 'applications', ids.appDelete), 'AAL1 admin application deletion RPC was denied');
+  const aal1Lifecycle = await users.adminAal1.client.rpc('admin_transition_application', { p_application_id: ids.appLifecycle, p_expected_status: 'new', p_target_status: 'withdrawn' });
+  recorder.record('ROLE-015', Boolean(aal1Lifecycle.error) && await rowValue(service, 'applications', ids.appLifecycle, 'status') === 'new', 'AAL1 admin lifecycle RPC was denied');
+  await users.adminAal1.client.from('specialist_trust_badges').delete().eq('id', ids.badgeAssignment);
+  const aal1BadgeAssignmentExists = await rowExists(service, 'specialist_trust_badges', ids.badgeAssignment);
+  if (!aal1BadgeAssignmentExists) {
+    await insertFixture(service, 'specialist_trust_badges', {
+      id: ids.badgeAssignment,
+      specialist_id: ids.specialistA,
+      badge_id: ids.badge,
+      assigned_by: users.adminAal1.id,
+      source: 'manual',
+      admin_note: 'Synthetic assignment',
+    });
+  }
+  recorder.record('ROLE-012', aal1BadgeAssignmentExists, 'AAL1 admin direct badge-assignment mutation boundary evaluated');
+
+  const appModerationBefore = await service.from('applications').select('updated_at').eq('id', ids.appModeration).single();
+  const moderatorDecision = await users.moderator.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appModeration,
+    p_expected_updated_at: appModerationBefore.data?.updated_at,
+    p_decision: 'request_changes',
+    p_internal_note: 'Synthetic moderator note',
+    p_applicant_message: 'Synthetic requested change',
+  });
+  recorder.record('MOD-001', !moderatorDecision.error && await rowValue(service, 'applications', ids.appModeration, 'status') === 'changes_requested', 'current moderator completed the named request-changes action');
+  const ordinaryDecision = await users.userA.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appRevoked,
+    p_expected_updated_at: null,
+    p_decision: 'reject',
+    p_internal_note: 'Synthetic unauthorized decision',
+    p_applicant_message: null,
+  });
+  recorder.record('MOD-002', Boolean(ordinaryDecision.error) && await rowValue(service, 'applications', ids.appRevoked, 'status') === 'screening', 'ordinary user application-decision RPC was denied');
+  const invalidBefore = await service.from('applications').select('updated_at').eq('id', ids.appInvalid).single();
+  const invalidDecision = await users.moderator.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appInvalid,
+    p_expected_updated_at: invalidBefore.data?.updated_at,
+    p_decision: 'reject',
+    p_internal_note: 'Synthetic invalid transition',
+    p_applicant_message: null,
+  });
+  recorder.record('MOD-003', Boolean(invalidDecision.error) && await rowValue(service, 'applications', ids.appInvalid, 'status') === 'withdrawn', 'withdrawn application rejected an invalid moderator transition');
+  const replayBefore = await service.from('applications').select('updated_at').eq('id', ids.appReplay).single();
+  const firstReplay = await users.moderator.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appReplay,
+    p_expected_updated_at: replayBefore.data?.updated_at,
+    p_decision: 'reject',
+    p_internal_note: 'Synthetic first decision',
+    p_applicant_message: null,
+  });
+  const secondReplay = await users.moderator.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appReplay,
+    p_expected_updated_at: replayBefore.data?.updated_at,
+    p_decision: 'reject',
+    p_internal_note: 'Synthetic replay',
+    p_applicant_message: null,
+  });
+  recorder.record('MOD-004', !firstReplay.error && Boolean(secondReplay.error) && await rowValue(service, 'applications', ids.appReplay, 'status') === 'rejected', 'terminal application decision replay was denied');
+  const raceBefore = await service.from('applications').select('updated_at').eq('id', ids.appRace).single();
+  const raceDecisions = await Promise.all([
+    users.moderator.client.rpc('moderator_decide_application', {
+      p_application_id: ids.appRace,
+      p_expected_updated_at: raceBefore.data?.updated_at,
+      p_decision: 'request_changes',
+      p_internal_note: 'Synthetic race changes',
+      p_applicant_message: 'Synthetic race request',
+    }),
+    users.moderator.client.rpc('moderator_decide_application', {
+      p_application_id: ids.appRace,
+      p_expected_updated_at: raceBefore.data?.updated_at,
+      p_decision: 'reject',
+      p_internal_note: 'Synthetic race rejection',
+      p_applicant_message: null,
+    }),
+  ]);
+  const raceWinnerCount = raceDecisions.filter((entry) => !entry.error).length;
+  recorder.record('MOD-005', raceWinnerCount === 1 && ['changes_requested','rejected'].includes(await rowValue(service, 'applications', ids.appRace, 'status')), 'concurrent application decisions produced one valid terminal/moderation outcome');
 
   const ordinaryRpc = await users.userA.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionA, approve: true, note: null });
   recorder.record('RPC-001', Boolean(ordinaryRpc.error), 'ordinary user revision-decision RPC denied');
   const moderatorRpc = await users.moderator.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionA, approve: true, note: null });
-  recorder.record('RPC-002', Boolean(moderatorRpc.error), 'AAL1 moderator RPC boundary evaluated');
+  if (moderatorRpc.error) throw new Error(`Moderator revision RPC failed: ${moderatorRpc.error.message}`);
+  recorder.record('RPC-002', !moderatorRpc.error, 'current AAL1 moderator completed the allowlisted revision decision');
+
+  await insertFixture(service, 'specialist_revisions', {
+    id: ids.revisionAdmin,
+    specialist_id: ids.specialistA,
+    owner_id: users.userA.id,
+    payload: revisionPayload(users.userA.id, 'Admin', canonicalPath),
+    status: 'pending',
+  });
 
   const aal2 = await enableAal2(users.adminAal1.client, stack);
   if (aal2.ok) {
-    const adminContent = await users.adminAal1.client.from('site_content').update({ hero_title: 'Synthetic AAL2 change' }).eq('id', true).select('id');
-    recorder.record('ROLE-005', !adminContent.error && adminContent.data?.length === 1, 'real local TOTP session reached AAL2 and completed approved admin write');
-    await service.from('site_content').update({ hero_title: 'Synthetic hero' }).eq('id', true);
-    await insertFixture(service, 'specialist_revisions', {
-      id: ids.revisionAdmin,
-      specialist_id: ids.specialistA,
-      owner_id: users.userA.id,
-      payload: revisionPayload(users.userA.id, 'Admin', canonicalPath),
-      status: 'pending',
+    const adminContent = await users.adminAal1.client.rpc('admin_update_site_content', {
+      p_content: {
+        brand_name: 'Synthetic Brand', tagline: 'Synthetic tagline', hero_title: 'Synthetic AAL2 change',
+        hero_text: 'Synthetic hero text', contact_email: 'site@example.invalid', about_text: 'Synthetic about text',
+        rules_intro: 'Synthetic rules text', privacy_text: 'Synthetic privacy text', seo_title: 'Synthetic SEO title',
+        seo_description: 'Synthetic SEO description',
+      },
     });
+    recorder.record('ROLE-005', !adminContent.error && await rowValue(service, 'site_content', true, 'hero_title') === 'Synthetic AAL2 change', 'real local TOTP session reached AAL2 and completed the named content action');
+    await service.from('site_content').update({ hero_title: 'Synthetic hero' }).eq('id', true);
+    const specialistControl = await users.adminAal1.client.rpc('admin_update_specialist_controls', {
+      p_specialist_id: ids.specialistA,
+      p_expected_status: 'published',
+      p_target_status: 'suspended',
+      p_identity_checked: true,
+      p_education_checked: true,
+      p_experience_checked: false,
+      p_qualifications_checked: true,
+      p_references_checked: false,
+      p_sources_checked: 2,
+    });
+    recorder.record('ROLE-010', !specialistControl.error
+      && await rowValue(service, 'specialists', ids.specialistA, 'status') === 'suspended'
+      && await rowValue(service, 'verifications', ids.verificationA, 'qualifications_checked') === true,
+    'AAL2 specialist lifecycle and verification allowlist succeeded atomically');
+    await service.from('specialists').update({ status: 'published' }).eq('id', ids.specialistA);
+    await service.from('verifications').update({ qualifications_checked: false }).eq('id', ids.verificationA);
+    const badgeUpdate = await users.adminAal1.client.rpc('admin_set_manual_trust_badges', {
+      p_specialist_id: ids.specialistA,
+      p_badge_ids: [ids.badge, ids.badgeSecond],
+    });
+    const secondBadgeExists = Number(await queryLocalSql(stack, toolchain.dockerBin, env, `select count(*) from public.specialist_trust_badges where specialist_id='${ids.specialistA}'::uuid and badge_id='${ids.badgeSecond}'::uuid and source='manual';`)) === 1;
+    recorder.record('ROLE-011', !badgeUpdate.error && secondBadgeExists, 'AAL2 named manual-badge assignment succeeded');
+    const deleteApplication = await users.adminAal1.client.rpc('admin_delete_application', { p_application_id: ids.appDelete });
+    recorder.record('ROLE-014', !deleteApplication.error && !(await rowExists(service, 'applications', ids.appDelete)), 'AAL2 named application deletion succeeded');
+    const archiveApplication = await users.adminAal1.client.rpc('admin_transition_application', { p_application_id: ids.appLifecycle, p_expected_status: 'new', p_target_status: 'withdrawn' });
+    const restoreApplication = await users.adminAal1.client.rpc('admin_transition_application', { p_application_id: ids.appLifecycle, p_expected_status: 'withdrawn', p_target_status: 'new' });
+    recorder.record('ROLE-016', !archiveApplication.error && !restoreApplication.error && await rowValue(service, 'applications', ids.appLifecycle, 'status') === 'new', 'AAL2 application archive/restore state machine succeeded');
     const adminRpc = await users.adminAal1.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionAdmin, approve: true, note: null });
+    if (adminRpc.error) {
+      throw new Error(`AAL2 admin revision RPC failed: ${adminRpc.error.code ?? 'unknown'} ${adminRpc.error.message}`);
+    }
     recorder.record('RPC-003', !adminRpc.error, 'real local AAL2 admin session completed approved revision decision');
   } else {
     const safeReason = `local TOTP automation unavailable: ${aal2.reason}`.replace(/[A-Z0-9_-]{20,}/giu, '[redacted]');
     recorder.record('ROLE-005', false, '', safeReason);
+    recorder.record('ROLE-010', false, '', safeReason);
+    recorder.record('ROLE-011', false, '', safeReason);
+    recorder.record('ROLE-014', false, '', safeReason);
+    recorder.record('ROLE-016', false, '', safeReason);
     recorder.record('RPC-003', false, '', safeReason);
   }
 
@@ -859,7 +1041,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const applicationPublisherAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
     select exists (
       select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-      where n.nspname='public' and p.proname='approve_application_with_canonical_media'
+      where n.nspname='public' and p.proname='approve_application_with_canonical_media_v2'
         and oidvectortypes(p.proargtypes)='uuid, uuid, timestamp with time zone, text, jsonb, jsonb'
         and not has_function_privilege('anon',p.oid,'EXECUTE')
         and not has_function_privilege('authenticated',p.oid,'EXECUTE')
@@ -874,7 +1056,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   });
   const applicationReviewedAt = await rowValue(service, 'applications', ids.appA, 'updated_at');
   await service.from('applications').update({ internal_notes: 'Synthetic owner-visible review race marker' }).eq('id', ids.appA);
-  const applicationPublish = await service.rpc('approve_application_with_canonical_media', {
+  const applicationPublish = await service.rpc('approve_application_with_canonical_media_v2', {
     application_uuid: ids.appA,
     reviewer_uuid: users.moderator.id,
     expected_updated_at: applicationReviewedAt,
@@ -886,7 +1068,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const applicationPathAfterStale = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
   recorder.record('MEDIA-019', Boolean(applicationPublish.error) && applicationStatus !== 'approved' && Boolean(applicationReviewedAt), 'stale application review rejected after the reviewed row changed');
   const applicationFreshUpdatedAt = await rowValue(service, 'applications', ids.appA, 'updated_at');
-  const applicationFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('approve_application_with_canonical_media', {
+  const applicationFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('approve_application_with_canonical_media_v2', {
       application_uuid: ids.appA,
       reviewer_uuid: users.moderator.id,
       expected_updated_at: applicationFreshUpdatedAt,
@@ -910,7 +1092,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const revisionPublisherAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
     select exists (
       select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-      where n.nspname='public' and p.proname='apply_specialist_revision_with_canonical_media'
+      where n.nspname='public' and p.proname='apply_specialist_revision_with_canonical_media_v2'
         and oidvectortypes(p.proargtypes)='uuid, uuid, timestamp with time zone, text, jsonb, jsonb'
         and not has_function_privilege('anon',p.oid,'EXECUTE')
         and not has_function_privilege('authenticated',p.oid,'EXECUTE')
@@ -943,7 +1125,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     entityId: ids.revisionMedia,
     avatarPath: replacementRevisionSource,
   });
-  const revisionPublish = await service.rpc('apply_specialist_revision_with_canonical_media', {
+  const revisionPublish = await service.rpc('apply_specialist_revision_with_canonical_media_v2', {
     revision_uuid: ids.revisionMedia,
     reviewer_uuid: users.moderator.id,
     expected_updated_at: revisionReviewedAt,
@@ -955,7 +1137,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const revisionStatus = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'status');
   recorder.record('MEDIA-020', Boolean(revisionPublish.error) && revisionStatus === 'pending' && afterRevisionPath === beforeRevisionPath && Boolean(revisionReviewedAt), 'stale revision review rejected after owner media changed');
   const revisionFreshUpdatedAt = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'updated_at');
-  const revisionFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('apply_specialist_revision_with_canonical_media', {
+  const revisionFreshAttempts = await Promise.all([0, 1].map(() => service.rpc('apply_specialist_revision_with_canonical_media_v2', {
       revision_uuid: ids.revisionMedia,
       reviewer_uuid: users.moderator.id,
       expected_updated_at: revisionFreshUpdatedAt,
@@ -989,7 +1171,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     avatarPath: raceRevisionSource,
   });
   const raceAttempts = await Promise.all([
-    service.rpc('apply_specialist_revision_with_canonical_media', {
+    service.rpc('apply_specialist_revision_with_canonical_media_v2', {
       revision_uuid: ids.revisionRace,
       reviewer_uuid: users.moderator.id,
       expected_updated_at: raceReviewedAt,
@@ -1038,10 +1220,17 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const moderatorQueue = await users.moderator.client.from('email_notifications').select('id').limit(1);
   recorder.record('AUDIT-004', deniedOrEmpty(moderatorQueue), 'AAL1 moderator queue-read boundary evaluated without logging recipients');
 
+  const revokedApplication = await service.from('applications').select('updated_at').eq('id', ids.appRevoked).single();
   const { error: revokeError } = await service.from('moderators').delete().eq('user_id', users.moderator.id);
   if (revokeError) throw new Error(`Synthetic moderator revocation failed: ${revokeError.message}`);
-  const afterRevoke = await users.moderator.client.from('applications').select('id').limit(1);
-  recorder.record('ROLE-006', deniedOrEmpty(afterRevoke), 'revoked local moderator token no longer passes role lookup');
+  const afterRevoke = await users.moderator.client.rpc('moderator_decide_application', {
+    p_application_id: ids.appRevoked,
+    p_expected_updated_at: revokedApplication.data?.updated_at,
+    p_decision: 'reject',
+    p_internal_note: 'Synthetic revoked-role decision',
+    p_applicant_message: null,
+  });
+  recorder.record('ROLE-006', Boolean(afterRevoke.error) && await rowValue(service, 'applications', ids.appRevoked, 'status') === 'screening', 'revoked local moderator token no longer passes the current-role mutation check');
 }
 
 async function executeRun(runNumber, guard, env) {
