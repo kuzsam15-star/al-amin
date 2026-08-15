@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { removeUnreferencedProfileMedia } from "@/lib/media-cleanup";
 import { processEmailQueue } from "@/lib/email/queue";
@@ -6,7 +7,6 @@ import { hasTrustedOrigin } from "@/lib/request-security";
 import { validateApplication } from "@/lib/application-validation.mjs";
 import { isCanonicalUuid, isPlainRecord } from "@/lib/specialist-contract.mjs";
 
-const recentRequests=new Map<string,number>();
 const maximumRequestBytes = 96 * 1024;
 const submittedMedia = (data: Record<string, unknown>) => [data.main_image_path].filter((path): path is string => typeof path === "string");
 
@@ -21,6 +21,8 @@ export async function POST(request:Request){
   if (!isPlainRecord(body)) return NextResponse.json({error:"Некорректный запрос."},{status:400});
   const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Войдите или зарегистрируйтесь, чтобы подать заявку."},{status:401});
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (!isCanonicalUuid(idempotencyKey)) return NextResponse.json({ error: "Повторите отправку формы." }, { status: 400 });
   const requestedId = body.applicationId;
   if (requestedId !== undefined && !isCanonicalUuid(requestedId)) return NextResponse.json({ error: "Эту заявку нельзя отправить повторно.", field: "applicationId", errors: { applicationId: "Эту заявку нельзя отправить повторно." } }, { status: 422 });
 
@@ -42,14 +44,21 @@ export async function POST(request:Request){
     allowedExistingMediaPaths: editable?.main_image_path ? [editable.main_image_path] : [],
   });
   if("error" in validated)return NextResponse.json({error:validated.error,field:validated.field,errors:validated.errors},{status:422});
-  const now=Date.now(); if(now-(recentRequests.get(user.id)??0)<60_000){ await removeUnreferencedProfileMedia(submittedMedia(validated.data)); return NextResponse.json({error:"Повторите попытку через минуту."},{status:429}); }
-
-  const writePayload = { ...validated.data, owner_id: user.id, contract_version: 2 as const };
-  const { error } = editable
-    ? await admin.from("applications").update({ ...writePayload, status: "new", resubmitted_at: new Date(now).toISOString() }).eq("id", editable.id).eq("owner_id", user.id).in("status", ["changes_requested", "info_required"])
-    : await admin.from("applications").insert({ ...writePayload, status: "new" });
-  if(error) { await removeUnreferencedProfileMedia(submittedMedia(validated.data)); return NextResponse.json({error:"Не удалось сохранить заявку. Попробуйте позже."},{status:500}); }
-  recentRequests.set(user.id,now);
+  const { owner_id: _ownerId, ...writePayload } = validated.data;
+  void _ownerId;
+  const payloadHash = createHash("sha256").update(JSON.stringify(writePayload)).digest("hex");
+  const { error } = await admin.rpc("submit_application_v1", {
+    p_owner_id: user.id,
+    p_application_id: editable?.id ?? null,
+    p_idempotency_key: idempotencyKey,
+    p_payload_hash: payloadHash,
+    p_payload: writePayload,
+  });
+  if(error) {
+    await removeUnreferencedProfileMedia(submittedMedia(validated.data));
+    const conflict = error.code === "23505" || error.code === "40001";
+    return NextResponse.json({error: conflict ? "Заявка уже отправлена или была изменена. Обновите страницу." : "Не удалось сохранить заявку. Попробуйте позже."},{status:conflict ? 409 : 500});
+  }
   // Delivery is intentionally isolated from application persistence. A provider
   // error is recorded in the outbox and never changes an accepted application.
   await processEmailQueue(5).catch(() => undefined);

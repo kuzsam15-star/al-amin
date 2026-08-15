@@ -209,7 +209,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Race создаёт duplicate applications и events.
 - **Severity:** High; launch blocker.
 - **Affected components:** application route, database invariants, limiter/idempotency, email/outbox.
-- **Current evidence:** Process-local `Map` не shared и обновляется после insert; database invariant «одна active application на owner» отсутствует.
+- **Current evidence:** Pre-fix process-local `Map` and missing invariant were reproduced twice. The local forward migration now replaces them with owner serialization, partial uniqueness and durable idempotency.
 - **Threat:** 10–100 parallel first requests создают несколько active rows и side effects.
 - **Expected secure behavior:** Transactional submit, утверждённый partial unique invariant, idempotency key и durable privacy-preserving limiter; ровно один business event.
 - **Files likely affected:** `src/app/api/applications/route.ts`, application concurrency tests и новая forward migration/RPC.
@@ -218,7 +218,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала auditable deduplication/reconciliation; constraint снимается только при сохранённой server idempotency защите.
 - **Risk of fixing:** Высокий — неверное определение active может блокировать valid resubmission или конфликтовать с текущими duplicates.
 - **Dependencies:** P0-02, P0-05 state machine, approved active semantics, synthetic concurrency fixtures.
-- **Status:** Open — confirmed design flaw; exploit not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. P007-002..007 PASS in two fresh runs; remote backend unchanged.
 
 ### SEC-008 — Moderation decision race
 
@@ -226,7 +226,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Конкурирующие moderation decisions оставляют inconsistent publication state.
 - **Severity:** High; launch blocker.
 - **Affected components:** admin actions, application/specialist state, audit и email/outbox.
-- **Current evidence:** Action читает status и затем делает unconditional service-role update; publication и competing terminal decision выполняются отдельными writes.
+- **Current evidence:** The pre-fix operation-level race gap was reproduced. Local v2/v3 primitives now lock expected state/version, make replay deterministic and commit database side effects under one operation ID.
 - **Threat:** Concurrent approve/reject/change-request оставляет опубликованный profile у rejected application или расходящиеся audit/email events.
 - **Expected secure behavior:** Один locked/versioned transactional RPC проверяет expected state и атомарно меняет state, publication, audit и outbox; conflict явный и replay idempotent.
 - **Files likely affected:** `src/app/admin/actions.ts`, moderation concurrency tests и новая forward RPC migration.
@@ -235,7 +235,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Versioned RPC рядом со старым path, затем caller switch и удаление broad write path; existing inconsistencies исправляются отдельным audited reconciliation.
 - **Risk of fixing:** Высокий — transaction/state ошибки могут deadlock moderation или выбрать неверный terminal state.
 - **Dependencies:** P0-02, SEC-003/P0-05 state machine, atomic audit/outbox design.
-- **Status:** Open — confirmed design flaw; exploit not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. P007-008..011 plus existing MOD/MEDIA races PASS in two fresh runs; remote backend unchanged.
 
 ### SEC-009 — Vulnerable production dependencies
 
@@ -399,7 +399,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Audit trail и multi-write actions неатомарны.
 - **Severity:** Medium; launch blocker.
 - **Affected components:** Admin actions, audit/events, state mutations, email outbox, actor attribution.
-- **Current evidence:** Audit/write errors подавляются; mutation и audit выполняются отдельно; status/verification/badges/email — отдельные calls; service-role actor может быть `NULL`.
+- **Current evidence:** Pre-fix application workflow lacked one authoritative operation identity and worker leases. P0-07 locally closes that scope; broader privileged-read, unrelated-action and operations coverage remains open.
 - **Threat:** Partial failure оставляет inconsistent state без достоверного forensic record либо audit-only success.
 - **Expected secure behavior:** One transactional mutation атомарно пишет immutable before/after audit с explicit actor/request ID и idempotent outbox.
 - **Files likely affected:** `src/app/admin/actions.ts`, audit/email callers, dead exported actions и fault/concurrency tests.
@@ -408,7 +408,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Versioned transactional path и dual verification; historical records не переписываются без provenance marker.
 - **Risk of fixing:** Высокий — transaction refactor может изменить workflow semantics или actor identity.
 - **Dependencies:** SEC-003/SEC-008 state machine, stable actor/request contract, idempotent email design.
-- **Status:** Open — confirmed locally; atomic portion is prerequisite for race closure.
+- **Status:** `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Application/revision state, domain event, audit and outbox atomicity plus worker lease/retry are locally verified. `AUDIT-004`, all-actions audit immutability, monitoring/scheduler and provider duplicate-delivery residual remain open.
 
 ### SEC-019 — Supply-chain/E2E safety
 

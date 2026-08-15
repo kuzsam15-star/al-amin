@@ -151,6 +151,23 @@
     {"id":"AUDIT-001","role":"ROLE-USER-A","resource":"email_notifications","action":"SELECT","expected":"cannot read user B notification"},
     {"id":"AUDIT-002","role":"ROLE-USER-A","resource":"audit_log","action":"INSERT","expected":"ordinary user cannot write audit"},
     {"id":"AUDIT-003","role":"ROLE-MODERATOR-AAL1","resource":"audit_log","action":"INSERT","expected":"direct client audit writes denied"},
-    {"id":"AUDIT-004","role":"ROLE-MODERATOR-AAL1","resource":"email_notifications","action":"SELECT","expected":"privileged queue read requires AAL2"}
+    {"id":"AUDIT-004","role":"ROLE-MODERATOR-AAL1","resource":"email_notifications","action":"SELECT","expected":"privileged queue read requires AAL2"},
+
+    {"id":"P007-001","role":"ROLE-AUTHENTICATED","resource":"applications","action":"INSERT","expected":"direct client submit is denied outside the named transaction"},
+    {"id":"P007-002","role":"ROLE-SERVICE-BACKEND","resource":"applications","action":"concurrent INSERT","expected":"one owner has at most one active application"},
+    {"id":"P007-003","role":"ROLE-SERVICE-BACKEND","resource":"submit_application_v1","action":"RETRY","expected":"same idempotency key and payload returns one committed result"},
+    {"id":"P007-004","role":"ROLE-SERVICE-BACKEND","resource":"submit_application_v1","action":"RETRY","expected":"same idempotency key with another payload is rejected"},
+    {"id":"P007-005","role":"ROLE-SERVICE-BACKEND","resource":"submit_application_v1 future field","action":"INSERT","expected":"unknown protected fields fail closed"},
+    {"id":"P007-006","role":"ROLE-SERVICE-BACKEND","resource":"application submit side effects","action":"INSERT","expected":"state, event, audit and outbox commit under one authoritative operation"},
+    {"id":"P007-007","role":"ROLE-SERVICE-BACKEND","resource":"application submit transaction","action":"FAILURE_INJECTION","expected":"failure rolls back state, event, audit and outbox"},
+    {"id":"P007-008","role":"ROLE-MODERATOR-AAL1","resource":"application decision","action":"RETRY","expected":"decision replay returns one state and side-effect set"},
+    {"id":"P007-009","role":"ROLE-MODERATOR-AAL1","resource":"application decision","action":"concurrent STATUS_CHANGE","expected":"conflicting decisions have one winner and one side-effect set"},
+    {"id":"P007-010","role":"ROLE-MODERATOR-AAL1","resource":"revision decision","action":"RETRY","expected":"revision decision replay returns one state and side-effect set"},
+    {"id":"P007-011","role":"ROLE-MODERATOR-AAL1","resource":"decision transaction","action":"FAILURE_INJECTION","expected":"failure rolls back state, event, audit and outbox"},
+    {"id":"P007-012","role":"ROLE-SERVICE-BACKEND","resource":"email outbox","action":"CLAIM","expected":"parallel workers claim disjoint rows"},
+    {"id":"P007-013","role":"ROLE-SERVICE-BACKEND","resource":"email outbox lease","action":"RETRY","expected":"expired claim is recoverable"},
+    {"id":"P007-014","role":"ROLE-SERVICE-BACKEND","resource":"email outbox retry","action":"ACK","expected":"bounded retry reaches explicit permanent failure"},
+    {"id":"P007-015","role":"ROLE-AUTHENTICATED","resource":"application_events/email_notifications","action":"INSERT","expected":"clients cannot forge event or outbox rows"},
+    {"id":"P007-016","role":"ROLE-ANON/AUTHENTICATED","resource":"P0-07 RPC surface","action":"RPC","expected":"fixed search_path and least-privilege EXECUTE"}
   ]
 }

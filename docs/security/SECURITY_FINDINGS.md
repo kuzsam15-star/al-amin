@@ -28,8 +28,8 @@
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
 | SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | Open — confirmed | yes |
-| SEC-007 | High | Race создаёт дубли заявок | Open — confirmed design flaw | yes |
-| SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | Open — confirmed design flaw | yes |
+| SEC-007 | High | Race создаёт дубли заявок | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
+| SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-009 | High | Уязвимые production dependencies | Open — confirmed | yes |
 | SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL_LOCAL_VERIFIED — mutation gate implemented; private reads/enrollment/recent-auth live open | yes |
 | SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | Open — partly live confirmed | yes |
@@ -39,7 +39,7 @@
 | SEC-015 | Medium | Четыре SECURITY DEFINER public views | Open — confirmed live | yes |
 | SEC-016 | Medium | Избыточные grants/default ACL/RPC EXECUTE/search_path | Open — confirmed live | yes |
 | SEC-017 | Medium | Буферизация тела и media/resource abuse | Open — confirmed | yes |
-| SEC-018 | Medium | Audit trail и multi-write операции неатомарны | Open — confirmed | yes |
+| SEC-018 | Medium | Audit trail и multi-write операции неатомарны | PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-019 | Medium | Недетерминированная supply chain и опасные remote E2E scripts | Open — confirmed | no |
 | SEC-020 | Medium | HTTP/cookie/edge security зависит от недоказанной конфигурации | Open — confirmed + unverified | yes |
 | SEC-021 | Medium | Observability, retention и incident response неполны | Open — confirmed evidence gap | yes |
@@ -141,7 +141,7 @@
 
 ### SEC-007 — Race и отсутствие idempotency у заявки
 
-- **Severity / status:** High; Open — confirmed design flaw; exploit не запускался.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; remote backend unchanged.
 - **Область:** race conditions, duplicate submissions, email abuse.
 - **Объекты:** `/api/applications`; `src/app/api/applications/route.ts:9,45,52`; schema/indexes `public.applications`.
 - **Доказательство — факт:** limiter — process-local `Map`, проверяется до write и заполняется после insert. Он не разделяется между serverless instances и растёт без очистки. Live/database schema не содержит unique invariant «одна активная заявка на owner».
@@ -149,12 +149,14 @@
 - **Ущерб / вероятность:** дубли, конфликт moderation/email, рост очереди; вероятность высокая при retry/двойном клике даже без атакующего.
 - **Исправление:** partial unique constraint или transactional RPC, idempotency key, compare/insert in DB; durable shared limiter. In-memory check оставить только оптимизацией.
 - **Тесты:** 10–100 parallel submits в disposable staging; один active row и одно notification event; replay того же key; разные owners не блокируют друг друга.
+- **Локальная реализация:** service-only `submit_application_v1`, owner advisory lock, partial active-owner unique index, exact payload allowlist, durable key/payload operation ledger and one-operation domain event/audit/outbox contract replace the process-local `Map` and direct DML.
+- **Локальное доказательство:** red phase 125 PASS / 27 XFAIL; final two runs 140 PASS / 12 unrelated XFAIL, with P007-002..007 PASS and no XPASS/FAIL/SKIP.
 - **Rollback/forward-fix:** сначала дедупликация существующих строк под контролем оператора, затем constraint/RPC. Откат constraint только при сохранённой server idempotency.
 - **Launch blocker:** yes. **Уверенность:** High.
 
 ### SEC-008 — Race решений модерации
 
-- **Severity / status:** High; Open — confirmed design flaw; exploit не запускался.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; remote backend unchanged.
 - **Область:** workflow integrity, concurrency, publication.
 - **Объекты:** `src/app/admin/actions.ts:42-49`; publication logic `supabase/migrations/202607280002_product-test-fixes.sql:94-102`.
 - **Доказательство — факт:** action читает status, затем выполняет unconditional service-role update без expected prior status/version. Publication выполняется при первом approve отдельно от последующего конкурентного решения.
@@ -162,6 +164,8 @@
 - **Ущерб / вероятность:** нарушение moderation truth и audit, ошибочная публикация; вероятность средняя при нескольких модераторах/повторе запросов.
 - **Исправление:** один locked transactional RPC: validate transition, compare version/status, publish/unpublish, enqueue email и append audit. Zero-row/stale response — конфликт, не success.
 - **Тесты:** параллельные approve/reject/change-request; один terminal outcome; профиль, email и audit согласованы; replay idempotent.
+- **Локальная реализация:** versioned application/revision decision RPCs lock rows, require expected state/version and operation IDs, and commit state/domain-event/audit/outbox together. Operation-aware v3 canonical publication wrappers preserve the SEC-001 no-overwrite saga while making the database decision idempotent.
+- **Локальное доказательство:** P007-008..011 and existing MOD/MEDIA race cases PASS in two independent 140/12 runs; no unrelated XPASS or unexpected FAIL.
 - **Rollback/forward-fix:** новый RPC рядом со старым action, затем switch и удаление old write path. Исправление inconsistent rows — отдельный audited reconciliation.
 - **Launch blocker:** yes. **Уверенность:** High.
 
@@ -296,7 +300,7 @@
 
 ### SEC-018 — Ненадёжный audit trail и неатомарные multi-write actions
 
-- **Severity / status:** Medium; Open — confirmed locally.
+- **Severity / status:** Medium; `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`.
 - **Область:** audit logging, transaction integrity, accountability.
 - **Объекты:** `src/app/admin/actions.ts:12,42-49,149-167,188-203`; `record_application_event()`; email enqueue callers.
 - **Доказательство — факт:** `audit()` и ряд writes игнорируют errors; mutation обычно commit до audit. `moderateFeedback`/`updateAvatar` могут записать success audit без фактической mutation. Status/verification/badges меняются отдельными calls. Service-role application writes дают `auth.uid()=NULL` в event function.
@@ -304,6 +308,8 @@
 - **Ущерб / вероятность:** отсутствие forensic truth и ошибочное состояние; вероятность средняя.
 - **Исправление:** один transactional RPC на business transition; immutable append-only audit с explicit actor ID/request ID/before-after; fail closed; idempotent email event; удалить dead exported actions.
 - **Тесты:** fault injection audit/email/write; вся transaction rolls back; concurrency; actor attribution; no audit-only success.
+- **Локальная реализация:** P0-07 adds authoritative operation/actor fields, private allowlisted domain events, atomic enqueue, leased worker claim/ACK and direct client mutation closure for application workflow records. Fake transport verifies retry and send-before-ACK semantics.
+- **Остаток:** `AUDIT-004` remains XFAIL for SEC-010/018 queue-read/AAL2 exposure; immutable audit coverage for every unrelated privileged action, monitoring, scheduler and provider-level deduplication remain separate work. External delivery is at-least-once, not exactly-once.
 - **Rollback/forward-fix:** dual-read/verify new audit, затем switch; старые записи не переписывать без provenance marker.
 - **Launch blocker:** yes для privileged public launch. **Уверенность:** High.
 

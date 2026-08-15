@@ -163,6 +163,7 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 - **Доказательство выхода:** parallel submit создаёт одну row/event; parallel approve/reject имеет один outcome; application/profile/audit/outbox согласованы; fault injection откатывает всё.
 - **Rollback/forward-fix:** сначала reconciliation/backup существующих duplicates/inconsistent rows; v2 RPC; caller switch. Исправление данных — отдельный audited plan, не автоматический delete.
 - **Зависимости:** P0-02/05.
+- **Локальный статус:** SEC-007/008 — `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; SEC-018 — `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Два red run: 125 PASS / 27 XFAIL. Два final run: 140 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; cleanup PASS. Atomic enqueue exactly-once and worker lease/retry verified; external provider delivery remains honestly at-least-once. Remote backend unchanged.
 
 ### P0-08 — Переделать media cleanup в recoverable fail-closed GC
 

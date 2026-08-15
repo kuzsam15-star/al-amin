@@ -17,7 +17,9 @@ test("the requested-changes workflow reuses one application and keeps moderator 
   assert.match(migration, /new\.status := 'new'/);
   assert.match(migration, /application_events/);
   assert.match(route, /createSupabaseAdminClient/);
-  assert.match(route, /\.update\(\{ \.\.\.writePayload, status: "new", resubmitted_at:/);
+  assert.match(route, /submit_application_v1/);
+  assert.match(route, /p_application_id: editable\?\.id \?\? null/);
+  assert.match(route, /p_idempotency_key: idempotencyKey/);
   assert.match(route, /\.eq\("owner_id", user\.id\)/);
   assert.match(cabinet, /applicant_message/);
   assert.doesNotMatch(cabinet, /internal_notes/);
@@ -51,5 +53,5 @@ test("application moderation keeps actions ordered and blocks changing approved 
   assert.ok(approve >= 0 && approve < changes && changes < reject);
   assert.match(page, /admin-danger-actions/);
   assert.match(actions, /\["new","screening","info_required","changes_requested","call_required","call_scheduled"\]\.includes\(current\.status\)/);
-  assert.match(actions, /moderator_decide_application/);
+  assert.match(actions, /moderator_decide_application_v2/);
 });

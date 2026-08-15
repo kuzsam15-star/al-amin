@@ -55,6 +55,15 @@ SPF-правило должно оставаться единственным TX
 - Платный тариф UniSender Go разрешает транзакционные письма на внешние адреса.
 - Сквозная регистрация с новым внешним Gmail прошла успешно.
 
+## Локальный P0-07 outbox contract
+
+- Business state и outbox enqueue записываются в одной PostgreSQL transaction с общим operation ID.
+- Один business event создаёт максимум одну outbox row; browser roles не могут задавать recipient, status, retry или вставлять строки напрямую.
+- Worker atomically claims disjoint rows через `FOR UPDATE SKIP LOCKED`, worker UUID и bounded lease. Просроченный claim восстанавливается; retry ограничен `max_attempts` и permanent-failure state.
+- Network send выполняется после claim transaction. ACK проверяет владельца lease; provider error сохраняется только как короткий безопасный code, без recipient/content в logs.
+- Гарантия: enqueue exactly once, доставка at-least-once. Если provider принял письмо, но процесс остановился до ACK, повтор после lease expiry может отправить дубликат. Provider-level exactly-once не заявляется без подтверждённого idempotency contract.
+- Локальные tests используют fake transport и `example.invalid`; реальные письма не отправляются. Remote Supabase и настройки UniSender Go этим этапом не изменялись.
+
 ## Проверенный сценарий
 
 1. На `http://localhost:3000/register` создан новый пользователь с email и паролем.

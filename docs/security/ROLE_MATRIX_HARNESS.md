@@ -174,3 +174,14 @@ inserts, protected fields, duplicates, function ACL, exact server inserts,
 idempotency conflict/replay, duplicate content, target eligibility, concurrent
 rate limiting, and future-column inheritance. See
 `SEC-004_LOCAL_VERIFICATION.md`.
+
+For P0-07, the expanded red phase produced 125 PASS and 27 XFAIL in both
+independent runs. Fifteen new cases mapped only to SEC-007/008/018. After the
+atomic workflow migration and caller/worker switch, both final runs produced
+140 PASS and 12 unrelated XFAIL, with no XPASS, FAIL or SKIP. P007-001..016
+cover direct client denial, active-owner concurrency, submission replay and
+payload conflict, future-field closure, operation-aligned event/audit/outbox,
+fault rollback, application/revision decision replay and races, worker leases,
+bounded retry and fixed-path/least-privilege function ACLs. SEC-018 remains
+partial because `AUDIT-004` and broader operational audit coverage are still
+open. See `P0-07_LOCAL_VERIFICATION.md`.

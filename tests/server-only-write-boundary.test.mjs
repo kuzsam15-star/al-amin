@@ -37,13 +37,16 @@ test("application and revision writes authenticate first and use a server-only s
   for (const source of [route, cabinet]) {
     assert.match(source, /auth\.getUser\(\)/);
     assert.match(source, /createSupabaseAdminClient/);
-    assert.match(source, /owner_id: user\.id/);
-    assert.match(source, /contract_version: 2/);
   }
+  assert.match(route, /submit_application_v1/);
+  assert.match(route, /p_owner_id: user\.id/);
+  assert.match(route, /p_payload: writePayload/);
+  assert.match(cabinet, /owner_id: user\.id/);
+  assert.match(cabinet, /contract_version: 2/);
   assert.match(route, /hasTrustedOrigin/);
   assert.match(route, /maximumRequestBytes/);
   assert.match(route, /activeCategories/);
-  assert.match(route, /status: "new"/);
+  assert.match(route, /p_idempotency_key: idempotencyKey/);
   assert.match(cabinet, /\.eq\("owner_id", user\.id\)/);
   assert.match(serverClient, /SUPABASE_SERVICE_ROLE_KEY|supabaseServiceConfig/);
   assert.doesNotMatch(serverClient, /NEXT_PUBLIC_SUPABASE_SERVICE/);

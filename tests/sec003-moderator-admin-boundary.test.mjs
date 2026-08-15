@@ -58,11 +58,14 @@ test('server actions use exact RPC payloads and require AAL2 for sensitive admin
   assert.match(auth, /auth\.mfa\.getAuthenticatorAssuranceLevel\(\)/);
   assert.match(auth, /data\.currentLevel !== "aal2"/);
   for (const rpc of [
-    'moderator_decide_application', 'admin_delete_application',
+    'moderator_decide_application_v2', 'admin_delete_application',
     'admin_transition_application', 'admin_delete_revision',
     'admin_update_specialist_controls', 'admin_set_manual_trust_badges',
     'admin_update_site_content', 'admin_retry_email_notification',
   ]) assert.match(actions, new RegExp(`rpc\\("${rpc}"`));
+  assert.match(actions, /moderator_decide_revision_v2/);
+  assert.match(actions, /approve_application_with_canonical_media_v3/);
+  assert.match(actions, /apply_specialist_revision_with_canonical_media_v3/);
   assert.doesNotMatch(actions, /from\("specialists"\)\.update/);
   assert.doesNotMatch(actions, /from\("verifications"\)\.(?:upsert|delete|update)/);
   assert.doesNotMatch(actions, /from\("audit_log"\)\.insert/);

@@ -90,6 +90,7 @@ export function ApplicationForm({ categories, draft }: { categories: Category[];
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const mainInputRef = useRef<HTMLInputElement>(null);
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
     if (!main) { setMainPreviewUrl(""); return; }
@@ -172,7 +173,7 @@ export function ApplicationForm({ categories, draft }: { categories: Category[];
     setPending(true);
     try {
       const uploadedMain = main ? await upload(main) : mainPath;
-      const response = await fetch("/api/applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody(uploadedMain)) });
+      const response = await fetch("/api/applications", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current }, body: JSON.stringify(requestBody(uploadedMain)) });
       const data = await response.json().catch(() => null) as { error?: string; field?: string; errors?: Record<string, string> } | null;
       if (!response.ok) {
         if (data?.errors && Object.keys(data.errors).length) { applyErrors(data.errors); return; }
@@ -181,6 +182,7 @@ export function ApplicationForm({ categories, draft }: { categories: Category[];
       }
       setValues(initial); setExtra([]); setHelpTopics(initialHelpTopics()); setWorkOffers(initialWorkOffers());
       setMain(null); setMainSource(null); setMainCropSettings(null); setMainPath(""); setFieldErrors({});
+      idempotencyKeyRef.current = crypto.randomUUID();
       setMessageType("success"); setMessage(draft?.id ? "Заявка повторно отправлена на рассмотрение." : "Заявка отправлена. Мы сообщим о результате после проверки, иншаАллах.");
     } catch {
       setMessageType("error"); setMessage("Не удалось отправить заявку. Проверьте соединение и попробуйте ещё раз.");

@@ -9,6 +9,7 @@ import { processEmailQueue } from "@/lib/email/queue";
 import { siteContentFields, validateSiteContent } from "@/lib/site-content-fields";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { prepareCanonicalPublication } from "@/lib/published-media";
+import { randomUUID } from "node:crypto";
 
 function done(notice="saved", returnTo="/admin"):never { revalidatePath("/"); revalidatePath("/admin"); revalidatePath("/specialists"); revalidatePath("/cabinet"); redirect(`${returnTo}?notice=${notice}`); }
 function contentDone(notice: string): never { redirect(`/admin?section=settings&notice=${notice}`); }
@@ -40,7 +41,7 @@ export async function updateApplication(formData:FormData) {
   const status = decision === "request_changes" ? "changes_requested" : decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
   if(!id || !status || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid"); if (status === "changes_requested" && !applicantMessage) done("message-required"); const {supabase,user}=await requireModerator();
   const admin = createSupabaseAdminClient();
-  const {data: current,error:readError}=await admin.from("applications").select("status,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
+  const {data: current,error:readError}=await admin.from("applications").select("status,workflow_version,owner_id,main_image_path,gallery_paths,updated_at").eq("id",id).eq("updated_at",expectedUpdatedAt).maybeSingle();
   if(readError||!current||!["new","screening","info_required","changes_requested","call_required","call_scheduled"].includes(current.status)) done("invalid");
   const publication = status === "approved" && current.owner_id && current.main_image_path
     ? await prepareCanonicalPublication({
@@ -53,18 +54,22 @@ export async function updateApplication(formData:FormData) {
     : null;
   if (status === "approved" && !publication) done("save-error");
   const {error}=status === "approved"
-    ? await admin.rpc("approve_application_with_canonical_media_v2", {
-        application_uuid: id,
-        reviewer_uuid: user.id,
-        expected_updated_at: expectedUpdatedAt,
-        note: notes || null,
-        avatar_descriptor: publication!.avatar,
-        gallery_descriptors: publication!.gallery,
-      })
-    : await supabase.rpc("moderator_decide_application", {
+    ? await admin.rpc("approve_application_with_canonical_media_v3", {
         p_application_id: id,
-        p_expected_updated_at: expectedUpdatedAt,
+        p_reviewer_id: user.id,
+        p_expected_version: current.workflow_version,
+        p_expected_status: current.status,
+        p_operation_id: randomUUID(),
+        p_note: notes || null,
+        p_avatar_descriptor: publication!.avatar,
+        p_gallery_descriptors: publication!.gallery,
+      })
+    : await supabase.rpc("moderator_decide_application_v2", {
+        p_application_id: id,
+        p_expected_version: current.workflow_version,
+        p_expected_status: current.status,
         p_decision: decision,
+        p_operation_id: randomUUID(),
         p_internal_note: notes || null,
         p_applicant_message: status === "changes_requested" ? applicantMessage : null,
       });
@@ -132,7 +137,7 @@ export async function decideRevision(formData: FormData) {
   if (!/^[a-f0-9-]{36}$/i.test(id) || !["approve", "reject", "request_changes"].includes(decision) || !expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) done("invalid");
   if (["reject", "request_changes"].includes(decision) && !note) done("comment-required");
   const { supabase, user } = await requireModerator();
-  const { data: revision } = await supabase.from("specialist_revisions").select("owner_id,payload,updated_at,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").eq("updated_at", expectedUpdatedAt).maybeSingle();
+  const { data: revision } = await supabase.from("specialist_revisions").select("owner_id,payload,status,updated_at,specialist:specialists(avatar_path,gallery_paths)").eq("id", id).eq("status", "pending").eq("updated_at", expectedUpdatedAt).maybeSingle();
   const payload = revision?.payload as Record<string, unknown> | undefined;
   const specialist = Array.isArray(revision?.specialist) ? revision.specialist[0] : revision?.specialist;
   const mediaChanged = payload && specialist ? (
@@ -150,18 +155,25 @@ export async function decideRevision(formData: FormData) {
     : null;
   if (decision === "approve" && (!payload || !specialist || (mediaChanged && !publication))) done("save-error");
   const admin = createSupabaseAdminClient();
-  const { error } = decision === "request_changes"
-    ? await supabase.rpc("request_specialist_revision_changes", { revision_uuid: id, note })
-    : decision === "approve" && mediaChanged
-      ? await admin.rpc("apply_specialist_revision_with_canonical_media_v2", {
-          revision_uuid: id,
-          reviewer_uuid: user.id,
-          expected_updated_at: expectedUpdatedAt,
-          note: note || null,
-          avatar_descriptor: publication!.avatar,
-          gallery_descriptors: publication!.gallery,
+  const { error } = decision === "approve" && mediaChanged
+      ? await admin.rpc("apply_specialist_revision_with_canonical_media_v3", {
+          p_revision_id: id,
+          p_reviewer_id: user.id,
+          p_expected_updated_at: expectedUpdatedAt,
+          p_expected_status: revision!.status,
+          p_operation_id: randomUUID(),
+          p_note: note || null,
+          p_avatar_descriptor: publication!.avatar,
+          p_gallery_descriptors: publication!.gallery,
         })
-      : await supabase.rpc("apply_specialist_revision", { revision_uuid: id, approve: decision === "approve", note: note || null });
+      : await supabase.rpc("moderator_decide_revision_v2", {
+          p_revision_id: id,
+          p_expected_updated_at: expectedUpdatedAt,
+          p_expected_status: revision!.status,
+          p_decision: decision,
+          p_operation_id: randomUUID(),
+          p_note: note || null,
+        });
   if (error) done("save-error");
   if (revision?.payload) {
     const proposed = profileMediaPaths(revision.payload as Record<string, unknown>);
@@ -177,12 +189,16 @@ export async function approveSafeRevisions(formData: FormData) {
   const ids = formData.getAll("revisionId").map(String).filter((id) => /^[a-f0-9-]{36}$/i.test(id));
   if (!ids.length) done("invalid");
   const { supabase } = await requireModerator();
-  const { data: rows } = await supabase.from("specialist_revisions").select("id,payload,specialist:specialists(full_name,country,city,service_mode,category_id,additional_category_ids,specialization,experience_years,profile_summary,help_topics,work_offers,services,short_description,full_description,public_contact,portfolio_links,video_links,avatar_path,gallery_paths,recommendations)").in("id", ids).eq("status", "pending");
+  const { data: rows } = await supabase.from("specialist_revisions").select("id,status,updated_at,payload,specialist:specialists(full_name,country,city,service_mode,category_id,additional_category_ids,specialization,experience_years,profile_summary,help_topics,work_offers,services,short_description,full_description,public_contact,portfolio_links,video_links,avatar_path,gallery_paths,recommendations)").in("id", ids).eq("status", "pending");
   for (const row of rows ?? []) {
     const specialist = (Array.isArray(row.specialist) ? row.specialist[0] : row.specialist) as Record<string, unknown> | null;
     const payload = row.payload as Record<string, unknown>;
     if (!specialist || isRiskyRevision(specialist, payload)) continue;
-    const { error } = await supabase.rpc("apply_specialist_revision", { revision_uuid: row.id, approve: true, note: "Автоматически одобрено: только низкорисковые изменения." });
+    const { error } = await supabase.rpc("moderator_decide_revision_v2", {
+      p_revision_id: row.id, p_expected_updated_at: row.updated_at,
+      p_expected_status: row.status, p_decision: "approve", p_operation_id: randomUUID(),
+      p_note: "Автоматически одобрено: только низкорисковые изменения.",
+    });
     if (error) continue;
   }
   done();

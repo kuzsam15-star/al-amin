@@ -10,6 +10,7 @@ import { publishCanonicalMediaSet } from '../../../src/lib/published-media.mjs';
 import { runCommand, redactCommandError } from './helpers/command.mjs';
 import { cleanupLocalStack, createLocalStack, queryLocalSql } from './helpers/local-stack.mjs';
 import { createTotp } from './helpers/totp.mjs';
+import { runP007Cases } from './helpers/p007.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..', '..');
@@ -143,6 +144,15 @@ async function createSyntheticUsers(stack) {
     ['userB', 'user-b'],
     ['moderator', 'moderator'],
     ['adminAal1', 'admin'],
+    ['submitter', 'p007-submitter'],
+    ['p007Failure', 'p007-failure'],
+    ['p007Decision', 'p007-decision'],
+    ['p007Race', 'p007-race'],
+    ['appModerationOwner', 'app-moderation-owner'],
+    ['appReplayOwner', 'app-replay-owner'],
+    ['appRaceOwner', 'app-race-owner'],
+    ['appLifecycleOwner', 'app-lifecycle-owner'],
+    ['appRevokedOwner', 'app-revoked-owner'],
   ];
   const users = {};
   for (const [key, label] of definitions) {
@@ -281,17 +291,17 @@ async function buildFixtures(stack, service, users, toolchain, env) {
       internal_notes: 'Synthetic internal note B',
     },
     ...[
-      [ids.appModeration, 'Synthetic Moderation', 'screening'],
-      [ids.appReplay, 'Synthetic Replay', 'screening'],
-      [ids.appRace, 'Synthetic Race', 'screening'],
-      [ids.appDelete, 'Synthetic Delete', 'withdrawn'],
-      [ids.appLifecycle, 'Synthetic Lifecycle', 'new'],
-      [ids.appRevoked, 'Synthetic Revoked', 'screening'],
-      [ids.appInvalid, 'Synthetic Invalid', 'withdrawn'],
-    ].map(([id, full_name, status]) => ({
+      [ids.appModeration, 'Synthetic Moderation', 'screening', users.appModerationOwner.id],
+      [ids.appReplay, 'Synthetic Replay', 'screening', users.appReplayOwner.id],
+      [ids.appRace, 'Synthetic Race', 'screening', users.appRaceOwner.id],
+      [ids.appDelete, 'Synthetic Delete', 'withdrawn', users.userA.id],
+      [ids.appLifecycle, 'Synthetic Lifecycle', 'new', users.appLifecycleOwner.id],
+      [ids.appRevoked, 'Synthetic Revoked', 'screening', users.appRevokedOwner.id],
+      [ids.appInvalid, 'Synthetic Invalid', 'withdrawn', users.userA.id],
+    ].map(([id, full_name, status, owner_id]) => ({
       ...applicationBase,
       id,
-      owner_id: users.userA.id,
+      owner_id,
       full_name,
       status,
       main_image_path: null,
@@ -471,7 +481,7 @@ async function buildFixtures(stack, service, users, toolchain, env) {
     { id: ids.eventPublicB, application_id: ids.appB, actor_id: users.userB.id, event_type: 'submitted', message: 'Synthetic public event B', is_internal: false },
   ]);
 
-  return { ids, sourcePath, sourcePathB, canonicalPath, canonicalPathB, avatarPath, ownerUpload, revisionPayload };
+  return { ids, sourcePath, sourcePathB, canonicalPath, canonicalPathB, avatarPath, ownerUpload, revisionPayload, mediaBytes: webp };
 }
 
 function createRecorder() {
@@ -932,61 +942,75 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   }
   recorder.record('ROLE-012', aal1BadgeAssignmentExists, 'AAL1 admin direct badge-assignment mutation boundary evaluated');
 
-  const appModerationBefore = await service.from('applications').select('updated_at').eq('id', ids.appModeration).single();
-  const moderatorDecision = await users.moderator.client.rpc('moderator_decide_application', {
+  const appModerationBefore = await service.from('applications').select('workflow_version,status').eq('id', ids.appModeration).single();
+  const moderatorDecision = await users.moderator.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appModeration,
-    p_expected_updated_at: appModerationBefore.data?.updated_at,
+    p_expected_version: appModerationBefore.data?.workflow_version,
+    p_expected_status: appModerationBefore.data?.status,
     p_decision: 'request_changes',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic moderator note',
     p_applicant_message: 'Synthetic requested change',
   });
   recorder.record('MOD-001', !moderatorDecision.error && await rowValue(service, 'applications', ids.appModeration, 'status') === 'changes_requested', 'current moderator completed the named request-changes action');
-  const ordinaryDecision = await users.userA.client.rpc('moderator_decide_application', {
+  const ordinaryDecision = await users.userA.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appRevoked,
-    p_expected_updated_at: null,
+    p_expected_version: 0,
+    p_expected_status: 'screening',
     p_decision: 'reject',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic unauthorized decision',
     p_applicant_message: null,
   });
   recorder.record('MOD-002', Boolean(ordinaryDecision.error) && await rowValue(service, 'applications', ids.appRevoked, 'status') === 'screening', 'ordinary user application-decision RPC was denied');
-  const invalidBefore = await service.from('applications').select('updated_at').eq('id', ids.appInvalid).single();
-  const invalidDecision = await users.moderator.client.rpc('moderator_decide_application', {
+  const invalidBefore = await service.from('applications').select('workflow_version,status').eq('id', ids.appInvalid).single();
+  const invalidDecision = await users.moderator.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appInvalid,
-    p_expected_updated_at: invalidBefore.data?.updated_at,
+    p_expected_version: invalidBefore.data?.workflow_version,
+    p_expected_status: invalidBefore.data?.status,
     p_decision: 'reject',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic invalid transition',
     p_applicant_message: null,
   });
   recorder.record('MOD-003', Boolean(invalidDecision.error) && await rowValue(service, 'applications', ids.appInvalid, 'status') === 'withdrawn', 'withdrawn application rejected an invalid moderator transition');
-  const replayBefore = await service.from('applications').select('updated_at').eq('id', ids.appReplay).single();
-  const firstReplay = await users.moderator.client.rpc('moderator_decide_application', {
+  const replayBefore = await service.from('applications').select('workflow_version,status').eq('id', ids.appReplay).single();
+  const firstReplay = await users.moderator.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appReplay,
-    p_expected_updated_at: replayBefore.data?.updated_at,
+    p_expected_version: replayBefore.data?.workflow_version,
+    p_expected_status: replayBefore.data?.status,
     p_decision: 'reject',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic first decision',
     p_applicant_message: null,
   });
-  const secondReplay = await users.moderator.client.rpc('moderator_decide_application', {
+  const secondReplay = await users.moderator.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appReplay,
-    p_expected_updated_at: replayBefore.data?.updated_at,
+    p_expected_version: replayBefore.data?.workflow_version,
+    p_expected_status: replayBefore.data?.status,
     p_decision: 'reject',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic replay',
     p_applicant_message: null,
   });
   recorder.record('MOD-004', !firstReplay.error && Boolean(secondReplay.error) && await rowValue(service, 'applications', ids.appReplay, 'status') === 'rejected', 'terminal application decision replay was denied');
-  const raceBefore = await service.from('applications').select('updated_at').eq('id', ids.appRace).single();
+  const raceBefore = await service.from('applications').select('workflow_version,status').eq('id', ids.appRace).single();
   const raceDecisions = await Promise.all([
-    users.moderator.client.rpc('moderator_decide_application', {
+    users.moderator.client.rpc('moderator_decide_application_v2', {
       p_application_id: ids.appRace,
-      p_expected_updated_at: raceBefore.data?.updated_at,
+      p_expected_version: raceBefore.data?.workflow_version,
+      p_expected_status: raceBefore.data?.status,
       p_decision: 'request_changes',
+      p_operation_id: randomUUID(),
       p_internal_note: 'Synthetic race changes',
       p_applicant_message: 'Synthetic race request',
     }),
-    users.moderator.client.rpc('moderator_decide_application', {
+    users.moderator.client.rpc('moderator_decide_application_v2', {
       p_application_id: ids.appRace,
-      p_expected_updated_at: raceBefore.data?.updated_at,
+      p_expected_version: raceBefore.data?.workflow_version,
+      p_expected_status: raceBefore.data?.status,
       p_decision: 'reject',
+      p_operation_id: randomUUID(),
       p_internal_note: 'Synthetic race rejection',
       p_applicant_message: null,
     }),
@@ -994,9 +1018,10 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const raceWinnerCount = raceDecisions.filter((entry) => !entry.error).length;
   recorder.record('MOD-005', raceWinnerCount === 1 && ['changes_requested','rejected'].includes(await rowValue(service, 'applications', ids.appRace, 'status')), 'concurrent application decisions produced one valid terminal/moderation outcome');
 
-  const ordinaryRpc = await users.userA.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionA, approve: true, note: null });
+  const revisionABefore = await service.from('specialist_revisions').select('updated_at,status').eq('id', ids.revisionA).single();
+  const ordinaryRpc = await users.userA.client.rpc('moderator_decide_revision_v2', { p_revision_id: ids.revisionA, p_expected_updated_at: revisionABefore.data?.updated_at, p_expected_status: revisionABefore.data?.status, p_decision: 'approve', p_operation_id: randomUUID(), p_note: null });
   recorder.record('RPC-001', Boolean(ordinaryRpc.error), 'ordinary user revision-decision RPC denied');
-  const moderatorRpc = await users.moderator.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionA, approve: true, note: null });
+  const moderatorRpc = await users.moderator.client.rpc('moderator_decide_revision_v2', { p_revision_id: ids.revisionA, p_expected_updated_at: revisionABefore.data?.updated_at, p_expected_status: revisionABefore.data?.status, p_decision: 'approve', p_operation_id: randomUUID(), p_note: null });
   if (moderatorRpc.error) throw new Error(`Moderator revision RPC failed: ${moderatorRpc.error.message}`);
   recorder.record('RPC-002', !moderatorRpc.error, 'current AAL1 moderator completed the allowlisted revision decision');
 
@@ -1048,7 +1073,12 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     const archiveApplication = await users.adminAal1.client.rpc('admin_transition_application', { p_application_id: ids.appLifecycle, p_expected_status: 'new', p_target_status: 'withdrawn' });
     const restoreApplication = await users.adminAal1.client.rpc('admin_transition_application', { p_application_id: ids.appLifecycle, p_expected_status: 'withdrawn', p_target_status: 'new' });
     recorder.record('ROLE-016', !archiveApplication.error && !restoreApplication.error && await rowValue(service, 'applications', ids.appLifecycle, 'status') === 'new', 'AAL2 application archive/restore state machine succeeded');
-    const adminRpc = await users.adminAal1.client.rpc('apply_specialist_revision', { revision_uuid: ids.revisionAdmin, approve: true, note: null });
+    const revisionAdminBefore = await service.from('specialist_revisions').select('updated_at,status').eq('id', ids.revisionAdmin).single();
+    const adminRpc = await users.adminAal1.client.rpc('moderator_decide_revision_v2', {
+      p_revision_id: ids.revisionAdmin, p_expected_updated_at: revisionAdminBefore.data?.updated_at,
+      p_expected_status: revisionAdminBefore.data?.status, p_decision: 'approve',
+      p_operation_id: randomUUID(), p_note: null,
+    });
     if (adminRpc.error) {
       throw new Error(`AAL2 admin revision RPC failed: ${adminRpc.error.code ?? 'unknown'} ${adminRpc.error.message}`);
     }
@@ -1302,10 +1332,13 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
       avatar_descriptor: racePublication.avatar,
       gallery_descriptors: racePublication.gallery,
     }),
-    users.moderator.client.rpc('apply_specialist_revision', {
-      revision_uuid: ids.revisionRace,
-      approve: false,
-      note: 'Synthetic concurrent rejection',
+    users.moderator.client.rpc('moderator_decide_revision_v2', {
+      p_revision_id: ids.revisionRace,
+      p_expected_updated_at: raceReviewedAt,
+      p_expected_status: 'pending',
+      p_decision: 'reject',
+      p_operation_id: randomUUID(),
+      p_note: 'Synthetic concurrent rejection',
     }),
   ]);
   const raceSuccessCount = raceAttempts.filter((attempt) => !attempt.error).length;
@@ -1343,13 +1376,15 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const moderatorQueue = await users.moderator.client.from('email_notifications').select('id').limit(1);
   recorder.record('AUDIT-004', deniedOrEmpty(moderatorQueue), 'AAL1 moderator queue-read boundary evaluated without logging recipients');
 
-  const revokedApplication = await service.from('applications').select('updated_at').eq('id', ids.appRevoked).single();
+  const revokedApplication = await service.from('applications').select('workflow_version,status').eq('id', ids.appRevoked).single();
   const { error: revokeError } = await service.from('moderators').delete().eq('user_id', users.moderator.id);
   if (revokeError) throw new Error(`Synthetic moderator revocation failed: ${revokeError.message}`);
-  const afterRevoke = await users.moderator.client.rpc('moderator_decide_application', {
+  const afterRevoke = await users.moderator.client.rpc('moderator_decide_application_v2', {
     p_application_id: ids.appRevoked,
-    p_expected_updated_at: revokedApplication.data?.updated_at,
+    p_expected_version: revokedApplication.data?.workflow_version,
+    p_expected_status: revokedApplication.data?.status,
     p_decision: 'reject',
+    p_operation_id: randomUUID(),
     p_internal_note: 'Synthetic revoked-role decision',
     p_applicant_message: null,
   });
@@ -1367,6 +1402,7 @@ async function executeRun(runNumber, guard, env) {
     const { service, users } = await createSyntheticUsers(stack);
     const fixtures = await buildFixtures(stack, service, users, guard.toolchain, env);
     await runCatalogCases(recorder, stack, guard.toolchain, env);
+    await runP007Cases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     await runBehaviorCases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     const results = recorder.finalize();
     const counts = Object.fromEntries(['PASS','XFAIL','XPASS','FAIL','SKIP'].map((name) => [name, results.filter((entry) => entry.result === name).length]));

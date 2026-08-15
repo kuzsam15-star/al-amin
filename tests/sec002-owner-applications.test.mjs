@@ -43,5 +43,6 @@ test('trusted moderation source uses the server-only client and explicit applica
   assert.match(page, /const supabase = createSupabaseAdminClient\(\)/);
   assert.doesNotMatch(page, /from\("applications"\)\.select\("\*"\)/);
   assert.match(page, /from\("applications"\)\.select\("[^"]*internal_notes[^"]*"\)/);
-  assert.match(actions, /const admin = createSupabaseAdminClient\(\);[\s\S]*?admin\.from\("applications"\)\.select\("status,owner_id,main_image_path,gallery_paths,updated_at"\)/);
+  assert.match(actions, /const admin = createSupabaseAdminClient\(\);[\s\S]*?admin\.from\("applications"\)\.select\("status,workflow_version,owner_id,main_image_path,gallery_paths,updated_at"\)/);
+  assert.match(actions, /approve_application_with_canonical_media_v3/);
 });
