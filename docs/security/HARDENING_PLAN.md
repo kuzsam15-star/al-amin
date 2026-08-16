@@ -194,6 +194,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Affected components:** `media-cleanup`, Storage availability, specialist/revision references, error handling.
 - **Current evidence:** Reference-query errors превращаются в empty arrays, deletion продолжается; `changes_requested` не учитывается; delete errors игнорируются; snapshot/delete неатомарны.
 - **Threat:** Transient fault или concurrent reference приводит к необратимому удалению активного media.
+- **Local status (2026-08-17):** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Exact-object ledger, grace/lease, registry, repeated reference/provenance check, direct-client DELETE closure and idempotent service worker passed two clean-room runs at 158 PASS / 12 unrelated XFAIL. See `changes/SEC-006_FAIL_CLOSED_MEDIA_CLEANUP.md` and `SEC-006_LOCAL_VERIFICATION.md`.
 - **Expected secure behavior:** Cleanup fail closed, знает все active states, использует tombstone/delay/recheck, проверяет delete result и публикует metrics.
 - **Files likely affected:** `src/lib/media-cleanup.ts`, cabinet callers, media view route и media cleanup tests.
 - **Database objects likely affected:** Specialist/revision media references, Storage objects, будущий tombstone/GC state.

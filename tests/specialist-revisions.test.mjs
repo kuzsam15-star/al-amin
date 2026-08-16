@@ -9,6 +9,8 @@ const contacts = await readFile(new URL("../src/components/ContactLinks.tsx", im
 const cropper = await readFile(new URL("../src/components/AvatarCropper.tsx", import.meta.url), "utf8");
 const mediaSource = await readFile(new URL("../src/app/api/media/source/route.ts", import.meta.url), "utf8");
 const cleanup = await readFile(new URL("../src/lib/media-cleanup.ts", import.meta.url), "utf8");
+const cleanupWorker = await readFile(new URL("../src/lib/media-cleanup-worker.mjs", import.meta.url), "utf8");
+const cleanupMigration = await readFile(new URL("../supabase/forward-migrations/20260816020000_sec006_fail_closed_media_cleanup.sql", import.meta.url), "utf8");
 const categoryCatalog = await readFile(new URL("../supabase/migrations/202607290006_expand_category_catalog.sql", import.meta.url), "utf8");
 const categoryPicker = await readFile(new URL("../src/components/CategoryMultiSelect.tsx", import.meta.url), "utf8");
 const videoPreview = await readFile(new URL("../src/components/VideoPreview.tsx", import.meta.url), "utf8");
@@ -78,10 +80,17 @@ test("public video cards use privacy-friendly previews for supported providers",
   assert.match(videoPreview, /referrerPolicy="no-referrer"/);
 });
 
-test("orphaned pending media is removed only after reference checks", () => {
-  assert.match(cleanup, /specialist_revisions.*status", "pending/s);
-  assert.match(cleanup, /applications/);
-  assert.match(cleanup, /requested\.filter\(\(path\) => !referenced\.has\(path\)\)/);
+test("media cleanup is queued and deleted only by the fail-closed worker contract", () => {
+  assert.match(cleanup, /enqueue_media_cleanup_v1/);
+  assert.doesNotMatch(cleanup, /\.remove\(/);
+  assert.match(cleanupMigration, /media_reference_counts_v1/);
+  assert.match(cleanupMigration, /specialist_revisions/);
+  assert.match(cleanupMigration, /published_media_assets/);
+  assert.match(cleanupMigration, /for update skip locked/);
+  assert.match(cleanupMigration, /drop policy if exists "Owners delete unreferenced submission media"/);
+  assert.match(cleanupWorker, /authorize_media_cleanup_delete_v1/);
+  assert.match(cleanupWorker, /\.remove\(\[decision\.object_path\]\)/);
+  assert.match(cleanupWorker, /ack_media_cleanup_job_v1/);
 });
 
 test("only admins can permanently remove moderation records without deleting profiles", () => {
@@ -91,7 +100,7 @@ test("only admins can permanently remove moderation records without deleting pro
   assert.match(adminActions, /export async function deleteRevision/);
   assert.match(adminActions, /requireAdminAal2\(\)/);
   assert.match(adminActions, /admin_delete_revision/);
-  assert.match(adminActions, /removeUnreferencedProfileMedia/);
+  assert.match(adminActions, /enqueueProfileMediaCleanup/);
   assert.doesNotMatch(adminActions, /from\("specialists"\)\.delete\(/);
   assert.doesNotMatch(adminActions, /callAt/);
   assert.doesNotMatch(adminPage, /name="callAt"/);

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdminAal2, requireModerator } from "@/lib/auth";
 import { profileStatusLabels, type ProfileStatus } from "@/lib/types";
-import { profileMediaPaths, removeUnreferencedProfileMedia } from "@/lib/media-cleanup";
+import { enqueueProfileMediaCleanup, profileMediaPaths } from "@/lib/media-cleanup";
 import { processEmailQueue } from "@/lib/email/queue";
 import { siteContentFields, validateSiteContent } from "@/lib/site-content-fields";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
@@ -86,11 +86,11 @@ export async function deleteApplication(formData: FormData) {
   if (!validId(id)) done("invalid");
   const { supabase } = await requireAdminAal2();
   const admin = createSupabaseAdminClient();
-  const { data: application, error: readError } = await admin.from("applications").select("main_image_path,gallery_paths").eq("id", id).maybeSingle();
+  const { data: application, error: readError } = await admin.from("applications").select("owner_id,main_image_path,gallery_paths").eq("id", id).maybeSingle();
   if (readError || !application) done("delete-error");
   const { error } = await supabase.rpc("admin_delete_application", { p_application_id: id });
   if (error) done("delete-error");
-  await removeUnreferencedProfileMedia(profileMediaPaths({ avatar_path: application.main_image_path, gallery_paths: application.gallery_paths }));
+  await enqueueProfileMediaCleanup({ ownerId: application.owner_id, candidates: profileMediaPaths({ avatar_path: application.main_image_path, gallery_paths: application.gallery_paths }), reason: "deleted_application_media" });
   done("deleted");
 }
 
@@ -122,11 +122,11 @@ export async function deleteRevision(formData: FormData) {
   const id = String(formData.get("revisionId") ?? "");
   if (!validId(id)) done("invalid");
   const { supabase } = await requireAdminAal2();
-  const { data: revision, error: readError } = await supabase.from("specialist_revisions").select("payload").eq("id", id).maybeSingle();
+  const { data: revision, error: readError } = await supabase.from("specialist_revisions").select("owner_id,payload").eq("id", id).maybeSingle();
   if (readError || !revision) done("delete-error");
   const { error } = await supabase.rpc("admin_delete_revision", { p_revision_id: id });
   if (error) done("delete-error");
-  await removeUnreferencedProfileMedia(profileMediaPaths(revision.payload as Record<string, unknown>));
+  await enqueueProfileMediaCleanup({ ownerId: revision.owner_id, candidates: profileMediaPaths(revision.payload as Record<string, unknown>), reason: "deleted_revision_media" });
   done("deleted");
 }
 export async function decideRevision(formData: FormData) {
@@ -179,7 +179,7 @@ export async function decideRevision(formData: FormData) {
     const proposed = profileMediaPaths(revision.payload as Record<string, unknown>);
     const published = profileMediaPaths((specialist ?? null) as Record<string, unknown> | null);
     const candidates = decision === "reject" ? proposed.filter((path) => !published.includes(path)) : [];
-    await removeUnreferencedProfileMedia(candidates);
+    await enqueueProfileMediaCleanup({ ownerId: revision.owner_id, candidates, reason: "rejected_revision_media" });
   }
   await processEmailQueue(5).catch(() => undefined);
   done();

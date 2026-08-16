@@ -173,6 +173,7 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 - **Доказательство выхода:** fault-injection и concurrency tests; `changes_requested` сохраняется; object восстанавливается; cleanup report не содержит referenced object.
 - **Rollback/forward-fix:** отключение worker/GC — безопасный rollback; deletion начинается только после observation window.
 - **Зависимости:** P0-03 и P0-11.
+- **Локальный статус:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Red x2: 140 PASS / 30 XFAIL; final x2: 158 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Automatic deletion is limited to exact, unreferenced submissions; canonical, SEC-001 old-source, recovery and unknown-provenance classes remain retained. Remote backend unchanged.
 
 ### P0-09 — Закрыть High dependency advisories и pin build
 

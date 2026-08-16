@@ -159,7 +159,7 @@ recent-auth and full session downgrade/revocation remain open.
 | ST-09 | owner/bot | Много uploads/bytes/objects | Burst upload | Durable quota/rate deny | Quota/rate отсутствуют; direct API доступен | FAIL | Route/policies |
 | ST-10 | anon | Public media URL | Cache-busting query burst | Canonical cache key/prebuilt derivative | Route ignores extra query but per-request work возможен; не load-tested | NOT RUN | `/api/media/view`; edge unknown |
 | ST-11 | anon/owner | Published/own draft | GET `/api/media/view`/`source` | Public только approved; private только owner/mod | Dynamic local published projection/canonical read and private submission boundaries pass | PASS (local) | MEDIA-002, 003, 007, 014 + view cases |
-| ST-12 | operator | Takedown/restore fixture | Delete reference/purge cache/restore object | Предсказуемый purge и recoverability | Production-derived DB/Auth/Storage restore and hash reconciliation pass twice; takedown/cache behavior remains unproved | PASS (restore Level 2) / NOT RUN (takedown/cache) | Recovery proof; SEC-006/013 remain open |
+| ST-12 | operator | Takedown/restore fixture | Delete reference/cleanup/restore object | Exact-object cleanup is fail closed and recovery is proven | Recovery Level 3 plus two SEC-006 clean-room runs prove ledger/lease/reference/provenance/delete/ack; hosting cache behavior remains unproved | PASS (local cleanup + Recovery Level 3) / NOT RUN (hosting cache) | P008-001..018; `SEC-006_LOCAL_VERIFICATION.md` |
 
 ## 5. Auth, sessions и privileged access
 

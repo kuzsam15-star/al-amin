@@ -2,32 +2,48 @@ import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
-const validPath = (value: unknown): value is string => typeof value === "string" && /^submissions\/[a-zA-Z0-9_./-]+\.(?:webp|png|jpe?g|heic|heif)$/i.test(value);
+export type MediaCleanupReason =
+  | "failed_application_submit"
+  | "superseded_revision_media"
+  | "deleted_application_media"
+  | "deleted_revision_media"
+  | "rejected_revision_media";
+
+const submissionPath = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:avatar|gallery)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$/i;
+const validPath = (value: unknown): value is string => typeof value === "string"
+  && value.length <= 512
+  && submissionPath.test(value)
+  && !value.includes("%")
+  && !value.includes("\\")
+  && !value.includes("//")
+  && !value.split("/").includes("..");
+
 export const profileMediaPaths = (value: Record<string, unknown> | null | undefined) => [
   value?.avatar_path,
-  ...(Array.isArray(value?.gallery_paths) ? value!.gallery_paths : []),
+  ...(Array.isArray(value?.gallery_paths) ? value.gallery_paths : []),
 ].filter(validPath);
 
-/** Removes only files that are no longer referenced by any public profile, application, or active draft. */
-export async function removeUnreferencedProfileMedia(candidates: Iterable<string>) {
-  const requested = [...new Set([...candidates].filter(validPath))];
-  if (!requested.length) return [];
-
+export async function enqueueProfileMediaCleanup(input: {
+  ownerId: string;
+  candidates: Iterable<string>;
+  reason: MediaCleanupReason;
+  operationId?: string | null;
+}) {
+  const requested = [...new Set([...input.candidates].filter(validPath))];
+  if (!requested.length) return { queued: 0, failed: 0 };
   const admin = createSupabaseAdminClient();
-  const [{ data: specialists }, { data: applications }, { data: pending }] = await Promise.all([
-    admin.from("specialists").select("avatar_path,gallery_paths"),
-    admin.from("applications").select("main_image_path,gallery_paths"),
-    admin.from("specialist_revisions").select("payload").eq("status", "pending"),
-  ]);
-  const referenced = new Set<string>();
-  for (const profile of specialists ?? []) profileMediaPaths(profile as Record<string, unknown>).forEach((path) => referenced.add(path));
-  for (const application of applications ?? []) {
-    if (validPath(application.main_image_path)) referenced.add(application.main_image_path);
-    for (const path of application.gallery_paths ?? []) if (validPath(path)) referenced.add(path);
+  let queued = 0;
+  let failed = 0;
+  for (const path of requested) {
+    const { error } = await admin.rpc("enqueue_media_cleanup_v1", {
+      p_owner_id: input.ownerId,
+      p_object_path: path,
+      p_reason: input.reason,
+      p_source_operation_id: input.operationId ?? null,
+    });
+    if (error) failed += 1;
+    else queued += 1;
   }
-  for (const revision of pending ?? []) profileMediaPaths(revision.payload as Record<string, unknown>).forEach((path) => referenced.add(path));
-
-  const stale = requested.filter((path) => !referenced.has(path));
-  if (stale.length) await admin.storage.from("profile-media").remove(stale);
-  return stale;
+  if (failed) console.error("[SEC-006] media cleanup enqueue failed closed", { reason: input.reason, failed });
+  return { queued, failed };
 }

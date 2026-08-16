@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
-import { removeUnreferencedProfileMedia } from "@/lib/media-cleanup";
+import { enqueueProfileMediaCleanup } from "@/lib/media-cleanup";
 import { processEmailQueue } from "@/lib/email/queue";
 import { hasTrustedOrigin } from "@/lib/request-security";
 import { validateApplication } from "@/lib/application-validation.mjs";
@@ -55,7 +55,7 @@ export async function POST(request:Request){
     p_payload: writePayload,
   });
   if(error) {
-    await removeUnreferencedProfileMedia(submittedMedia(validated.data));
+    await enqueueProfileMediaCleanup({ ownerId: user.id, candidates: submittedMedia(validated.data), reason: "failed_application_submit", operationId: idempotencyKey });
     const conflict = error.code === "23505" || error.code === "40001";
     return NextResponse.json({error: conflict ? "Заявка уже отправлена или была изменена. Обновите страницу." : "Не удалось сохранить заявку. Попробуйте позже."},{status:conflict ? 409 : 500});
   }

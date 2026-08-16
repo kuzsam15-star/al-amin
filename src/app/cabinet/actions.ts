@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
-import { profileMediaPaths, removeUnreferencedProfileMedia } from "@/lib/media-cleanup";
+import { enqueueProfileMediaCleanup, profileMediaPaths } from "@/lib/media-cleanup";
 import { processEmailQueue } from "@/lib/email/queue";
 import { PROFILE_REVISION_INPUT_KEYS, validateProfileRevision } from "@/lib/application-validation.mjs";
 import { isCanonicalUuid } from "@/lib/specialist-contract.mjs";
@@ -68,7 +68,7 @@ export async function updateOwnProfile(formData: FormData) {
   if (pending?.payload) {
     const previous = profileMediaPaths(pending.payload as Record<string, unknown>);
     const currentPaths = new Set(profileMediaPaths(payload));
-    await removeUnreferencedProfileMedia(previous.filter((path) => !currentPaths.has(path)));
+    await enqueueProfileMediaCleanup({ ownerId: user.id, candidates: previous.filter((path) => !currentPaths.has(path)), reason: "superseded_revision_media" });
   }
 
   await processEmailQueue(5).catch(() => undefined);

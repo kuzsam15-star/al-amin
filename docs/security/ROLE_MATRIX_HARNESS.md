@@ -185,3 +185,11 @@ fault rollback, application/revision decision replay and races, worker leases,
 bounded retry and fixed-path/least-privilege function ACLs. SEC-018 remains
 partial because `AUDIT-004` and broader operational audit coverage are still
 open. See `P0-07_LOCAL_VERIFICATION.md`.
+
+P0-08 adds P008-001..018 for SEC-006. The cases cover client-delete closure,
+private ledger ACL, strict exact paths, all authoritative references,
+provenance retention, idempotent enqueue, parallel leases, stale candidates,
+provider/ACK failures, missing-object retry, future-reference registration and
+the trusted one-object worker. The two final runs each produced 158 PASS and
+12 unrelated XFAIL, with no XPASS, FAIL or SKIP. See
+`SEC-006_LOCAL_VERIFICATION.md`.

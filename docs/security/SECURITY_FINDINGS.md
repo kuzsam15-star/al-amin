@@ -27,7 +27,7 @@
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
-| SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | Open — confirmed | yes |
+| SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-007 | High | Race создаёт дубли заявок | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-009 | High | Уязвимые production dependencies | Open — confirmed | yes |
@@ -115,7 +115,7 @@
 
 ### SEC-005 — Stale и нереплейный database bootstrap
 
-- **Severity / status:** High; Open — confirmed locally.
+- **Severity / status:** High; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; original live risk remains open until the consolidated backend release.
 - **Область:** deployment, schema provenance, disaster recovery, secure defaults.
 - **Объекты:** `README.md:23-30`; `supabase/schema.sql`; весь `supabase/migrations/`; отсутствующий `supabase/config.toml`; `SECURITY_AUDIT.md:8-15`; `SECURITY_OPERATIONS.md:5-10`.
 - **Доказательство — факт:** README предлагает выполнить только stale `schema.sql`, где остаются public reviews, anonymous writes, public avatars и demo seeds, но нет поздних hardening objects. Хронологический replay ломается: `202607280001` использует `applications.owner_id`, добавляемый в `202607280002`; `202607290003/4` используют `specialist_revisions`, создаваемый лишь в `202607290009`. Live state новее документации.
@@ -134,9 +134,9 @@
 - **Доказательство — факт:** ошибки трёх reference queries отбрасываются и превращаются в empty arrays, после чего service-role delete продолжается. Проверяется только `pending`, хотя `changes_requested` активна. Delete error игнорируется; snapshot/delete неатомарны. Текущий тест закрепляет только `pending`.
 - **Сценарий эксплуатации/сбоя:** transient DB error или объект, используемый лишь `changes_requested`, выглядит orphan и удаляется; concurrent reference возникает после snapshot.
 - **Ущерб / вероятность:** потеря media черновиков/публичных профилей, broken pages; вероятность средняя, impact высокий.
-- **Исправление:** fail closed при любой query error; учитывать все active states; проверять delete result; tombstone + delayed retryable GC; повторная проверка ссылки непосредственно перед delete; metrics.
-- **Тесты:** fault injection каждой query/delete, `changes_requested`, concurrent new reference, idempotent retry и recovery from tombstone.
-- **Rollback/forward-fix:** сначала выключить destructive cleanup/перевести в report-only, затем внедрить delayed GC. Восстановление deleted bytes требует backup; поэтому restore доказательство обязательно.
+- **Локальная реализация:** forward migration removes direct client DELETE, adds a private exact-object cleanup ledger, allowlisted enqueue, conservative grace, `SKIP LOCKED` leases, a versioned reference registry, shared advisory-lock gate, repeated reference/provenance/generation checks, bounded retry and service-only one-object deletion/acknowledgement. Canonical and SEC-001 old-source objects remain retention protected.
+- **Тесты:** two red runs were 140 PASS / 30 XFAIL; eighteen new XFAIL mapped only to SEC-006. Two final clean-room runs were 158 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Provider failure, stale reference, concurrent claim, post-delete crash, missing-object retry, traversal, shared/provenance and future-field cases PASS.
+- **Rollback/forward-fix:** safe fallback is disabling the worker while retaining the ledger and revoked client DELETE. Never restore broad DELETE or delete retained SEC-001 sources. Recovery Level 3 remains the restore prerequisite.
 - **Launch blocker:** yes. **Уверенность:** High.
 
 ### SEC-007 — Race и отсутствие idempotency у заявки

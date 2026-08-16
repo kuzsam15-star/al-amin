@@ -11,6 +11,7 @@ import { runCommand, redactCommandError } from './helpers/command.mjs';
 import { cleanupLocalStack, createLocalStack, queryLocalSql } from './helpers/local-stack.mjs';
 import { createTotp } from './helpers/totp.mjs';
 import { runP007Cases } from './helpers/p007.mjs';
+import { runP008Cases } from './helpers/p008.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..', '..');
@@ -1240,7 +1241,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   await users.userA.client.storage.from('profile-media').remove([sourcePath]);
   const publishedAfterDelete = await rowValue(service, 'specialists', ids.specialistA, 'avatar_path');
   const publishedBytesAfterDelete = await storageBytes(service, 'profile-media', String(publishedAfterDelete ?? ''));
-  recorder.record('MEDIA-007', (await storageBytes(service, 'profile-media', sourcePath)) === null && publishedAfterDelete === publishedBeforeDelete && sameBytes(publishedBytesAfterDelete, publishedBytesBeforeDelete), 'published canonical bytes survive deletion of dereferenced submission source');
+  recorder.record('MEDIA-007', sameBytes(await storageBytes(service, 'profile-media', sourcePath), webp) && publishedAfterDelete === publishedBeforeDelete && sameBytes(publishedBytesAfterDelete, publishedBytesBeforeDelete), 'direct source deletion denied and published canonical bytes remained stable');
 
   const revisionPublisherAcl = (await queryLocalSql(stack, toolchain.dockerBin, env, `
     select exists (
@@ -1351,7 +1352,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const unusedPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
   const unusedUpload = await users.userA.client.storage.from('profile-media').upload(unusedPath, webp, { contentType: 'image/webp', upsert: false });
   const unusedDelete = await users.userA.client.storage.from('profile-media').remove([unusedPath]);
-  recorder.record('MEDIA-011', !unusedUpload.error && !unusedDelete.error && (await storageBytes(service, 'profile-media', unusedPath)) === null, 'unreferenced own submission deletion verified');
+  recorder.record('MEDIA-011', !unusedUpload.error && sameBytes(await storageBytes(service, 'profile-media', unusedPath), webp), `direct unused-submission delete changed zero objects${unusedDelete.error ? ' with explicit denial' : ''}; trusted cleanup is tested separately`);
   recorder.record('MEDIA-012', controlledBytes !== null && createHash('sha256').update(controlledBytes).digest('hex') === canonicalHash, 'canonical path content hash verified without logging content');
 
   const categories = await anon.from('categories').select('id').eq('id', ids.category);
@@ -1403,6 +1404,7 @@ async function executeRun(runNumber, guard, env) {
     const fixtures = await buildFixtures(stack, service, users, guard.toolchain, env);
     await runCatalogCases(recorder, stack, guard.toolchain, env);
     await runP007Cases(recorder, stack, service, users, fixtures, guard.toolchain, env);
+    await runP008Cases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     await runBehaviorCases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     const results = recorder.finalize();
     const counts = Object.fromEntries(['PASS','XFAIL','XPASS','FAIL','SKIP'].map((name) => [name, results.filter((entry) => entry.result === name).length]));
