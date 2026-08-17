@@ -79,7 +79,11 @@ function verifyArtifactEntries(entries) {
   for (const artifact of entries) {
     const absolute = join(repositoryRoot, artifact.path);
     if (!existsSync(absolute)) return false;
-    if (sha256(readFileSync(absolute)) !== artifact.sha256) return false;
+    let bytes = readFileSync(absolute);
+    if (artifact.canonical_text_eol === "LF") {
+      bytes = Buffer.from(bytes.toString("utf8").replace(/\r\n?/gu, "\n"), "utf8");
+    }
+    if (sha256(bytes) !== artifact.sha256) return false;
   }
   return true;
 }

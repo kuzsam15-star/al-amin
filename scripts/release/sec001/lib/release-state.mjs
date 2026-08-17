@@ -169,7 +169,11 @@ export async function verifyArtifactManifest(repoRoot, manifestPath) {
   for (const artifact of manifest.artifacts ?? []) {
     const absolute = resolve(repoRoot, artifact.path);
     if (relative(repoRoot, absolute).startsWith('..')) fail('ARTIFACT_PATH_OUTSIDE_REPOSITORY');
-    const actual = sha256(await readFile(absolute));
+    let bytes = await readFile(absolute);
+    if (artifact.canonicalTextEol === 'LF') {
+      bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n?/gu, '\n'), 'utf8');
+    }
+    const actual = sha256(bytes);
     if (actual !== String(artifact.sha256).toUpperCase()) fail(`ARTIFACT_HASH_MISMATCH_${artifact.id ?? 'UNKNOWN'}`);
     checked.push({ id: artifact.id, sha256: actual });
   }

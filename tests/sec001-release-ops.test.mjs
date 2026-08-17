@@ -58,7 +58,10 @@ test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-l
   assert.equal(manifest.artifacts.length, 42);
   const mismatches = [];
   for (const artifact of manifest.artifacts) {
-    const bytes = await readFile(artifact.path);
+    let bytes = await readFile(artifact.path);
+    if (artifact.canonicalTextEol === 'LF') {
+      bytes = Buffer.from(bytes.toString('utf8').replace(/\r\n?/gu, '\n'), 'utf8');
+    }
     const actual = createHash('sha256').update(bytes).digest('hex').toUpperCase();
     if (actual !== artifact.sha256) mismatches.push(artifact.id);
   }
@@ -70,6 +73,7 @@ test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-l
     'media-upload-route',
     'media-view-route',
     'published-media',
+    'state-machine',
   ]);
   await assert.rejects(
     verifyArtifactManifest(process.cwd(), manifestPath),

@@ -48,7 +48,7 @@
     { "id": "deployment-runbook", "path": "docs/security/SEC-001_DEPLOYMENT_RUNBOOK.md", "sha256": "31268DCA76BB0D5529CF3EC62D61BA8685429FF45E50D01F4BDC684B2DDAE9B1" },
     { "id": "recovery-proof", "path": "docs/security/recovery/RECOVERY_PROOF.md", "sha256": "2AE51CDB2DFDE0F7F8939ADF091A6A3AFEBC4D67DEFF12D040D43A5723070DF7" },
     { "id": "protected-baseline", "path": "supabase/bootstrap/baseline.sql", "sha256": "CF61CDB37D9B82B3AFFFF035A0EAF68B1FABC2022C261F87027AE95583C153E1" },
-    { "id": "protected-bootstrap-manifest", "path": "supabase/bootstrap/manifest.json", "sha256": "C863F0DA00F144837C22ACD14390668B344A233D71539AB030AE677C43E7E55D" },
+    { "id": "protected-bootstrap-manifest", "path": "supabase/bootstrap/manifest.json", "sha256": "33770760B62A6FF618ECE2A6685059D71F1D4786BE0F697C7B7F57C73D8CB000", "canonicalTextEol": "LF" },
     { "id": "protected-legacy-schema", "path": "supabase/schema.sql", "sha256": "ECAB0A21F27CCD152C5C99226FF6D0894ED2B4E57EDA114FD428DA98E323B74A" }
   ],
   "protectedPreHardening": {

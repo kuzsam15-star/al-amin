@@ -12,11 +12,11 @@
   },
   "trees": [
     { "path": "src", "sha256": "aa9b91fafef538dd97102767b1ec827529b3985dd9c748677c78c07b9217df48", "class": "SOURCE" },
-    { "path": "tests", "sha256": "804b16a92562ef7bc937fd18db598850bb0b68061e50a4d3870d9b05b3fa5fce", "class": "TEST" },
-    { "path": "scripts", "sha256": "8cd120ee134b3f8e8bcbab1d943f4a5aa26514fe5e6014c2f38099324a29088d", "class": "TOOLING" }
+    { "path": "tests", "sha256": "756a352bf5c22438a7f6de459e76c4f3f50915dec8262ae519c062d1f4c425ee", "class": "TEST" },
+    { "path": "scripts", "sha256": "39bd1d915d546213ebe389a4ac84bd9d129c986ccbe90b9f27ed66e4d31e7bd2", "class": "TOOLING" }
   ],
   "artifacts": [
-    { "path": ".gitattributes", "sha256": "f0d81ff933240178315c900c532e8ab2e95e6a2400c2ac91bdd9bc6b3ef87e1b", "class": "RELEASE_CONFIG" },
+    { "path": ".gitattributes", "sha256": "caa9ffbfb9b7a265954acd9305cd90befa58bde06380a3c89a8668cb54eb714f", "class": "RELEASE_CONFIG" },
     { "path": "package.json", "sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741", "class": "PACKAGE" },
     { "path": "pnpm-lock.yaml", "sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607", "class": "PACKAGE" },
     { "path": "pnpm-workspace.yaml", "sha256": "5495bf69244558f180ac83a2be2cfc5d90267df3f506e3f640dec1c44c8c4c4a", "class": "PACKAGE" },
@@ -26,7 +26,7 @@
     { "path": "docs/security/recovery/CONFIG_RECOVERY_MANIFEST.json", "sha256": "ccfd546b6751a8fe586a025e84944c5f1278098925ebef5567a42d29ace5d3c9", "class": "RECOVERY_CONFIG" },
     { "path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json", "sha256": "51f0e458de4f6e42640eeaa586df78002f7036ef4d99c655cb54f71d03292ed7", "class": "RELEASE_MANIFEST" },
     { "path": "supabase/bootstrap/baseline.sql", "sha256": "cf61cdb37d9b82b3affff035a0eaf68b1fabc2022c261f87027ae95583c153e1", "class": "VERIFIED_BASELINE" },
-    { "path": "supabase/bootstrap/manifest.json", "sha256": "c863f0da00f144837c22acd14390668b344a233d71539ab030ae677c43e7e55d", "class": "VERIFIED_BASELINE" },
+    { "path": "supabase/bootstrap/manifest.json", "sha256": "33770760b62a6ff618ece2a6685059d71f1d4786be0f697c7b7f57c73d8cb000", "canonical_text_eol": "LF", "class": "VERIFIED_BASELINE" },
     { "path": "supabase/bootstrap/verify.sql", "sha256": "759ceaf2ef80b1ad9b9deb82efcb5d7000cfb3f4b9996948ffdd2a1ea559d25c", "class": "VERIFIED_BASELINE" },
     { "path": "supabase/schema.sql", "sha256": "ecab0a21f27ccd152c5c99226ff6d0894ed2b4e57eda114fd428da98e323b74a", "class": "LEGACY_NON_EXECUTABLE" },
     { "path": "supabase/migrations/202607280001_accounts_media_publication.sql", "sha256": "5599d631dd9dad40a0d029c6bfcd65330a9dd33514124fc041446a6e0708d28c", "class": "HISTORICAL_MIGRATION" },
