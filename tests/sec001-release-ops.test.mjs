@@ -67,7 +67,9 @@ test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-l
     'admin-page',
     'deployment-runbook',
     'media-source-route',
+    'media-upload-route',
     'media-view-route',
+    'published-media',
   ]);
   await assert.rejects(
     verifyArtifactManifest(process.cwd(), manifestPath),

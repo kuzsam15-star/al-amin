@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
   const type = url.searchParams.get("type");
   const next = safeNextPath(url.searchParams.get("next"), "/cabinet");
   const response = NextResponse.redirect(canonicalAppUrl(next, "/cabinet"));
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Vary", "Cookie");
   const { url: supabaseUrl, anonKey } = supabasePublicConfig();
   const supabase = createServerClient(supabaseUrl, anonKey, {
     auth: SUPABASE_AUTH_OPTIONS,

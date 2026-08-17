@@ -44,7 +44,8 @@ test("application and revision writes authenticate first and use a server-only s
   assert.match(cabinet, /owner_id: user\.id/);
   assert.match(cabinet, /contract_version: 2/);
   assert.match(route, /hasTrustedOrigin/);
-  assert.match(route, /maximumRequestBytes/);
+  assert.match(route, /readBoundedJson/);
+  assert.match(route, /RESOURCE_LIMITS\.applicationBodyBytes/);
   assert.match(route, /activeCategories/);
   assert.match(route, /p_idempotency_key: idempotencyKey/);
   assert.match(cabinet, /\.eq\("owner_id", user\.id\)/);

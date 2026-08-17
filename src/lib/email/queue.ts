@@ -2,12 +2,15 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { sendTransactionalEmail } from "@/lib/email/provider";
 import { processClaimedEmails, type ClaimedEmail } from "@/lib/email/worker-core.mjs";
 import { randomUUID } from "node:crypto";
+import { assertResourceRuntimeConfigured, RESOURCE_LIMITS } from "@/lib/resource-limits.mjs";
 
 type EmailTransport = typeof sendTransactionalEmail;
 type QueueClient = ReturnType<typeof createSupabaseAdminClient>;
 type QueueOptions = { client?: QueueClient; transport?: EmailTransport; workerId?: string };
 
-export async function processEmailQueue(batchSize = 20, options: QueueOptions = {}) {
+export async function processEmailQueue(batchSize = RESOURCE_LIMITS.emailBatchSize, options: QueueOptions = {}) {
+  assertResourceRuntimeConfigured();
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > RESOURCE_LIMITS.emailBatchSize) throw new Error("email batch limit is invalid");
   const supabase = options.client ?? createSupabaseAdminClient();
   const transport = options.transport ?? sendTransactionalEmail;
   const workerId = options.workerId ?? randomUUID();

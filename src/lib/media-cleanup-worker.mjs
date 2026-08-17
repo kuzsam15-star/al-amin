@@ -1,3 +1,5 @@
+import { assertResourceRuntimeConfigured, RESOURCE_LIMITS } from './resource-limits.mjs';
+
 export const MEDIA_CLEANUP_SAFE_CODES = Object.freeze({
   storageDeleteFailed: 'storage_delete_failed',
   acknowledgementFailed: 'acknowledgement_failed',
@@ -9,7 +11,9 @@ function assertWorkerInput(workerId, limit) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 25) throw new Error('cleanup batch limit is invalid');
 }
 
-export async function processMediaCleanupBatch({ supabase, workerId, limit = 10, failureHook }) {
+export async function processMediaCleanupBatch({ supabase, workerId, limit = RESOURCE_LIMITS.mediaWorkerBatchSize, failureHook }) {
+  assertResourceRuntimeConfigured();
+  if (limit > RESOURCE_LIMITS.mediaWorkerBatchSize) throw new Error('cleanup configured batch limit exceeded');
   assertWorkerInput(workerId, limit);
   await failureHook?.('before-claim', null);
   const claimed = await supabase.rpc('claim_media_cleanup_jobs_v1', {

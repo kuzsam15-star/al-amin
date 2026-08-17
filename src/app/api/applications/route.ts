@@ -4,23 +4,27 @@ import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/sup
 import { enqueueProfileMediaCleanup } from "@/lib/media-cleanup";
 import { processEmailQueue } from "@/lib/email/queue";
 import { hasTrustedOrigin } from "@/lib/request-security";
+import { assertResourceRuntimeConfigured, readBoundedJson, RESOURCE_LIMITS, ResourceBoundaryError } from "@/lib/resource-limits.mjs";
 import { validateApplication } from "@/lib/application-validation.mjs";
 import { isCanonicalUuid, isPlainRecord } from "@/lib/specialist-contract.mjs";
 
-const maximumRequestBytes = 96 * 1024;
 const submittedMedia = (data: Record<string, unknown>) => [data.main_image_path].filter((path): path is string => typeof path === "string");
 
 export async function POST(request:Request){
   if (!hasTrustedOrigin(request)) return NextResponse.json({ error: "Недопустимый источник запроса." }, { status: 403 });
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > maximumRequestBytes) return NextResponse.json({ error: "Запрос слишком большой." }, { status: 413 });
-  const rawBody = await request.text();
-  if (new TextEncoder().encode(rawBody).byteLength > maximumRequestBytes) return NextResponse.json({ error: "Запрос слишком большой." }, { status: 413 });
-  let body: unknown;
-  try { body = JSON.parse(rawBody); } catch { return NextResponse.json({ error: "Некорректный запрос." }, { status: 400 }); }
-  if (!isPlainRecord(body)) return NextResponse.json({error:"Некорректный запрос."},{status:400});
   const supabase=await createSupabaseServerClient(); const {data:{user}}=await supabase.auth.getUser();
   if(!user)return NextResponse.json({error:"Войдите или зарегистрируйтесь, чтобы подать заявку."},{status:401});
+  let body: Record<string, unknown>;
+  try {
+    assertResourceRuntimeConfigured();
+    body = await readBoundedJson(request, { maximumBytes: RESOURCE_LIMITS.applicationBodyBytes, maximumFields: 32 });
+  } catch (reason) {
+    if (reason instanceof ResourceBoundaryError) {
+      return NextResponse.json({ error: reason.status === 413 ? "Запрос слишком большой." : "Некорректный запрос." }, { status: reason.status });
+    }
+    return NextResponse.json({ error: "Некорректный запрос." }, { status: 400 });
+  }
+  if (!isPlainRecord(body)) return NextResponse.json({error:"Некорректный запрос."},{status:400});
   const idempotencyKey = request.headers.get("idempotency-key");
   if (!isCanonicalUuid(idempotencyKey)) return NextResponse.json({ error: "Повторите отправку формы." }, { status: 400 });
   const requestedId = body.applicationId;
@@ -28,7 +32,7 @@ export async function POST(request:Request){
 
   const admin = createSupabaseAdminClient();
   const [{ data: activeCategories, error: categoriesError }, editableResult] = await Promise.all([
-    admin.from("categories").select("id,name").eq("is_active", true),
+    admin.from("categories").select("id,name").eq("is_active", true).limit(RESOURCE_LIMITS.publicReferenceRows),
     isCanonicalUuid(requestedId)
       ? admin.from("applications").select("id,status,main_image_path").eq("id", requestedId).eq("owner_id", user.id).maybeSingle()
       : admin.from("applications").select("id,status,main_image_path").eq("owner_id", user.id).in("status", ["changes_requested", "info_required"]).order("updated_at", { ascending: false }).limit(1).maybeSingle(),

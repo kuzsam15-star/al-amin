@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { RESOURCE_LIMITS, validateImageMetadata } from "./resource-limits.mjs";
 
 export const PROFILE_MEDIA_BUCKET = "profile-media";
-export const MAX_CANONICAL_MEDIA_BYTES = 5 * 1024 * 1024;
+export const MAX_CANONICAL_MEDIA_BYTES = RESOURCE_LIMITS.mediaOutputBytes;
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const uuid = new RegExp(`^${uuidPattern}$`, "i");
@@ -54,9 +55,9 @@ async function downloadBytes(storage, path, label) {
 }
 
 async function validatedCanonicalBytes(source, slot) {
-  const image = sharp(source, { failOn: "error", limitInputPixels: 40_000_000 });
+  const image = sharp(source, { failOn: "error", limitInputPixels: RESOURCE_LIMITS.imagePixels }).timeout({ seconds: RESOURCE_LIMITS.imageProcessingSeconds });
   const metadata = await image.metadata();
-  if (!metadata.format || !supportedFormats.has(metadata.format) || !metadata.width || !metadata.height) {
+  if (!metadata.format || !supportedFormats.has(metadata.format) || !validateImageMetadata(metadata)) {
     throw new Error("Reviewed media is not a supported decodable image");
   }
   const rotated = image.rotate();
@@ -64,8 +65,8 @@ async function validatedCanonicalBytes(source, slot) {
     ? await rotated.resize(512, 512, { fit: "fill" }).webp({ quality: 88, smartSubsample: true }).toBuffer()
     : await rotated.resize({ width: 1800, height: 1800, fit: "inside", withoutEnlargement: true }).webp({ quality: 88, smartSubsample: true }).toBuffer();
   if (output.length === 0 || output.length > MAX_CANONICAL_MEDIA_BYTES) throw new Error("Canonical media has an invalid size");
-  const verified = await sharp(output, { failOn: "error", limitInputPixels: 40_000_000 }).metadata();
-  if (verified.format !== "webp" || !verified.width || !verified.height) throw new Error("Canonical media verification failed");
+  const verified = await sharp(output, { failOn: "error", limitInputPixels: RESOURCE_LIMITS.imagePixels }).metadata();
+  if (verified.format !== "webp" || !validateImageMetadata(verified)) throw new Error("Canonical media verification failed");
   return output;
 }
 

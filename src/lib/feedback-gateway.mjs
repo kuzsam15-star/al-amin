@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { isIP } from "node:net";
+import { readBoundedResponseJson, RESOURCE_LIMITS } from "./resource-limits.mjs";
 
 export const FEEDBACK_BODY_LIMIT_BYTES = 8 * 1024;
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -206,7 +207,7 @@ async function verifyTurnstile({ token, action, idempotencyKey, config, fetchImp
         response: token,
         idempotency_key: idempotencyKey,
       }),
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(RESOURCE_LIMITS.providerTimeoutMs),
       cache: "no-store",
     });
   } catch {
@@ -215,7 +216,7 @@ async function verifyTurnstile({ token, action, idempotencyKey, config, fetchImp
   if (!response.ok) throw new FeedbackGatewayError("verification_unavailable", 503);
   let result;
   try {
-    result = await response.json();
+    result = await readBoundedResponseJson(response, RESOURCE_LIMITS.providerResponseBytes);
   } catch {
     throw new FeedbackGatewayError("verification_unavailable", 503);
   }

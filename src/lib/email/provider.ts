@@ -1,5 +1,6 @@
 import { renderTransactionalEmail, type TransactionalEmail } from "@/lib/email/templates";
 import { brand } from "@/lib/brand";
+import { readBoundedResponseJson, RESOURCE_LIMITS } from "@/lib/resource-limits.mjs";
 
 export type ProviderResult = { providerMessageId: string };
 export class EmailProviderError extends Error { constructor(message: string, readonly retryable: boolean) { super(message); } }
@@ -32,13 +33,13 @@ export async function sendTransactionalEmail(email: TransactionalEmail): Promise
   try {
     response = await fetch(process.env.UNISENDER_GO_API_ENDPOINT || "https://goapi.unisender.ru/ru/transactional/api/v1/email/send.json", {
       method: "POST", headers: { "content-type": "application/json", accept: "application/json", "X-API-KEY": apiKey }, body: JSON.stringify(responseBody), cache: "no-store",
+      signal: AbortSignal.timeout(RESOURCE_LIMITS.providerTimeoutMs),
     });
   } catch { throw new EmailProviderError("Почтовый сервис временно недоступен.", true); }
 
-  const payload = await response.json().catch(() => null) as GoResponse | null;
+  const payload = await readBoundedResponseJson(response, RESOURCE_LIMITS.providerResponseBytes).catch(() => null) as GoResponse | null;
   if (!response.ok) {
-    const message = payload?.message || payload?.error || payload?.errors?.[0]?.message || "Почтовый сервис отклонил письмо.";
-    throw new EmailProviderError(message, response.status === 429 || response.status >= 500);
+    throw new EmailProviderError("Почтовый сервис отклонил письмо.", response.status === 429 || response.status >= 500);
   }
   if (!payload?.job_id) throw new EmailProviderError("Почтовый сервис не вернул идентификатор письма.", true);
   return { providerMessageId: payload.job_id };

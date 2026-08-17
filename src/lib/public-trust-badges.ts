@@ -1,5 +1,6 @@
 import type { SpecialistTrustBadge, TrustBadge } from "@/lib/types";
 import { createPublicClient } from "@/lib/supabase/public";
+import { RESOURCE_LIMITS } from "@/lib/resource-limits.mjs";
 
 type PublicClient = NonNullable<ReturnType<typeof createPublicClient>>;
 
@@ -8,14 +9,15 @@ export async function loadPublicTrustBadges(
   supabase: PublicClient,
   specialistIds: string[],
 ): Promise<Map<string, SpecialistTrustBadge[]>> {
-  const ids = [...new Set(specialistIds)].filter(Boolean);
+  const ids = [...new Set(specialistIds)].filter(Boolean).slice(0, RESOURCE_LIMITS.publicCatalogRows);
   const result = new Map<string, SpecialistTrustBadge[]>();
   if (!ids.length) return result;
 
   const { data: assignments, error } = await supabase
     .from("published_specialist_trust_badges")
     .select("id,specialist_id,badge_id,source,assigned_at")
-    .in("specialist_id", ids);
+    .in("specialist_id", ids)
+    .limit(RESOURCE_LIMITS.publicReferenceRows);
   if (error || !assignments?.length) return result;
 
   const badgeIds = [...new Set(assignments.map((assignment) => assignment.badge_id))];
@@ -23,7 +25,8 @@ export async function loadPublicTrustBadges(
     .from("trust_badges")
     .select("id,code,title,description,icon,assignment_type,is_active,sort_order")
     .in("id", badgeIds)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .limit(RESOURCE_LIMITS.publicReferenceRows);
   const byId = new Map((badges ?? []).map((badge) => [badge.id, badge as TrustBadge]));
 
   for (const assignment of assignments) {

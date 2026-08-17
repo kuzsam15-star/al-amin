@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import sharp from "sharp";
-import { isProfileMediaPath } from "@/lib/media-paths";
+import { isCanonicalProfileMediaPath, isProfileMediaPath } from "@/lib/media-paths";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { RESOURCE_LIMITS, validateImageMetadata } from "@/lib/resource-limits.mjs";
 
 export const runtime = "nodejs";
 
@@ -11,6 +13,9 @@ const mediaPaths = (payload: Record<string, unknown> | null) => [
 ].filter(isProfileMediaPath);
 
 export async function GET(request: NextRequest) {
+  if (request.nextUrl.searchParams.getAll("path").length !== 1 || [...request.nextUrl.searchParams.keys()].some((key) => key !== "path")) {
+    return NextResponse.json({ error: "Некорректный запрос фотографии." }, { status: 400 });
+  }
   const path = request.nextUrl.searchParams.get("path") ?? "";
   if (!isProfileMediaPath(path)) return NextResponse.json({ error: "Некорректный путь к фотографии." }, { status: 400 });
 
@@ -41,11 +46,26 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin.storage.from("profile-media").download(path);
   if (error || !data) return NextResponse.json({ error: "Фотография не найдена." }, { status: 404 });
   try {
-    const output = await sharp(Buffer.from(await data.arrayBuffer()), { failOn: "error", limitInputPixels: 40_000_000 }).rotate().webp({ quality: 88 }).toBuffer();
-    return new NextResponse(output, { headers: {
+    if (data.size === 0 || data.size > RESOURCE_LIMITS.mediaOutputBytes) throw new Error("bounded media source rejected");
+    const input = Buffer.from(await data.arrayBuffer());
+    let output: Buffer;
+    let cacheControl = "private, no-store";
+    if (publicAccess && isCanonicalProfileMediaPath(path)) {
+      const expectedHash = path.slice(path.lastIndexOf("/") + 1, -".webp".length);
+      if (createHash("sha256").update(input).digest("hex") !== expectedHash) throw new Error("canonical media hash mismatch");
+      output = input;
+      cacheControl = "public, max-age=31536000, immutable";
+    } else {
+      const image = sharp(input, { failOn: "error", limitInputPixels: RESOURCE_LIMITS.imagePixels }).timeout({ seconds: RESOURCE_LIMITS.imageProcessingSeconds });
+      const metadata = await image.metadata();
+      if (!validateImageMetadata(metadata)) throw new Error("bounded media source rejected");
+      output = await image.rotate().webp({ quality: 88 }).toBuffer();
+      if (output.length === 0 || output.length > RESOURCE_LIMITS.mediaOutputBytes) throw new Error("bounded media output rejected");
+    }
+    return new NextResponse(new Uint8Array(output), { headers: {
       "Content-Type": "image/webp",
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": publicAccess ? "public, max-age=3600, stale-while-revalidate=86400" : "private, no-store",
+      "Cache-Control": cacheControl,
       "Vary": "Cookie",
     } });
   } catch {

@@ -205,6 +205,19 @@ async function insertFixture(service, table, value) {
   if (error) throw new Error(`Synthetic ${table} fixture failed: ${error.message}`);
 }
 
+async function uploadRegisteredSubmission(service, ownerId, path, bytes) {
+  const uploaded = await service.storage.from('profile-media').upload(path, bytes, { contentType: 'image/webp', upsert: false });
+  if (uploaded.error) throw new Error(`Synthetic bounded media upload failed: ${uploaded.error.message}`);
+  const registered = await service.rpc('register_submission_media_v1', {
+    p_owner_id: ownerId,
+    p_object_path: path,
+    p_sha256: createHash('sha256').update(bytes).digest('hex'),
+    p_byte_count: bytes.byteLength,
+  });
+  if (registered.error || registered.data !== true) throw new Error(`Synthetic bounded media registration failed: ${registered.error?.message ?? 'no acknowledgement'}`);
+  return uploaded;
+}
+
 async function buildFixtures(stack, service, users, toolchain, env) {
   const ids = Object.fromEntries([
     'category', 'appA', 'appB', 'appModeration', 'appReplay', 'appRace', 'appDelete', 'appLifecycle', 'appRevoked', 'appInvalid',
@@ -216,16 +229,10 @@ async function buildFixtures(stack, service, users, toolchain, env) {
   const sourcePathB = `submissions/${users.userB.id}/avatar/${randomUUID()}.webp`;
   const avatarPath = `synthetic/${stack.projectId}.webp`;
 
-  const ownerUpload = await users.userA.client.storage.from('profile-media').upload(sourcePath, webp, {
-    contentType: 'image/webp',
-    upsert: false,
-  });
-  if (ownerUpload.error) throw new Error(`Synthetic owner media fixture failed: ${ownerUpload.error.message}`);
-  const userBUpload = await users.userB.client.storage.from('profile-media').upload(sourcePathB, webp, {
-    contentType: 'image/webp',
-    upsert: false,
-  });
-  if (userBUpload.error) throw new Error(`Synthetic user B media fixture failed: ${userBUpload.error.message}`);
+  await uploadRegisteredSubmission(service, users.userA.id, sourcePath, webp);
+  await uploadRegisteredSubmission(service, users.userB.id, sourcePathB, webp);
+  const directOwnerPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
+  const ownerUpload = await users.userA.client.storage.from('profile-media').upload(directOwnerPath, webp, { contentType: 'image/webp', upsert: false });
   const avatarUpload = await service.storage.from('avatars').upload(avatarPath, webp, {
     contentType: 'image/webp',
     upsert: false,
@@ -1129,7 +1136,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   const unpublishedReview = await anon.from('published_reviews').select('id').eq('id', ids.reviewUnpublished);
   recorder.record('VIEW-005', deniedOrEmpty(unpublishedReview), 'unpublished review excluded from public views');
 
-  recorder.record('STORAGE-001', !fixtures.ownerUpload.error, 'owner WebP upload to own synthetic submission path succeeded');
+  recorder.record('STORAGE-001', Boolean(fixtures.ownerUpload.error), 'direct owner upload denied; bounded server gateway owns submission writes');
   const foreignPath = `submissions/${users.userA.id}/foreign/foreign.webp`;
   const foreignUpload = await users.userB.client.storage.from('profile-media').upload(foreignPath, webp, { contentType: 'image/webp' });
   recorder.record('STORAGE-002', Boolean(foreignUpload.error) && (await storageBytes(service, 'profile-media', foreignPath)) === null, 'foreign-folder upload denied and no object persisted');
@@ -1268,8 +1275,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     );
   `)) === 't';
   const revisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
-  const revisionSourceUpload = await users.userA.client.storage.from('profile-media').upload(revisionSource, webpReplacement, { contentType: 'image/webp', upsert: false });
-  if (revisionSourceUpload.error) throw new Error('Synthetic revision media source upload failed');
+  await uploadRegisteredSubmission(service, users.userA.id, revisionSource, webpReplacement);
   await insertFixture(service, 'specialist_revisions', {
     id: ids.revisionMedia,
     specialist_id: ids.specialistA,
@@ -1284,8 +1290,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('MEDIA-008', Boolean(directRevisionApproval.error) && directRevisionStatus === 'pending' && afterDirectRevisionPath === beforeRevisionPath, 'client approval of changed mutable media failed closed');
   const revisionReviewedAt = await rowValue(service, 'specialist_revisions', ids.revisionMedia, 'updated_at');
   const replacementRevisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
-  const replacementRevisionUpload = await users.userA.client.storage.from('profile-media').upload(replacementRevisionSource, webp, { contentType: 'image/webp', upsert: false });
-  if (replacementRevisionUpload.error) throw new Error('Synthetic replacement revision media upload failed');
+  await uploadRegisteredSubmission(service, users.userA.id, replacementRevisionSource, webp);
   await service.from('specialist_revisions').update({ payload: fixtures.revisionPayload(users.userA.id, 'Media replacement', replacementRevisionSource) }).eq('id', ids.revisionMedia);
   const replacementRevisionPublication = await publishCanonicalMediaSet({
     storage: service.storage,
@@ -1321,8 +1326,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
   recorder.record('MEDIA-022', revisionSuccessCount === 1 && freshRevisionStatus === 'approved' && afterFreshRevisionPath === replacementRevisionPublication.avatar.canonical_path, 'concurrent revision publication replay serialized to one decision');
 
   const raceRevisionSource = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
-  const raceRevisionUpload = await users.userA.client.storage.from('profile-media').upload(raceRevisionSource, webpReplacement, { contentType: 'image/webp', upsert: false });
-  if (raceRevisionUpload.error) throw new Error('Synthetic decision-race source upload failed');
+  await uploadRegisteredSubmission(service, users.userA.id, raceRevisionSource, webpReplacement);
   await insertFixture(service, 'specialist_revisions', {
     id: ids.revisionRace,
     specialist_id: ids.specialistA,
@@ -1365,7 +1369,7 @@ async function runBehaviorCases(recorder, stack, service, users, fixtures, toolc
     : raceStatus === 'rejected' && racePathAfter === racePathBefore;
   recorder.record('MEDIA-023', raceSuccessCount === 1 && raceStateValid, 'overlapping revision approval and rejection serialized to one internally consistent decision');
   const unusedPath = `submissions/${users.userA.id}/avatar/${randomUUID()}.webp`;
-  const unusedUpload = await users.userA.client.storage.from('profile-media').upload(unusedPath, webp, { contentType: 'image/webp', upsert: false });
+  const unusedUpload = await uploadRegisteredSubmission(service, users.userA.id, unusedPath, webp);
   const unusedDelete = await users.userA.client.storage.from('profile-media').remove([unusedPath]);
   recorder.record('MEDIA-011', !unusedUpload.error && sameBytes(await storageBytes(service, 'profile-media', unusedPath), webp), `direct unused-submission delete changed zero objects${unusedDelete.error ? ' with explicit denial' : ''}; trusted cleanup is tested separately`);
   recorder.record('MEDIA-012', controlledBytes !== null && createHash('sha256').update(controlledBytes).digest('hex') === canonicalHash, 'canonical path content hash verified without logging content');

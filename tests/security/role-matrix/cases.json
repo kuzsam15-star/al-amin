@@ -120,7 +120,7 @@
     {"id":"VIEW-004","role":"ROLE-ANON","resource":"published_specialist_trust_badges","action":"SELECT","expected":"published projection readable with exact columns"},
     {"id":"VIEW-005","role":"ROLE-ANON","resource":"published views","action":"SELECT","expected":"unpublished rows excluded"},
 
-    {"id":"STORAGE-001","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"own WebP draft upload allowed"},
+    {"id":"STORAGE-001","role":"ROLE-OWNER","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"direct upload denied; server gateway is the only submission writer"},
     {"id":"STORAGE-002","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_UPLOAD","expected":"foreign folder upload denied"},
     {"id":"STORAGE-003","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_READ","expected":"owner file unreadable"},
     {"id":"STORAGE-004","role":"ROLE-USER-B","resource":"profile-media","action":"STORAGE_UPDATE","expected":"owner file immutable to foreign user"},

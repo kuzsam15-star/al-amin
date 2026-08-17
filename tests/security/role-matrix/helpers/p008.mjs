@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,11 +10,18 @@ const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)))
 const quote = (value) => String(value).replaceAll("'", "''");
 const scalar = async (stack, toolchain, env, sql) => queryLocalSql(stack, toolchain.dockerBin, env, sql);
 
-async function upload(client, ownerId) {
+async function upload(service, ownerId) {
   const path = `submissions/${ownerId}/avatar/${randomUUID()}.webp`;
   const bytes = await sharp({ create: { width: 3, height: 3, channels: 3, background: '#246853' } }).webp().toBuffer();
-  const result = await client.storage.from('profile-media').upload(path, bytes, { contentType: 'image/webp', upsert: false });
+  const result = await service.storage.from('profile-media').upload(path, bytes, { contentType: 'image/webp', upsert: false });
   if (result.error) throw new Error('SEC-006 synthetic upload failed');
+  const registered = await service.rpc('register_submission_media_v1', {
+    p_owner_id: ownerId,
+    p_object_path: path,
+    p_sha256: createHash('sha256').update(bytes).digest('hex'),
+    p_byte_count: bytes.byteLength,
+  });
+  if (registered.error || registered.data !== true) throw new Error('SEC-006 synthetic provenance registration failed');
   return { path, bytes };
 }
 
@@ -33,7 +40,7 @@ async function jobStatus(stack, toolchain, env, jobId) {
 }
 
 export async function runP008Cases(recorder, stack, service, users, fixtures, toolchain, env) {
-  const probe = await upload(users.userA.client, users.userA.id);
+  const probe = await upload(service, users.userA.id);
   const directDelete = await users.userA.client.storage.from('profile-media').remove([probe.path]);
   const directBytes = await service.storage.from('profile-media').download(probe.path);
   recorder.record('P008-001', !directBytes.error,
@@ -61,7 +68,7 @@ export async function runP008Cases(recorder, stack, service, users, fixtures, to
   recorder.record('P008-005', pathValidation, 'strict exact submission path validator rejected unsafe classes');
 
   await scalar(stack, toolchain, env, `select private.assert_media_reference_registry_v1();`);
-  const registry = Number(await scalar(stack, toolchain, env, `select count(*) from private.media_reference_registry;`))===8;
+  const registry = Number(await scalar(stack, toolchain, env, `select count(*) from private.media_reference_registry;`))===9;
   const sourceRefs = String(await scalar(stack, toolchain, env, `select active_count+workflow_count+retention_count from private.media_reference_counts_v1('${quote(fixtures.sourcePath)}');`));
   recorder.record('P008-006', registry && Number(sourceRefs)>0, 'authoritative registry and combined reference check are active');
   const workflowRefs = Number(await scalar(stack, toolchain, env, `select workflow_count from private.media_reference_counts_v1('${quote(fixtures.canonicalPath)}');`));
@@ -93,7 +100,7 @@ export async function runP008Cases(recorder, stack, service, users, fixtures, to
     'parallel workers produced one lease owner and an expired lease was recovered once');
   await service.rpc('fail_media_cleanup_job_v1',{p_job_id:first.data,p_worker_id:recoveryWorker,p_safe_error_code:'synthetic_retry'});
 
-  const stale=await upload(users.userA.client,users.userA.id); const staleJob=await enqueue(service,users.userA.id,stale.path);
+  const stale=await upload(service,users.userA.id); const staleJob=await enqueue(service,users.userA.id,stale.path);
   await makeDue(stack,toolchain,env,staleJob.data);
   const originalGallery=await service.from('applications').select('gallery_paths').eq('id',fixtures.ids.appA).single();
   const linked=[...(originalGallery.data?.gallery_paths??[]),stale.path];
@@ -105,18 +112,18 @@ export async function runP008Cases(recorder, stack, service, users, fixtures, to
     'reference added after enqueue cancelled deletion');
   await service.from('applications').update({gallery_paths:originalGallery.data?.gallery_paths??[]}).eq('id',fixtures.ids.appA);
 
-  const failed=await upload(users.userA.client,users.userA.id); const failedJob=await enqueue(service,users.userA.id,failed.path);
+  const failed=await upload(service,users.userA.id); const failedJob=await enqueue(service,users.userA.id,failed.path);
   await makeDue(stack,toolchain,env,failedJob.data); const failureWorker=randomUUID();
   await service.rpc('claim_media_cleanup_jobs_v1',{p_limit:1,p_worker_id:failureWorker,p_lease_seconds:120});
   const failedAuth=await service.rpc('authorize_media_cleanup_delete_v1',{p_job_id:failedJob.data,p_worker_id:failureWorker});
   const failedState=await service.rpc('fail_media_cleanup_job_v1',{p_job_id:failedJob.data,p_worker_id:failureWorker,p_safe_error_code:'storage_delete_failed'});
   const failedBytes=await service.storage.from('profile-media').download(failed.path);
-  const mismatch=await upload(users.userA.client,users.userA.id); const mismatchJob=await enqueue(service,users.userA.id,mismatch.path);
+  const mismatch=await upload(service,users.userA.id); const mismatchJob=await enqueue(service,users.userA.id,mismatch.path);
   await scalar(stack,toolchain,env,`update private.media_cleanup_jobs set expected_size=coalesce(expected_size,0)+1,not_before=now()-interval '1 second' where id='${quote(mismatchJob.data)}'::uuid;`);
   const mismatchWorker=randomUUID(); await service.rpc('claim_media_cleanup_jobs_v1',{p_limit:1,p_worker_id:mismatchWorker,p_lease_seconds:120});
   const mismatchDecision=await service.rpc('authorize_media_cleanup_delete_v1',{p_job_id:mismatchJob.data,p_worker_id:mismatchWorker});
   const mismatchBytes=await service.storage.from('profile-media').download(mismatch.path);
-  const bounded=await upload(users.userA.client,users.userA.id); const boundedJob=await enqueue(service,users.userA.id,bounded.path);
+  const bounded=await upload(service,users.userA.id); const boundedJob=await enqueue(service,users.userA.id,bounded.path);
   await scalar(stack,toolchain,env,`update private.media_cleanup_jobs set attempt_count=4,not_before=now()-interval '1 second' where id='${quote(boundedJob.data)}'::uuid;`);
   const boundedWorker=randomUUID(); await service.rpc('claim_media_cleanup_jobs_v1',{p_limit:1,p_worker_id:boundedWorker,p_lease_seconds:120});
   await service.rpc('authorize_media_cleanup_delete_v1',{p_job_id:boundedJob.data,p_worker_id:boundedWorker});
@@ -126,7 +133,7 @@ export async function runP008Cases(recorder, stack, service, users, fixtures, to
     && boundedState.data==='manual_review',
     'provider failure remained retryable, metadata mismatch stopped deletion and max attempts reached manual review');
 
-  const missing=await upload(users.userA.client,users.userA.id); const missingJob=await enqueue(service,users.userA.id,missing.path);
+  const missing=await upload(service,users.userA.id); const missingJob=await enqueue(service,users.userA.id,missing.path);
   await makeDue(stack,toolchain,env,missingJob.data); const missingWorker=randomUUID();
   await service.rpc('claim_media_cleanup_jobs_v1',{p_limit:1,p_worker_id:missingWorker,p_lease_seconds:120});
   await service.rpc('authorize_media_cleanup_delete_v1',{p_job_id:missingJob.data,p_worker_id:missingWorker});

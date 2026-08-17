@@ -58,9 +58,10 @@ export async function runCommand(command, args, options = {}) {
 
 export function redactCommandError(error) {
   if (!error?.result) return error instanceof Error ? error.message : String(error);
-  const lines = `${error.result.stderr}\n${error.result.stdout}`
-    .split(/\r?\n/)
+  const safeLines = (value) => value
+    .split(/\r?\n/u)
     .filter(Boolean)
     .filter((line) => !/(ANON_KEY|SERVICE_ROLE_KEY|JWT_SECRET|DB_URL)=/i.test(line));
-  return `${error.message}: ${lines.slice(-8).join(' | ')}`;
+  const lines = [...safeLines(error.result.stderr).slice(-8), ...safeLines(error.result.stdout).slice(-4)];
+  return `${error.message}: ${lines.join(' | ')}`;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { isProfileMediaPath } from "@/lib/media-paths";
+import { RESOURCE_LIMITS, validateImageMetadata } from "@/lib/resource-limits.mjs";
 
 export const runtime = "nodejs";
 
@@ -38,8 +39,13 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin.storage.from("profile-media").download(path);
   if (error || !data) return NextResponse.json({ error: "Фотография не найдена." }, { status: 404 });
   try {
+    if (data.size === 0 || data.size > RESOURCE_LIMITS.mediaOutputBytes) throw new Error("bounded media source rejected");
     const input = Buffer.from(await data.arrayBuffer());
-    const output = await sharp(input, { failOn: "error", limitInputPixels: 40_000_000 }).rotate().webp({ quality: 90 }).toBuffer();
+    const image = sharp(input, { failOn: "error", limitInputPixels: RESOURCE_LIMITS.imagePixels }).timeout({ seconds: RESOURCE_LIMITS.imageProcessingSeconds });
+    const metadata = await image.metadata();
+    if (!validateImageMetadata(metadata)) throw new Error("bounded media source rejected");
+    const output = await image.rotate().webp({ quality: 90 }).toBuffer();
+    if (output.length === 0 || output.length > RESOURCE_LIMITS.mediaOutputBytes) throw new Error("bounded media output rejected");
     return new NextResponse(output, { headers: { "Content-Type": "image/webp", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
   } catch {
     return NextResponse.json({ error: "Не удалось подготовить фотографию для редактора." }, { status: 422 });

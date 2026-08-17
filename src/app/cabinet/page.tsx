@@ -16,8 +16,8 @@ export default async function CabinetPage({ searchParams }: { searchParams: Prom
 
   const [{ data: profile }, { data: applications }, { data: categories }] = await Promise.all([
     supabase.from("specialists").select("id,owner_id,application_id,category_id,additional_category_ids,slug,full_name,country,city,specialization,services,service_mode,experience_years,short_description,profile_summary,full_description,public_contact,portfolio_links,video_links,avatar_path,gallery_paths,recommendations,help_topics,work_offers,contract_version,status,verified_at,verification_method,published_at,created_at,updated_at").eq("owner_id", user.id).maybeSingle(),
-    supabase.from("owner_applications_v1").select("id,status,created_at,full_name,contact,applicant_message,resubmitted_at").order("created_at", { ascending: false }),
-    supabase.from("categories").select("id,name,group_name").eq("is_active", true).order("group_name").order("name"),
+    supabase.from("owner_applications_v1").select("id,status,created_at,full_name,contact,applicant_message,resubmitted_at").order("created_at", { ascending: false }).limit(20),
+    supabase.from("categories").select("id,name,group_name").eq("is_active", true).order("group_name").order("name").limit(200),
   ]);
   const [{ data: pending }, { data: lastRejected }] = profile ? await Promise.all([
     supabase.from("specialist_revisions").select("id,payload,status,moderator_comment,created_at,updated_at").eq("specialist_id", profile.id).in("status", ["pending", "changes_requested"]).order("updated_at", { ascending: false }).limit(1).maybeSingle(),

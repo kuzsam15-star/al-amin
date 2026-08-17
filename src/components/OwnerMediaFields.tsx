@@ -99,7 +99,8 @@ export function OwnerMediaFields({ main, gallery, allowGallery = true, required 
     setBusy(true);
     setMessage("");
     try {
-      const paths = await Promise.all(files.map((file) => upload(file, "gallery")));
+      const paths: string[] = [];
+      for (const file of files) paths.push(await upload(file, "gallery"));
       setGalleryPaths((current) => [...current, ...paths]);
       setSelectedGalleryFiles((current) => [...current, ...files]);
     } catch (reason) {

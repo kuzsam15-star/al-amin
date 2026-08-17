@@ -49,11 +49,18 @@ async function countByOperation(stack, toolchain, env, table, operationId) {
     `select count(*) from ${table} where operation_id='${quote(operationId)}'::uuid;`));
 }
 
-async function uploadSubmission(client, row, bytes) {
-  const uploaded = await client.storage.from('profile-media').upload(row.main_image_path, bytes, {
+async function uploadSubmission(service, row, bytes) {
+  const uploaded = await service.storage.from('profile-media').upload(row.main_image_path, bytes, {
     contentType: 'image/webp', upsert: false,
   });
   if (uploaded.error) throw new Error('P0-07 synthetic submission media setup failed');
+  const registered = await service.rpc('register_submission_media_v1', {
+    p_owner_id: row.owner_id,
+    p_object_path: row.main_image_path,
+    p_sha256: createHash('sha256').update(bytes).digest('hex'),
+    p_byte_count: bytes.byteLength,
+  });
+  if (registered.error || registered.data !== true) throw new Error('P0-07 synthetic submission media registration failed');
 }
 
 async function contractAvailable(stack, toolchain, env) {
@@ -70,15 +77,15 @@ async function contractAvailable(stack, toolchain, env) {
 
 async function recordBeforeState(recorder, service, users, fixtures) {
   const direct = applicationRow(users.submitter.id, fixtures.ids.category, 'P007 direct client');
-  await uploadSubmission(users.submitter.client, direct, fixtures.mediaBytes);
+  await uploadSubmission(service, direct, fixtures.mediaBytes);
   const directAttempt = await users.submitter.client.from('applications').insert(direct);
   recorder.record('P007-001', Boolean(directAttempt.error), 'direct authenticated application INSERT boundary evaluated');
   if (!directAttempt.error) await service.from('applications').update({ status: 'rejected' }).eq('id', direct.id);
 
   const left = applicationRow(users.submitter.id, fixtures.ids.category, 'P007 concurrent left');
   const right = applicationRow(users.submitter.id, fixtures.ids.category, 'P007 concurrent right');
-  await uploadSubmission(users.submitter.client, left, fixtures.mediaBytes);
-  await uploadSubmission(users.submitter.client, right, fixtures.mediaBytes);
+  await uploadSubmission(service, left, fixtures.mediaBytes);
+  await uploadSubmission(service, right, fixtures.mediaBytes);
   const attempts = await Promise.all([
     service.from('applications').insert(left),
     service.from('applications').insert(right),
@@ -105,7 +112,7 @@ export async function runP007Cases(recorder, stack, service, users, fixtures, to
   }
 
   const submitted = applicationRow(users.submitter.id, fixtures.ids.category, 'P007 submitted');
-  await uploadSubmission(users.submitter.client, submitted, fixtures.mediaBytes);
+  await uploadSubmission(service, submitted, fixtures.mediaBytes);
   const payload = submissionPayload(submitted);
   const key = randomUUID();
   const operation = await service.rpc('submit_application_v1', {
@@ -166,7 +173,7 @@ export async function runP007Cases(recorder, stack, service, users, fixtures, to
     'application row, domain event, owner event, audit and outbox share one operation');
 
   const failureRow = applicationRow(users.p007Failure.id, fixtures.ids.category, 'P007 failure');
-  await uploadSubmission(users.p007Failure.client, failureRow, fixtures.mediaBytes);
+  await uploadSubmission(service, failureRow, fixtures.mediaBytes);
   const failurePayload = submissionPayload(failureRow);
   const submitFailureStages = ['after_validation','after_state','after_event','after_outbox','after_domain_event','after_audit'];
   const submitFailures = [];
@@ -199,7 +206,7 @@ export async function runP007Cases(recorder, stack, service, users, fixtures, to
     'faults at every submission stage rolled back state, domain event, audit and outbox');
 
   const decisionRow = applicationRow(users.p007Decision.id, fixtures.ids.category, 'P007 decision');
-  await uploadSubmission(users.p007Decision.client, decisionRow, fixtures.mediaBytes);
+  await uploadSubmission(service, decisionRow, fixtures.mediaBytes);
   await service.from('applications').insert(decisionRow);
   const decisionState = await service.from('applications').select('workflow_version,status').eq('id', decisionRow.id).single();
   const decisionOperation = randomUUID();
@@ -231,7 +238,7 @@ export async function runP007Cases(recorder, stack, service, users, fixtures, to
     && decisionCounts.every((count) => count === 1), 'application decision replay preserved one atomic side-effect set');
 
   const raceRow = applicationRow(users.p007Race.id, fixtures.ids.category, 'P007 decision race');
-  await uploadSubmission(users.p007Race.client, raceRow, fixtures.mediaBytes);
+  await uploadSubmission(service, raceRow, fixtures.mediaBytes);
   await service.from('applications').insert(raceRow);
   const raceState = await service.from('applications').select('workflow_version,status').eq('id', raceRow.id).single();
   const raceOperations = [randomUUID(), randomUUID()];
@@ -285,7 +292,7 @@ export async function runP007Cases(recorder, stack, service, users, fixtures, to
     && revisionCounts.every((count) => count === 1), 'revision decision replay preserved one atomic side-effect set');
 
   const failureDecisionRow = applicationRow(users.p007Failure.id, fixtures.ids.category, 'P007 decision failure');
-  await uploadSubmission(users.p007Failure.client, failureDecisionRow, fixtures.mediaBytes);
+  await uploadSubmission(service, failureDecisionRow, fixtures.mediaBytes);
   await service.from('applications').insert(failureDecisionRow);
   const decisionFailureStages = ['after_state','after_event','after_outbox','after_audit','after_domain_event'];
   const decisionFailures = [];

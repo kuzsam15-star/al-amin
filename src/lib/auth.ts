@@ -1,13 +1,21 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function requireModerator() {
+export async function requirePrivilegedIdentity() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/admin");
   const { data: role } = await supabase.from("moderators").select("role").eq("user_id", user.id).maybeSingle();
   if (!role) redirect("/");
   return { supabase, user, role: role.role as "moderator" | "admin" };
+}
+
+export async function requireModerator() {
+  const context = await requirePrivilegedIdentity();
+  const { data, error } = await context.supabase.auth.mfa.listFactors();
+  const enrolled = !error && data.totp.some((factor) => factor.status === "verified");
+  if (!enrolled) redirect("/admin/mfa?notice=enrollment-required");
+  return context;
 }
 
 /** Destructive moderation operations are intentionally reserved for administrators. */
