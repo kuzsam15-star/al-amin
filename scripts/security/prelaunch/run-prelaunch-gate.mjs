@@ -88,21 +88,28 @@ function verifyArtifactEntries(entries) {
   return true;
 }
 
+function committedBlob(path) {
+  const result = spawnSync("git", ["-c", `safe.directory=${repositoryRoot}`, "show", `HEAD:${path}`], {
+    cwd: repositoryRoot,
+    encoding: null,
+    windowsHide: true,
+    maxBuffer: 32 * 1024 * 1024,
+    env: safeEnvironment(),
+  });
+  if ((result.status ?? 1) !== 0 || !Buffer.isBuffer(result.stdout)) return null;
+  return result.stdout;
+}
+
 function treeSha256(rootPath) {
-  const absoluteRoot = join(repositoryRoot, rootPath);
-  const files = [];
-  const visit = (directory) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) visit(path);
-      else files.push(path);
-    }
-  };
-  visit(absoluteRoot);
+  const prefix = `${rootPath.replaceAll("\\", "/").replace(/\/$/u, "")}/`;
+  const files = git(["ls-files", "-z", "--", prefix]).stdout.split("\0").filter(Boolean).sort();
+  if (files.length === 0) return null;
   const digest = createHash("sha256");
   for (const file of files) {
-    const logical = relative(absoluteRoot, file).split(sep).join("/");
-    digest.update(logical).update("\0").update(sha256(readFileSync(file))).update("\n");
+    const bytes = committedBlob(file);
+    if (bytes === null) return null;
+    const logical = file.slice(prefix.length);
+    digest.update(logical).update("\0").update(sha256(bytes)).update("\n");
   }
   return digest.digest("hex");
 }

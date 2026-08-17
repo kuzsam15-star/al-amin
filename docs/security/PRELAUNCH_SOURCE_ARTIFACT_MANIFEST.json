@@ -11,9 +11,9 @@
     "baseline_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c"
   },
   "trees": [
-    { "path": "src", "sha256": "aa9b91fafef538dd97102767b1ec827529b3985dd9c748677c78c07b9217df48", "class": "SOURCE" },
-    { "path": "tests", "sha256": "756a352bf5c22438a7f6de459e76c4f3f50915dec8262ae519c062d1f4c425ee", "class": "TEST" },
-    { "path": "scripts", "sha256": "39bd1d915d546213ebe389a4ac84bd9d129c986ccbe90b9f27ed66e4d31e7bd2", "class": "TOOLING" }
+    { "path": "src", "sha256": "c4910409fe304347e50e522e8fe0d2d24e2d27f5f78b69c4fc036d12d4e08a59", "hash_source": "committed-git-blobs", "class": "SOURCE" },
+    { "path": "tests", "sha256": "1d6ccf88e798f6be3674a8d278a74b8857261462e57cb1ac4a135982f2711084", "hash_source": "committed-git-blobs", "class": "TEST" },
+    { "path": "scripts", "sha256": "0c72e69c6ee7f010c5123cdd2c3517c8a64e868e70f25faffcdfe19a8dc9257f", "hash_source": "committed-git-blobs", "class": "TOOLING" }
   ],
   "artifacts": [
     { "path": ".gitattributes", "sha256": "caa9ffbfb9b7a265954acd9305cd90befa58bde06380a3c89a8668cb54eb714f", "class": "RELEASE_CONFIG" },
