@@ -16,7 +16,7 @@
     { "path": "scripts", "sha256": "8cd120ee134b3f8e8bcbab1d943f4a5aa26514fe5e6014c2f38099324a29088d", "class": "TOOLING" }
   ],
   "artifacts": [
-    { "path": ".gitattributes", "sha256": "de81ba08e41df0cfafb8f2ee8abeb27879fb47e6f9f569fb9219fa52f5e155c0", "class": "RELEASE_CONFIG" },
+    { "path": ".gitattributes", "sha256": "f0d81ff933240178315c900c532e8ab2e95e6a2400c2ac91bdd9bc6b3ef87e1b", "class": "RELEASE_CONFIG" },
     { "path": "package.json", "sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741", "class": "PACKAGE" },
     { "path": "pnpm-lock.yaml", "sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607", "class": "PACKAGE" },
     { "path": "pnpm-workspace.yaml", "sha256": "5495bf69244558f180ac83a2be2cfc5d90267df3f506e3f640dec1c44c8c4c4a", "class": "PACKAGE" },

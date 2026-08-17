@@ -9,3 +9,7 @@
 *.woff2 binary
 *.zip binary
 *.age binary
+
+# The verified pre-hardening manifest is an immutable CRLF Git blob. Treat it
+# as binary so clean Windows/Linux checkouts preserve its exact evidence bytes.
+supabase/bootstrap/manifest.json binary
