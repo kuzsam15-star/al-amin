@@ -175,23 +175,20 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 - **Зависимости:** P0-03 и P0-11.
 - **Локальный статус:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Red x2: 140 PASS / 30 XFAIL; final x2: 158 PASS / 12 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Automatic deletion is limited to exact, unreferenced submissions; canonical, SEC-001 old-source, recovery and unknown-provenance classes remain retained. Remote backend unchanged.
 
-### P0-09 — Закрыть High dependency advisories и pin build
+### P0-09 — Catalog, identity and privileged-read closure
 
-- **Findings:** SEC-009, SEC-019.
-- **Владелец:** App owner + Security reviewer.
-- **Работа:** обновить Next/transitive Sharp/PostCSS/nanoid и dev advisories до безопасного graph; убрать `latest`; pin Node/pnpm; принять явное решение по `sharp`/`unrs-resolver` install hooks; generate SBOM.
-- **Доказательство выхода:** prod/full audit без unresolved High/Critical; clean install/build/test/media corpus; lock tree не содержит affected versions; SBOM archived with commit.
-- **Rollback/forward-fix:** отдельные dependency updates; предыдущий lockfile; rollback только при recorded temporary risk acceptance.
-- **Зависимости:** P0-01.
+- **Findings:** SEC-015, SEC-016, SEC-025; locally implementable read scope of SEC-010/018.
+- **Локальный статус:** SEC-015/016/025 — `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; SEC-010/018 remain `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT` for their explicit configuration/operational residual.
+- **Доказательство:** two red runs 161 PASS / 27 XFAIL; two final runs 183 PASS / 5 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP. Fixed-column catalog projections, exact RPC/default ACLs, trusted identity mirror, current membership, AAL2 private reads and no-store guards PASS. Remote backend unchanged.
+- **Evidence:** `P0-09_LOCAL_VERIFICATION.md` and `changes/P0-09_CATALOG_IDENTITY_PRIVILEGED_READ_CLOSURE.md`.
 
-### P0-10 — Исправить Auth refresh и privileged authentication
+### P0-10 — Resource, Auth and release-control closure
 
-- **Findings:** SEC-010, SEC-011, SEC-014, SEC-020.
-- **Владелец:** Auth/App owner + Supabase administrator.
-- **Работа:** documented Next 16 Proxy с request/response cookie propagation и `getClaims()`; request-scoped server clients. MFA enrollment + AAL2/recent-auth gates. Включить leaked-password protection; проверить redirect allowlist, session lifetime/revocation, CAPTCHA/rates. Production origin только HTTPS; explicit Secure cookie.
-- **Доказательство выхода:** short-JWT multi-tab refresh без reuse; revoked session deny; all privileged AAL1 deny/AAL2 pass; breached password deny; deployed cookie/redirect tests.
-- **Rollback/forward-fix:** limited-staging canary и break-glass procedure; не расширять refresh reuse window как замену Proxy; cookie/Proxy changes откатывать согласованно.
-- **Зависимости:** P0-01; отдельные test accounts только в staging.
+- **Findings:** SEC-017 plus evidence/reconciliation for SEC-005, SEC-009, SEC-011, SEC-012, SEC-013, SEC-014, SEC-019 and SEC-021. SEC-020 remains hosting-dependent.
+- **Владелец:** App/Auth/Platform owners + Security reviewer.
+- **Работа:** close bounded media/resource controls and WebP-only behavior; reconcile dependency/supply-chain, Auth/Proxy, Recovery Level 3, monitoring/retention and release-provenance gates; freeze one locally verified consolidated backend bundle. Dashboard and hosting checks remain explicit later actions, not simulated local PASS.
+- **Доказательство выхода:** four SEC-017 XFAIL become PASS; no unrelated XPASS; dependency and Auth/config decisions have objective evidence; full clean-room bundle, tests, advisors and cleanup pass; remote backend remains unchanged.
+- **Зависимости:** P0-09 complete; no hosting provider required for local implementation.
 
 ### P0-11 — Доказать DB+Storage+config backup/restore
 
@@ -276,12 +273,11 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 
 ## 8. Следующий один безопасный этап
 
-**Следующий этап: P0-06 — закрыть прямые feedback writes и ввести безопасный
-gateway (SEC-004, with SEC-011/017 dependencies kept explicit).**
+**Следующий этап: P0-10 — Resource, Auth and release-control closure.**
 
 P0-13 as a standalone immediate SEC-001 production deployment is superseded by
 the confirmed pre-launch architecture. Recovery and release rehearsals remain
 valid evidence, but source deployment/version-marker/public-traffic stages are
 deferred until first hosting. SEC-001 will be included in a separately approved
-consolidated pre-launch remote-backend hardening window after the remaining P0
-fixes are locally complete and the full ordered set has passed isolated replay.
+consolidated pre-launch remote-backend hardening window after P0-10 and the
+final full clean-room bundle have passed.

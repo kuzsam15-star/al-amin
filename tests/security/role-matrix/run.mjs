@@ -12,6 +12,7 @@ import { cleanupLocalStack, createLocalStack, queryLocalSql } from './helpers/lo
 import { createTotp } from './helpers/totp.mjs';
 import { runP007Cases } from './helpers/p007.mjs';
 import { runP008Cases } from './helpers/p008.mjs';
+import { runP009Cases } from './helpers/p009.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..', '..');
@@ -154,6 +155,8 @@ async function createSyntheticUsers(stack) {
     ['appRaceOwner', 'app-race-owner'],
     ['appLifecycleOwner', 'app-lifecycle-owner'],
     ['appRevokedOwner', 'app-revoked-owner'],
+    ['p009Moderator', 'p009-moderator'],
+    ['p009AdminAal2', 'p009-admin-aal2'],
   ];
   const users = {};
   for (const [key, label] of definitions) {
@@ -168,6 +171,7 @@ async function createSyntheticUsers(stack) {
     if (error || !data.user) throw new Error(`Synthetic Auth fixture creation failed: ${error?.message ?? 'no user'}`);
     users[key] = {
       id: data.user.id,
+      email,
       client: await signedInClient(stack.apiUrl, stack.anonKey, email, password),
     };
   }
@@ -175,6 +179,8 @@ async function createSyntheticUsers(stack) {
   const { error: roleError } = await service.from('moderators').insert([
     { user_id: users.moderator.id, role: 'moderator' },
     { user_id: users.adminAal1.id, role: 'admin' },
+    { user_id: users.p009Moderator.id, role: 'moderator' },
+    { user_id: users.p009AdminAal2.id, role: 'admin' },
   ]);
   if (roleError) throw new Error(`Synthetic role fixtures failed: ${roleError.message}`);
   return { service, users };
@@ -639,9 +645,13 @@ async function runCatalogCases(recorder, stack, toolchain, env) {
 
   const exposedFunctions = Number(await queryLocalSql(stack, toolchain.dockerBin, env, `
     select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.prosecdef
-      and p.proname not in ('is_moderator','is_admin','apply_specialist_revision','request_specialist_revision_changes')
-      and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'));
+    where n.nspname in ('public','private')
+      and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))
+      and not exists (
+        select 1 from private.api_surface_manifest_v1 manifest
+        where manifest.object_kind='FUNCTION'
+          and manifest.object_identity=format('%I.%I(%s)',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid))
+      );
   `));
   recorder.record('CAT-003', exposedFunctions === 0, `${exposedFunctions} internal definer functions executable by client roles`);
 
@@ -659,7 +669,12 @@ async function runCatalogCases(recorder, stack, toolchain, env) {
     select count(*) from pg_default_acl d
     cross join lateral aclexplode(coalesce(d.defaclacl,acldefault(d.defaclobjtype,d.defaclrole))) a
     join pg_roles r on r.oid=a.grantee
-    where r.rolname in ('anon','authenticated') and a.privilege_type in ('SELECT','INSERT','UPDATE','DELETE','EXECUTE','USAGE');
+    join pg_roles owner_role on owner_role.oid=d.defaclrole
+    left join pg_namespace namespace on namespace.oid=d.defaclnamespace
+    where owner_role.rolname in ('postgres','supabase_admin')
+      and (namespace.nspname='public' or (namespace.oid is null and d.defaclobjtype='f'))
+      and r.rolname in ('anon','authenticated')
+      and a.privilege_type in ('SELECT','INSERT','UPDATE','DELETE','EXECUTE','USAGE');
   `));
   recorder.record('CAT-005', broadDefaults === 0, `${broadDefaults} broad client default-privilege entries`);
 
@@ -1405,6 +1420,7 @@ async function executeRun(runNumber, guard, env) {
     await runCatalogCases(recorder, stack, guard.toolchain, env);
     await runP007Cases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     await runP008Cases(recorder, stack, service, users, fixtures, guard.toolchain, env);
+    await runP009Cases(recorder, stack, service, users, fixtures, guard.toolchain, env, enableAal2);
     await runBehaviorCases(recorder, stack, service, users, fixtures, guard.toolchain, env);
     const results = recorder.finalize();
     const counts = Object.fromEntries(['PASS','XFAIL','XPASS','FAIL','SKIP'].map((name) => [name, results.filter((entry) => entry.result === name).length]));

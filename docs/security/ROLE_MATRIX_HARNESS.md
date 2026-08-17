@@ -193,3 +193,13 @@ provider/ACK failures, missing-object retry, future-reference registration and
 the trusted one-object worker. The two final runs each produced 158 PASS and
 12 unrelated XFAIL, with no XPASS, FAIL or SKIP. See
 `SEC-006_LOCAL_VERIFICATION.md`.
+
+P0-09 adds P009-001..018 for the remaining SEC-010/015/016/018/025 boundary.
+Two red runs each produced 161 PASS and 27 XFAIL; two final runs each produced
+183 PASS and 5 unrelated XFAIL, with no XPASS, FAIL or SKIP. The suite now
+proves fixed-column invoker projections, base-table isolation, RPC/search-path
+allowlists, fail-closed default privileges, trusted account identity sync,
+current membership checks, real TOTP AAL2 queue reads, and private no-store
+responses. The five remaining XFAIL map only to SEC-017 and SEC-026. SEC-010
+and SEC-018 retain their explicitly documented non-local/operational residual.
+See `P0-09_LOCAL_VERIFICATION.md`.

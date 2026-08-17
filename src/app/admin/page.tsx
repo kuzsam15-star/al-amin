@@ -13,14 +13,14 @@ import { SiteContentForm } from "@/components/admin/SiteContentForm";
 import { siteContentFieldConfig, type SiteContentField } from "@/lib/site-content-fields";
 import type { SpecialistTrustBadge, TrustBadge } from "@/lib/types";
 import type { HelpTopic, WorkOffer } from "@/lib/specialist-contract.mjs";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { unstable_noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
 type Application = { id:string; full_name:string; contact:string; country:string; city:string; category_text:string; specialization:string|null; experience_years:number|null; profile_summary:string|null; description:string; help_topics:HelpTopic[]|null; work_offers:WorkOffer[]|null; services:string; links:string|null; recommendations:string|null; status:ApplicationStatus; internal_notes:string|null; applicant_message:string|null; created_at:string; updated_at:string; resubmitted_at:string|null; main_image_path:string|null; gallery_paths:string[]; video_links:string[] };
 type VerificationFacts = { identity_checked:boolean; education_checked:boolean; experience_checked:boolean; qualifications_checked:boolean; references_checked:boolean; sources_checked:number };
 type Profile = { id:string; full_name:string; slug:string; status:ProfileStatus; city:string; verification?:VerificationFacts|VerificationFacts[]|null; trust_badges?: SpecialistTrustBadge[] };
 type Revision = { id:string; owner_id:string; payload:Record<string,unknown>; status:"pending"|"changes_requested"|"approved"|"rejected"; moderator_comment:string|null; created_at:string; updated_at:string; specialist:Record<string,unknown>|null };
-type EmailNotification = { id:string; event_type:string; recipient_email:string; status:"pending"|"processing"|"sent"|"failed"|"cancelled"; attempts:number; last_error:string|null; created_at:string; sent_at:string|null };
+type EmailNotification = { id:string; event_type:string; status:"pending"|"processing"|"sent"|"failed"|"cancelled"; attempts:number; error_code:string|null; created_at:string; sent_at:string|null };
 const formatDate = (value:string) => new Intl.DateTimeFormat("ru-RU", { dateStyle:"long", timeStyle:"short" }).format(new Date(value));
 const safeHttp = (url:string) => { try { return new URL(url).protocol === "https:"; } catch { return false; } };
 const verificationFor = (profile:Profile):VerificationFacts|null => Array.isArray(profile.verification) ? profile.verification[0] ?? null : profile.verification ?? null;
@@ -37,26 +37,31 @@ const modeLabel = (mode:WorkOffer["mode"]) => mode === "online" ? "Онлайн"
 const offerMeta = (offer:WorkOffer) => [modeLabel(offer.mode), offer.duration_minutes ? `${offer.duration_minutes} мин.` : null, offer.price !== null && offer.price !== undefined ? `${offer.price} ${offer.currency ?? ""}`.trim() : null].filter(Boolean).join(" · ");
 
 export default async function AdminPage({ searchParams }:{searchParams:Promise<{section?:string;status?:string;profileStatus?:string;profileSearch?:string;notice?:string}>}) {
+  unstable_noStore();
   const { section, status, profileStatus, profileSearch, notice } = await searchParams;
-  const { role } = await requireModerator();
-  const supabase = createSupabaseAdminClient();
-  let query = supabase.from("applications").select("id,full_name,contact,country,city,category_text,specialization,experience_years,profile_summary,description,help_topics,work_offers,services,links,recommendations,status,internal_notes,applicant_message,created_at,updated_at,resubmitted_at,main_image_path,gallery_paths,video_links").order("created_at", { ascending:false });
-  if (status && status in applicationStatusLabels) query = query.eq("status", status as ApplicationStatus);
-  else query = query.in("status", ["new", "screening", "info_required", "changes_requested", "call_required", "call_scheduled"]);
-  let profilesQuery = supabase.from("specialists").select("id,full_name,slug,status,city,verification:verifications(identity_checked,education_checked,experience_checked,qualifications_checked,references_checked,sources_checked),trust_badges:specialist_trust_badges(id,badge_id,source,assigned_at,admin_note,badge:trust_badges(id,code,title,description,icon,assignment_type,is_active,sort_order))").order("updated_at", { ascending:false });
-  if (profileStatus === "published") profilesQuery = profilesQuery.eq("status", "published");
-  if (profileStatus === "hidden") profilesQuery = profilesQuery.in("status", ["archived", "suspended"]);
-  if (profileStatus === "review") profilesQuery = profilesQuery.in("status", ["draft", "pending"]);
+  const { role, supabase } = await requireModerator();
+  const assurance = role === "admin" ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel() : null;
+  const adminAal2 = role === "admin" && !assurance?.error && assurance?.data.currentLevel === "aal2";
   const [{ data: applicationRows }, { data: profileRows }, { data: revisionRows }, { data: notificationRows }, { data: siteContentRow }, { data: trustBadgeRows }] = await Promise.all([
-    query,
-    profilesQuery,
-    supabase.from("specialist_revisions").select("id,owner_id,payload,status,moderator_comment,created_at,updated_at,specialist:specialists(id,owner_id,full_name,country,city,service_mode,category_id,additional_category_ids,specialization,experience_years,profile_summary,help_topics,work_offers,services,short_description,full_description,public_contact,portfolio_links,video_links,avatar_path,gallery_paths,recommendations)").order("updated_at", { ascending:false }),
-    supabase.from("email_notifications").select("id,event_type,recipient_email,status,attempts,last_error,created_at,sent_at").order("created_at", { ascending:false }).limit(30),
+    supabase.rpc("read_moderation_applications_v1", { p_limit: 200 }),
+    supabase.rpc("read_moderation_profiles_v1", { p_limit: 200 }),
+    supabase.rpc("read_moderation_revisions_v1", { p_limit: 200 }),
+    adminAal2 ? supabase.rpc("admin_read_email_delivery_v1", { p_limit: 30 }) : Promise.resolve({ data: [] }),
     role === "admin" ? supabase.from("site_content").select("brand_name,tagline,hero_title,hero_text,contact_email,about_text,rules_intro,privacy_text,seo_title,seo_description").eq("id", true).maybeSingle() : Promise.resolve({ data: null }),
     role === "admin" ? supabase.from("trust_badges").select("id,code,title,description,icon,assignment_type,is_active,sort_order").order("sort_order") : Promise.resolve({ data: [] }),
   ]);
-  const applications = (applicationRows ?? []) as Application[];
-  const profiles = (profileRows ?? []) as Profile[];
+  const allApplications = (applicationRows ?? []) as Application[];
+  const applications = status && status in applicationStatusLabels
+    ? allApplications.filter((application) => application.status === status as ApplicationStatus)
+    : allApplications.filter((application) => ["new", "screening", "info_required", "changes_requested", "call_required", "call_scheduled"].includes(application.status));
+  const allProfiles = (profileRows ?? []) as Profile[];
+  const profiles = profileStatus === "published"
+    ? allProfiles.filter((profile) => profile.status === "published")
+    : profileStatus === "hidden"
+      ? allProfiles.filter((profile) => ["archived", "suspended"].includes(profile.status))
+      : profileStatus === "review"
+        ? allProfiles.filter((profile) => ["draft", "pending"].includes(profile.status))
+        : allProfiles;
   const profileNeedle = (profileSearch ?? "").trim().toLocaleLowerCase("ru");
   const visibleProfiles = profileNeedle ? profiles.filter((profile) => `${profile.full_name} ${profile.city} ${profile.slug}`.toLocaleLowerCase("ru").includes(profileNeedle)) : profiles;
   const trustBadges = (trustBadgeRows ?? []) as TrustBadge[];
@@ -101,9 +106,9 @@ export default async function AdminPage({ searchParams }:{searchParams:Promise<{
     </article>)}</div>}
     <RevisionModeration revisions={pendingRevisions as never[]} canDelete={role === "admin"}/>
     <RevisionHistory revisions={finalizedRevisions.map((revision) => ({ id: revision.id, status: revision.status, updated_at: revision.updated_at, moderator_comment: revision.moderator_comment, specialist: revision.specialist ? { full_name: String(revision.specialist.full_name ?? "Профиль") } : null }))} canDelete={role === "admin"}/>
-    <h2>Сервисные письма</h2>
-    <p className="meta">Журнал показывает только статусы доставки и безопасную служебную информацию. Содержимое писем и внутренние заметки здесь не хранятся.</p>
-    {notifications.length ? <div className="admin-list">{notifications.map((notification) => <article className="card" key={notification.id}><div className="application-head"><div><h3>{notification.event_type}</h3><p className="meta">{notification.recipient_email} · {formatDate(notification.created_at)} · попыток: {notification.attempts}</p></div><span className="status">{notification.status}</span></div>{notification.sent_at && <p className="meta">Отправлено: {formatDate(notification.sent_at)}</p>}{notification.last_error && <p className="meta">Причина: {notification.last_error}</p>}{role === "admin" && ["failed", "cancelled"].includes(notification.status) && <form action={retryEmailNotification}><input type="hidden" name="notificationId" value={notification.id}/><button className="button secondary">Повторить отправку</button></form>}</article>)}</div> : <div className="notice">Пока нет сервисных писем.</div>}
+    {role === "admin" && <><h2>Сервисные письма</h2>
+    <p className="meta">Журнал показывает только статусы доставки. Адрес получателя, содержимое письма и необработанные ошибки исключены из read-контракта.</p>
+    {!adminAal2 ? <div className="notice">Для просмотра журнала доставки подтвердите второй фактор входа.</div> : notifications.length ? <div className="admin-list">{notifications.map((notification) => <article className="card" key={notification.id}><div className="application-head"><div><h3>{notification.event_type}</h3><p className="meta">{formatDate(notification.created_at)} · попыток: {notification.attempts}</p></div><span className="status">{notification.status}</span></div>{notification.sent_at && <p className="meta">Отправлено: {formatDate(notification.sent_at)}</p>}{notification.error_code && <p className="meta">Состояние: требуется проверка доставки</p>}{["failed", "cancelled"].includes(notification.status) && <form action={retryEmailNotification}><input type="hidden" name="notificationId" value={notification.id}/><button className="button secondary">Повторить отправку</button></form>}</article>)}</div> : <div className="notice">Пока нет сервисных писем.</div>}</>}
     <section className="admin-profiles" id="profiles">
       <h2>{profileStatus === "hidden" ? "Скрытые специалисты" : "Профили"}</h2>
       <nav className="admin-tabs" aria-label="Фильтр профилей"><a href="/admin#profiles">Все</a><a href="/admin?profileStatus=published#profiles">Опубликованные</a><a href="/admin?profileStatus=hidden#profiles">Скрытые специалисты</a><a href="/admin?profileStatus=review#profiles">На проверке</a><a href="/admin?status=rejected#applications">Отклонённые заявки</a></nav>

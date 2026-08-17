@@ -31,13 +31,13 @@
 | SEC-007 | High | Race создаёт дубли заявок | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-009 | High | Уязвимые production dependencies | Open — confirmed | yes |
-| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL_LOCAL_VERIFIED — mutation gate implemented; private reads/enrollment/recent-auth live open | yes |
+| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL LOCAL VERIFIED — mutation/read gates implemented; enrollment/recent-auth/session/config live open | yes |
 | SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | Open — partly live confirmed | yes |
 | SEC-012 | High | Нет проверяемого Git/CI/release provenance | Open — evidence gap | yes |
 | SEC-013 | High | Backup/restore не доказаны | Partially mitigated — Level 2 proven; config/cadence open | yes |
 | SEC-014 | High | Отсутствует Supabase SSR Proxy; причина старых reuse events гипотетична | Open — config confirmed | yes |
-| SEC-015 | Medium | Четыре SECURITY DEFINER public views | Open — confirmed live | yes |
-| SEC-016 | Medium | Избыточные grants/default ACL/RPC EXECUTE/search_path | Open — confirmed live | yes |
+| SEC-015 | Medium | Четыре SECURITY DEFINER public views | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
+| SEC-016 | Medium | Избыточные grants/default ACL/RPC EXECUTE/search_path | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
 | SEC-017 | Medium | Буферизация тела и media/resource abuse | Open — confirmed | yes |
 | SEC-018 | Medium | Audit trail и multi-write операции неатомарны | PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-019 | Medium | Недетерминированная supply chain и опасные remote E2E scripts | Open — confirmed | no |
@@ -46,7 +46,7 @@
 | SEC-022 | Medium | «Safe revision» определяется по длине, а не смыслу | Open — confirmed | no |
 | SEC-023 | Medium | RLS/index policy performance debt | Open — confirmed live | no |
 | SEC-024 | Low | CSP/logging residual risks | Open — confirmed | no |
-| SEC-025 | Medium | Live owner UPDATE вернулся на auth-mirrored `account_profiles` | Open — confirmed live drift | yes |
+| SEC-025 | Medium | Live owner UPDATE вернулся на auth-mirrored `account_profiles` | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
 | SEC-026 | Low | Public base `site_content.updated_by` раскрывает admin UUID | Open — confirmed live | no |
 
 ## 3. Подробные findings
@@ -184,7 +184,7 @@
 
 ### SEC-010 — Нет AAL2/MFA gate для модераторов и администраторов
 
-- **Severity / status:** High; Open — confirmed control gap; dashboard enrollment unknown.
+- **Severity / status:** High; `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; dashboard enrollment unknown.
 - **Область:** privileged access, session theft, vertical escalation.
 - **Объекты:** `src/lib/auth.ts:4-17`; все privileged Server Actions/routes; DB role helpers/policies.
 - **Доказательство — факт:** live pre-hardening backend не имеет доказанного MFA/AAL2/recent-auth enforcement. До P0-05 `requireModerator()` проверял только valid user и membership row, а privileged DB paths не проверяли AAL2.
@@ -192,8 +192,9 @@
 - **Ущерб / вероятность:** массовая integrity/privacy compromise; вероятность средняя, impact высокий.
 - **Исправление:** обязательное MFA enrollment privileged accounts; `aal2` + recent-auth check на каждом privileged server boundary и в sensitive DB RPC/policy; recovery/admin bootstrap procedure.
 - **Локальная реализация P0-05:** sensitive admin mutations теперь дважды gated: server получает текущий Auth assurance level, а named DB functions требуют current admin membership и signed JWT `aal2`. Real local TOTP AAL1 denial/AAL2 positive paths, direct DML/RPC bypass and stale membership mutation denial PASS. Moderator AAL1 допускается только для утверждённого narrow moderation subset.
-- **Остаётся открытым:** mandatory enrollment/recovery, recent-auth semantics, privileged private-read gate, downgrade/expired/revoked multi-tab behavior and live Auth Dashboard configuration. Поэтому SEC-010 остаётся launch blocker и не считается полностью исправленным.
-- **Тесты:** mutation slice прошёл два одинаковых clean-room run (108 PASS / 16 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP). Полный target всё ещё требует AAL1 deny/AAL2 succeeds для private reads, enrollment/recovery и expired/downgraded/revoked sessions.
+- **Локальная реализация P0-09:** moderator queues теперь читаются только через bounded exact projections с current-membership recheck. Email delivery metadata требует signed AAL2 и исключает recipient/body/template/raw error; direct base queue reads закрыты. Revoked-role read и real local TOTP AAL1 deny/AAL2 allow PASS; privileged responses no-store.
+- **Остаётся открытым:** mandatory enrollment/recovery, recent-auth semantics, full Auth session downgrade/revocation and multi-tab behavior, and live Auth Dashboard configuration. Поэтому SEC-010 остаётся launch blocker и не считается полностью исправленным.
+- **Тесты:** P0-09 final x2: 183 PASS / 5 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP; cleanup PASS. Локальные privileged-read cases PASS, но operational/Dashboard scope не моделируется как PASS.
 - **Rollback/forward-fix:** staged enrollment с break-glass account, журналом и сроком; не отключать gate из-за одного потерянного factor — использовать audited recovery.
 - **Launch blocker:** yes. **Уверенность:** High для отсутствия code gate; Low для dashboard enrollment state.
 
@@ -251,7 +252,7 @@
 
 ### SEC-015 — SECURITY DEFINER public views
 
-- **Severity / status:** Medium; Open — confirmed live.
+- **Severity / status:** Medium; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; live remains unchanged.
 - **Область:** public data projections, RLS bypass, Supabase Advisor.
 - **Объекты:** `published_reviews`, `published_specialists`, `published_specialist_verification_facts`, `published_specialist_trust_badges`.
 - **Доказательство — факт:** все четыре PostgreSQL-owned, `security_invoker=false`, `security_barrier=true`, доступны anon/auth и дают четыре Advisor ERROR. Текущие definitions имеют узкие columns/status filters; прямой data leak не найден.
@@ -259,12 +260,13 @@
 - **Ущерб / вероятность:** latent массовая privacy leak; вероятность средняя при schema evolution.
 - **Исправление:** спроектировать public projection boundary с минимальными grants; по возможности `security_invoker=true` при подходящих underlying policies либо изолированная API schema/controlled function; contract tests exact columns/filters.
 - **Тесты:** anon schemasnapshot, forbidden column names/rows, unpublished/blocked/private records, owner/base grants; Advisor review.
+- **Локальная реализация:** четыре fixed-column private projections сохраняют публикационные filters; public views переведены на invoker+barrier без открытия base tables. Future private column и exact-column tests PASS; target Advisor ERROR 4→0.
 - **Rollback/forward-fix:** сначала параллельные v2 views и callers; не открывать private base tables anon. Rollback на предыдущую проверенную view definition.
 - **Launch blocker:** yes для public release/zero-ERROR gate. **Уверенность:** High.
 
 ### SEC-016 — Избыточные ACL, function EXECUTE и mutable search_path
 
-- **Severity / status:** Medium; Open — confirmed live.
+- **Severity / status:** Medium; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; live remains unchanged.
 - **Область:** least privilege, RPC, future schema drift.
 - **Объекты:** live default ACL; 18 SECURITY DEFINER functions; 8 advisor search-path functions; broad table grants.
 - **Доказательство — факт:** default ACL выдаёт future public tables широкие API privileges и future functions EXECUTE. 10 definer functions executable anon, 11 authenticated. Несколько trigger/internal functions видны как RPC. Большинство bodies имеют checks/trigger-only semantics; рабочий exploit не доказан. `public` schema даёт PUBLIC USAGE, но не CREATE, что снижает search-path exploitability.
@@ -277,6 +279,9 @@
 | SECURITY DEFINER `EXECUTE` для anon и authenticated | `public.enqueue_application_email`, `public.enqueue_profile_hidden_email`, `public.enqueue_revision_email`, `public.is_admin`, `public.is_moderator`, `public.record_application_event`, `public.request_specialist_revision_changes`, `public.return_owner_changes_to_moderation`, `public.sync_account_profile`, `public.sync_published_verified_badge` |
 | Дополнительно `EXECUTE` для authenticated | `public.apply_specialist_revision` |
 | Broad default ACL | ACL owners `postgres` и `supabase_admin`: будущие public tables автоматически получают широкие privileges для API roles, будущие functions — `EXECUTE`; точный catalog snapshot должен стать CI artefact |
+
+- **Локальная реализация:** existing public functions are revoke-all then exact-grant; internal/trigger/service functions are not client-callable; definer paths are fixed; creator/schema table/sequence defaults and global function defaults are deny-by-default. Versioned API manifest rejects an unregistered public view or client function. Future-object probes for both creators PASS.
+- **Локальные тесты:** P0-09 final x2: 183 PASS / 5 unrelated XFAIL; `CAT-003/004/005` and P009 function/default/manifest cases PASS; DB lint 0/0/0.
 
 - **Сценарий:** новая таблица/функция автоматически становится Data API surface; забытая definer function вызывается напрямую; object shadowing влияет на mutable path при дополнительной ошибке привилегий.
 - **Ущерб / вероятность:** расширение API/privilege escalation; вероятность средняя со временем.
@@ -309,7 +314,8 @@
 - **Исправление:** один transactional RPC на business transition; immutable append-only audit с explicit actor ID/request ID/before-after; fail closed; idempotent email event; удалить dead exported actions.
 - **Тесты:** fault injection audit/email/write; вся transaction rolls back; concurrency; actor attribution; no audit-only success.
 - **Локальная реализация:** P0-07 adds authoritative operation/actor fields, private allowlisted domain events, atomic enqueue, leased worker claim/ACK and direct client mutation closure for application workflow records. Fake transport verifies retry and send-before-ACK semantics.
-- **Остаток:** `AUDIT-004` remains XFAIL for SEC-010/018 queue-read/AAL2 exposure; immutable audit coverage for every unrelated privileged action, monitoring, scheduler and provider-level deduplication remain separate work. External delivery is at-least-once, not exactly-once.
+- **Локальная реализация P0-09:** `AUDIT-004` now PASS. Direct moderator/AAL1 admin base-queue reads are denied; only the AAL2 minimized delivery projection is available, with current membership revalidation and no recipient/content/raw-error exposure.
+- **Остаток:** immutable audit coverage for every unrelated privileged action, monitoring, scheduler and provider-level deduplication remain separate work. External delivery is at-least-once, not exactly-once.
 - **Rollback/forward-fix:** dual-read/verify new audit, затем switch; старые записи не переписывать без provenance marker.
 - **Launch blocker:** yes для privileged public launch. **Уверенность:** High.
 
@@ -402,7 +408,7 @@ Advisor remediation reference: [Supabase Database Linter](https://supabase.com/d
 
 ### SEC-025 — Live drift вернул owner UPDATE auth-mirrored профиля
 
-- **Severity / status:** Medium; Open — confirmed live schema drift.
+- **Severity / status:** Medium; `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; confirmed live drift remains until deployment.
 - **Область:** account identity mirror, transactional email integrity, migration drift.
 - **Объекты:** `public.account_profiles`; policy `Users update own account profile`; `supabase/migrations/202607300001_security_hardening.sql:24-26`; `enqueue_application_email()`, `enqueue_revision_email()`, `enqueue_profile_hidden_email()`.
 - **Доказательство — факт:** live `authenticated` имеет UPDATE, а live policy разрешает владельцу обновлять всю собственную строку с колонками `id,email,display_name,avatar_url,created_at,updated_at`. Recorded migration `202607300001` содержит и в history, и локально явный `DROP POLICY "Users update own account profile"`, но policy снова существует live. Email trigger functions выбирают recipient из `account_profiles.email`. Причина повторного создания после recorded migration не установлена.
@@ -410,6 +416,7 @@ Advisor remediation reference: [Supabase Database Linter](https://supabase.com/d
 - **Ущерб / вероятность:** нарушение целостности identity/notification channel, раскрытие содержания собственных workflow сообщений третьей стороне, abuse репутации email; вероятность высокая для владельца своей строки, impact medium.
 - **Исправление:** отдельной reviewed forward migration повторно revoke authenticated UPDATE/drop policy; изменять mirror только trusted `sync_account_profile`/Auth-trigger path с exact field allowlist. Провести полный live catalog drift diff и установить источник recreation.
 - **Тесты:** owner direct UPDATE каждой колонки deny; trusted Auth email sync succeeds и совпадает с verified Auth identity; user B deny; queued recipient берётся только из authoritative value; catalog diff после deploy.
+- **Локальная реализация:** owner DML and broad projection revoked; own six-column read is explicit. `sync_account_profile` accepts identity only from the Auth trigger and checks a versioned field registry. Owner email/future-field deny, foreign deny and trusted Auth email-sync/restore PASS in two clean-room runs.
 - **Rollback/forward-fix:** только forward-fix после проверки sync caller; rollback не должен возвращать owner email UPDATE. При несовместимости временно остановить email enqueue и исправить trusted sync, а не открыть policy.
 - **Launch blocker:** yes до реальных transactional messages. **Уверенность:** High.
 

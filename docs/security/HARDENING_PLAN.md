@@ -261,7 +261,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Нет AAL2/MFA gate для privileged actions.
 - **Severity:** High; launch blocker.
 - **Affected components:** Auth, moderator/admin routes/actions, privileged RPC/policy boundary.
-- **Current evidence:** P0-05 локально добавил server + DB AAL2 gate для sensitive admin mutations и current database role checks. Privileged reads, mandatory enrollment/recovery, recent-auth и live Dashboard configuration остаются недоказанными.
+- **Current evidence:** P0-05 locally added server + DB AAL2 gates for sensitive mutations. P0-09 adds current-membership narrow moderation reads, AAL2-only minimized email-delivery reads, stale-role denial and no-store source boundaries. Mandatory enrollment/recovery, recent-auth, full session downgrade/revocation and live Dashboard state remain unproven.
 - **Threat:** Украденная AAL1 session получает immediate privileged access.
 - **Expected secure behavior:** Обязательное enrollment/recovery и fresh AAL2 на каждом privileged server и sensitive DB boundary; direct REST/RPC bypass невозможен.
 - **Files likely affected:** `src/lib/auth.ts`, privileged routes/actions, session helpers и Auth tests.
@@ -270,7 +270,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Staged enrollment с audited break-glass/recovery; нельзя просто отключать gate при потере factor.
 - **Risk of fixing:** Высокий operational risk — неверный rollout может lock out administrators.
 - **Dependencies:** P0-02/P0-05, staging privileged accounts, recovery process, Auth settings access, SSR session design.
-- **Status:** `PARTIAL_LOCAL_VERIFIED`; mutation slice PASS в двух clean-room runs, но finding остаётся launch blocker до private-read/session/enrollment coverage и pre-launch deployment.
+- **Status:** `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; local mutation and privileged-read slices PASS, but session/enrollment/configuration scope and deployment remain launch blockers.
 
 ### SEC-011 — Leaked-password/Auth abuse controls
 
@@ -349,7 +349,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Public views работают с definer semantics.
 - **Severity:** Medium; launch blocker.
 - **Affected components:** Public projections, base-table RLS boundary, Supabase Advisor.
-- **Current evidence:** Четыре PostgreSQL-owned views имеют `security_invoker=false`, доступны anon/auth и создают Advisor errors; текущая фактическая утечка не доказана.
+- **Current evidence:** live/pre-hardening evidence has four definer views and four Advisor errors. P0-09 locally replaces them with invoker+barrier views over private exact-column definer projections without opening base tables.
 - **Threat:** Будущее изменение view незаметно exposes private rows/columns в обход RLS.
 - **Expected secure behavior:** Exact minimal public projection через проверенный invoker/API-schema/controlled-function design без broad base grants.
 - **Files likely affected:** Future forward migration, public callers и projection contract tests.
@@ -358,7 +358,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Parallel v2 projection, caller switch, затем revoke; не открывать private base tables для совместимости.
 - **Risk of fixing:** Высокий при механическом изменении — invoker может сломать reads или спровоцировать broad grants.
 - **Dependencies:** P0-02/P1-01, exact public contract, coordinated caller migration.
-- **Status:** Open — confirmed live; leak not demonstrated.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; final x2 exact catalog/future-column tests PASS and target Advisor ERROR is 0. Live remains unchanged.
 
 ### SEC-016 — ACL/RPC EXECUTE/search_path
 
@@ -366,7 +366,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Избыточные grants/default ACL/RPC EXECUTE и mutable search_path.
 - **Severity:** Medium; launch blocker.
 - **Affected components:** Database least privilege, SECURITY DEFINER functions, future schema defaults.
-- **Current evidence:** Broad default ACL, 18 definer functions, anon/auth-callable internal functions и восемь mutable-search-path warnings; direct exploit не доказан.
+- **Current evidence:** live/pre-hardening has broad defaults, client-callable internal functions and mutable paths. P0-09 locally applies creator-aware default deny, exact EXECUTE grants, fixed paths and an API-surface manifest.
 - **Threat:** Новый object автоматически становится API surface либо забытый definer RPC остаётся callable.
 - **Expected secure behavior:** Opt-in default privileges, exact EXECUTE allowlist, fixed/empty search_path, qualified references и catalog drift gate.
 - **Files likely affected:** Forward ACL/function migrations, catalog snapshots и DB role tests.
@@ -375,7 +375,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** До revoke exact inventory; small forward migration; восстанавливать только конкретный required grant, никогда `GRANT ALL`.
 - **Risk of fixing:** Высокий — careless revoke ломает trigger/internal caller; broad rollback снова открывает surface.
 - **Dependencies:** P0-02 reproducible DB baseline, exact caller inventory, full role matrix.
-- **Status:** Open — confirmed live; workflow P1, but early roadmap control.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; both creator probes and two final full role-matrix runs PASS. Live remains unchanged.
 
 ### SEC-017 — Resource abuse/body buffering
 
@@ -400,7 +400,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Audit trail и multi-write actions неатомарны.
 - **Severity:** Medium; launch blocker.
 - **Affected components:** Admin actions, audit/events, state mutations, email outbox, actor attribution.
-- **Current evidence:** Pre-fix application workflow lacked one authoritative operation identity and worker leases. P0-07 locally closes that scope; broader privileged-read, unrelated-action and operations coverage remains open.
+- **Current evidence:** P0-07 locally closes atomic application/revision/event/audit/outbox and worker leases. P0-09 closes the local queue-read/AAL2 exposure; unrelated-action audit and operational monitoring remain open.
 - **Threat:** Partial failure оставляет inconsistent state без достоверного forensic record либо audit-only success.
 - **Expected secure behavior:** One transactional mutation атомарно пишет immutable before/after audit с explicit actor/request ID и idempotent outbox.
 - **Files likely affected:** `src/app/admin/actions.ts`, audit/email callers, dead exported actions и fault/concurrency tests.
@@ -409,7 +409,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Versioned transactional path и dual verification; historical records не переписываются без provenance marker.
 - **Risk of fixing:** Высокий — transaction refactor может изменить workflow semantics или actor identity.
 - **Dependencies:** SEC-003/SEC-008 state machine, stable actor/request contract, idempotent email design.
-- **Status:** `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. Application/revision state, domain event, audit and outbox atomicity plus worker lease/retry are locally verified. `AUDIT-004`, all-actions audit immutability, monitoring/scheduler and provider duplicate-delivery residual remain open.
+- **Status:** `PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`. `AUDIT-004` now PASS; all-actions audit completeness, monitoring/scheduler and provider duplicate-delivery residual remain open.
 
 ### SEC-019 — Supply-chain/E2E safety
 
@@ -519,7 +519,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Live drift вернул owner UPDATE auth-mirrored account profile.
 - **Severity:** Medium; launch blocker due confirmed live integrity boundary.
 - **Affected components:** `account_profiles`, Auth mirror, notification recipient integrity, migration drift.
-- **Current evidence:** Owner UPDATE policy live, хотя recorded migration её удаляла; owner может менять mirrored email, используемый email enqueue functions; источник recreation неизвестен.
+- **Current evidence:** live UPDATE drift remains confirmed and its recreation source is unknown. P0-09 locally removes owner DML, grants a fixed six-column read, and makes Auth-trigger sync fail closed on an unregistered identity field.
 - **Threat:** Owner перенаправляет workflow email на arbitrary/third-party address и нарушает verified-identity boundary.
 - **Expected secure behavior:** Только trusted Auth-trigger sync меняет exact mirrored fields; recipient берётся из authoritative verified identity; catalog drift gate обнаруживает возврат policy.
 - **Files likely affected:** New reviewed forward migration, trusted sync/email callers и drift tests; applied migration не переписывается.
@@ -528,7 +528,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Revoke только после proving sync; при incompatibility остановить enqueue/fix sync, не возвращать owner email UPDATE.
 - **Risk of fixing:** Высокий operational risk — premature revoke ломает profile/email synchronization.
 - **Dependencies:** P0-02/P0-04A, source-of-drift investigation, Auth fixtures, catalog monitor.
-- **Status:** Open — confirmed live schema drift; tests not run.
+- **Status:** `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`; owner/future-field deny and trusted local Auth sync PASS twice. Live remains unchanged.
 
 ### SEC-026 — Public operational actor UUID
 

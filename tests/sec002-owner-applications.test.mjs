@@ -37,12 +37,17 @@ test('owner-facing source uses only owner_applications_v1', () => {
   }
 });
 
-test('trusted moderation source uses the server-only client and explicit application fields', () => {
+test('trusted moderation source uses current-session narrow read RPCs without a page service client', () => {
   const page = read('src/app/admin/page.tsx');
   const actions = read('src/app/admin/actions.ts');
-  assert.match(page, /const supabase = createSupabaseAdminClient\(\)/);
-  assert.doesNotMatch(page, /from\("applications"\)\.select\("\*"\)/);
-  assert.match(page, /from\("applications"\)\.select\("[^"]*internal_notes[^"]*"\)/);
+  assert.doesNotMatch(page, /createSupabaseAdminClient/);
+  assert.match(page, /unstable_noStore\(\)/);
+  assert.match(page, /rpc\("read_moderation_applications_v1"/);
+  assert.match(page, /rpc\("read_moderation_profiles_v1"/);
+  assert.match(page, /rpc\("read_moderation_revisions_v1"/);
+  assert.match(page, /rpc\("admin_read_email_delivery_v1"/);
+  assert.doesNotMatch(page, /from\("applications"\)/);
+  assert.doesNotMatch(page, /from\("email_notifications"\)/);
   assert.match(actions, /const admin = createSupabaseAdminClient\(\);[\s\S]*?admin\.from\("applications"\)\.select\("status,workflow_version,owner_id,main_image_path,gallery_paths,updated_at"\)/);
   assert.match(actions, /approve_application_with_canonical_media_v3/);
 });

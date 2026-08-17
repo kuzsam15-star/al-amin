@@ -335,3 +335,27 @@ DB-05/06/22 remain open pending consolidated pre-launch deployment.
 
 Evidence: `docs/security/changes/SEC-004_SAFE_FEEDBACK_GATEWAY.md` and
 `docs/security/SEC-004_LOCAL_VERIFICATION.md`.
+
+### 10.4 P0-09 catalog, identity and privileged-read closure
+
+Two independent red-phase runs matched at **161 PASS / 27 XFAIL / 0 XPASS /
+0 FAIL / 0 SKIP**. Fifteen new expectations reproduced only the approved
+SEC-010/015/016/018/025 scope; together with seven pre-existing cases, the
+target delta was 22 XFAIL.
+
+After the P0-09 forward migration and caller changes, two fresh disposable
+runs matched at **183 PASS / 5 unrelated XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**.
+The remaining ledger contains only SEC-017 (`CAT-008`, `STORAGE-007..009`) and
+SEC-026 (`CONTENT-004`). Catalog projections, function/default ACLs,
+`account_profiles` identity fields, current membership, real local TOTP AAL2,
+and private no-store reads now PASS. Database lint is 0/0/0; security advisors
+improved from 4 ERROR / 8 WARN / 2 INFO to 0 ERROR / 8 WARN / 2 INFO. Cleanup
+passed for both projects.
+
+The existing Node suite is **147/147 PASS**, typecheck passes, and ESLint has
+zero errors (12 pre-existing warnings). SEC-010 remains partial for
+enrollment/recovery, recent-auth, complete Auth session revocation and
+Dashboard configuration. SEC-018 remains partial for wider operational audit,
+monitoring and hosting/runtime evidence. Remote Supabase was not contacted.
+Evidence: `docs/security/changes/P0-09_CATALOG_IDENTITY_PRIVILEGED_READ_CLOSURE.md`
+and `docs/security/P0-09_LOCAL_VERIFICATION.md`.

@@ -2,17 +2,10 @@
   "format_version": 1,
   "baseline": "alamin-no-data-v1-pre-hardening",
   "entries": {
-    "CAT-002": ["SEC-015"],
-    "CAT-003": ["SEC-016"],
-    "CAT-004": ["SEC-016"],
-    "CAT-005": ["SEC-016"],
-    "CAT-006": ["SEC-025"],
     "CAT-008": ["SEC-017"],
-    "PROFILE-001": ["SEC-025"],
     "STORAGE-007": ["SEC-017"],
     "STORAGE-008": ["SEC-017"],
     "STORAGE-009": ["SEC-017"],
-    "CONTENT-004": ["SEC-026"],
-    "AUDIT-004": ["SEC-010", "SEC-018"]
+    "CONTENT-004": ["SEC-026"]
   }
 }
