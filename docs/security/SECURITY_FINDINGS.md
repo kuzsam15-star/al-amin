@@ -26,28 +26,28 @@
 | SEC-002 | High | Владелец заявки читает moderator-only колонки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-003 | High | Модератор обходит admin-only transitions/protected fields | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-004 | High | Прямой anonymous INSERT отзывов/жалоб и spam bypass | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
-| SEC-005 | High | Stale и нереплейный database bootstrap | Open — confirmed | yes |
+| SEC-005 | High | Stale и нереплейный database bootstrap | PROVEN LOCAL — frozen baseline + ordered forward bundle; remote drift gate pending | yes |
 | SEC-006 | High | Media cleanup fail open и удаляет используемые объекты | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT — live open | yes |
 | SEC-007 | High | Race создаёт дубли заявок | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
 | SEC-008 | High | Race решений оставляет опубликованный профиль у rejected заявки | IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
-| SEC-009 | High | Уязвимые production dependencies | Open — confirmed | yes |
-| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL LOCAL VERIFIED — mutation/read gates implemented; enrollment/recent-auth/session/config live open | yes |
-| SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | Open — partly live confirmed | yes |
-| SEC-012 | High | Нет проверяемого Git/CI/release provenance | Open — evidence gap | yes |
-| SEC-013 | High | Backup/restore не доказаны | Partially mitigated — Level 2 proven; config/cadence open | yes |
-| SEC-014 | High | Отсутствует Supabase SSR Proxy; причина старых reuse events гипотетична | Open — config confirmed | yes |
+| SEC-009 | High | Уязвимые production dependencies | IMPLEMENTED LOCAL VERIFIED — audit 0 Critical/High/Moderate; release recheck pending | yes |
+| SEC-010 | High | Нет AAL2/MFA gate для привилегированных действий | PARTIAL LOCAL VERIFIED — gates + enrollment path; Dashboard/recovery/session decisions pending | yes |
+| SEC-011 | Medium | Leaked-password и public Auth abuse controls не доказаны | PENDING CONSOLIDATED REMOTE CONFIGURATION | yes |
+| SEC-012 | High | Нет проверяемого Git/CI/release provenance | PARTIAL LOCAL VERIFIED — frozen gate/manifests; hosting/deploy attestation pending | yes |
+| SEC-013 | High | Backup/restore не доказаны | RECOVERY LEVEL 3 PROVEN — fresh deployment generation/cadence pending | yes |
+| SEC-014 | High | Отсутствует Supabase SSR Proxy; причина старых reuse events гипотетична | IMPLEMENTED LOCAL — hosted session canary/log evidence pending | yes |
 | SEC-015 | Medium | Четыре SECURITY DEFINER public views | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
 | SEC-016 | Medium | Избыточные grants/default ACL/RPC EXECUTE/search_path | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
-| SEC-017 | Medium | Буферизация тела и media/resource abuse | Open — confirmed | yes |
+| SEC-017 | Medium | Буферизация тела и media/resource abuse | IMPLEMENTED LOCAL VERIFIED — hosting ingress proof pending under SEC-020 | yes |
 | SEC-018 | Medium | Audit trail и multi-write операции неатомарны | PARTIALLY_IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT | yes |
-| SEC-019 | Medium | Недетерминированная supply chain и опасные remote E2E scripts | Open — confirmed | no |
-| SEC-020 | Medium | HTTP/cookie/edge security зависит от недоказанной конфигурации | Open — confirmed + unverified | yes |
-| SEC-021 | Medium | Observability, retention и incident response неполны | Open — confirmed evidence gap | yes |
+| SEC-019 | Medium | Недетерминированная supply chain и опасные remote E2E scripts | PROVEN LOCAL — pinned graph and fail-closed release tooling | no |
+| SEC-020 | Medium | HTTP/cookie/edge security зависит от недоказанной конфигурации | DEFERRED UNTIL FIRST HOSTING DEPLOYMENT | yes |
+| SEC-021 | Medium | Observability, retention и incident response неполны | PARTIAL LOCAL — runbooks/worker safety; operational monitoring/retention pending | yes |
 | SEC-022 | Medium | «Safe revision» определяется по длине, а не смыслу | Open — confirmed | no |
 | SEC-023 | Medium | RLS/index policy performance debt | Open — confirmed live | no |
 | SEC-024 | Low | CSP/logging residual risks | Open — confirmed | no |
 | SEC-025 | Medium | Live owner UPDATE вернулся на auth-mirrored `account_profiles` | IMPLEMENTED LOCAL VERIFIED — pending backend deployment | yes |
-| SEC-026 | Low | Public base `site_content.updated_by` раскрывает admin UUID | Open — confirmed live | no |
+| SEC-026 | Low | Public base `site_content.updated_by` раскрывает admin UUID | IMPLEMENTED LOCAL VERIFIED — exact public column grant; live open | no |
 
 ## 3. Подробные findings
 
@@ -462,3 +462,9 @@ Advisor remediation reference: [Supabase Database Linter](https://supabase.com/d
 - Lockfile содержит integrity hashes; 85 локальных тестов проходят.
 
 Положительные наблюдения не снижают severity подтверждённых bypass paths и не являются доказательством готовности к публичному запуску.
+
+## 6. P0-10 local closure note
+
+P0-10 converted the final five role-matrix XFAIL to PASS: four SEC-017 resource/media expectations and SEC-026 `CONTENT-004`. Two independent final runs matched at **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**. SEC-017 is locally implemented; edge ingress/WAF evidence remains SEC-020 and cannot be proved before hosting. SEC-026 uses an exact anonymous column grant that excludes `updated_by` and is not accepted as residual risk.
+
+SEC-010/011/012/014/018/020/021 retain their explicitly classified remote, hosting or operational gates in `PRELAUNCH_SECURITY_FINAL_STATUS.md`. Dependency remediation SEC-009 is frozen at commit `8d38496de8353ade809350a0453013c22e060b8a`, with production/full audit at 0 Critical / 0 High / 0 Moderate. No remote configuration was changed.

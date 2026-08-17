@@ -1,0 +1,116 @@
+{
+  "format_version": 1,
+  "generated_at": "2026-08-17",
+  "execution_model": "verified bootstrap baseline followed by this exact ordered list",
+  "remote_execution_performed": false,
+  "migrations": [
+    {
+      "path": "supabase/forward-migrations/202608110001_sec001_immutable_published_media.sql",
+      "timestamp": "202608110001",
+      "sha256": "28cd011096257c6203a2e77464e338f8c769b79743debe1099091034e55a1a0a",
+      "order": 1,
+      "dependencies": ["verified-pre-hardening-baseline"],
+      "expected_objects": ["published media provenance", "canonical publication primitives", "submission/canonical Storage policies"],
+      "preflight": "inventory mutable published references and verify Storage accessibility read-only",
+      "post_apply_verification": "SEC-001 Phase A role matrix and canonical copy/hash assertions",
+      "forward_fix_class": "additive-phase-a",
+      "findings": ["SEC-001"]
+    },
+    {
+      "path": "supabase/forward-migrations/202608110002_sec001_enforce_canonical_published_media.sql",
+      "timestamp": "202608110002",
+      "sha256": "25d8667718dd26aa20da3c41088b3d5fc21fe4298cf4f5451aaa0d4982597282",
+      "order": 2,
+      "dependencies": ["order-1", "successful SEC-001 backfill", "zero non-canonical published references"],
+      "expected_objects": ["canonical path constraints"],
+      "preflight": "backfill dry-run/apply and canonical coverage must both pass",
+      "post_apply_verification": "Phase B constraints validated and public media canary passes",
+      "forward_fix_class": "enforcement-phase-b-no-blind-rollback",
+      "findings": ["SEC-001"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260813154850_sec002_owner_safe_applications_projection.sql",
+      "timestamp": "20260813154850",
+      "sha256": "f375871d1c754fa03321dea7c1060fb326c09ea79351580e0f71028061d881c1",
+      "order": 3,
+      "dependencies": ["order-2"],
+      "expected_objects": ["owner-safe applications projection and RPCs"],
+      "preflight": "application status/cardinality inventory",
+      "post_apply_verification": "owner projection positive/negative role matrix",
+      "forward_fix_class": "projection-forward-fix",
+      "findings": ["SEC-002"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260813163013_sec003_moderator_admin_boundary.sql",
+      "timestamp": "20260813163013",
+      "sha256": "15412893f5464d446893b9f94189d8c13a7de9a53e0790c14c06f25eaba3b765",
+      "order": 4,
+      "dependencies": ["order-3"],
+      "expected_objects": ["named moderation/admin RPCs", "AAL2 mutation boundary"],
+      "preflight": "moderator/admin membership and function ACL inventory",
+      "post_apply_verification": "AAL1 deny, real local AAL2 positive, revoked-role deny",
+      "forward_fix_class": "named-rpc-forward-fix",
+      "findings": ["SEC-003", "SEC-010"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260813202524_sec004_safe_feedback_gateway.sql",
+      "timestamp": "20260813202524",
+      "sha256": "8319f59bd66a9790673ffac1cdfd260f775db77ddc93434b106b5adc90fb416b",
+      "order": 5,
+      "dependencies": ["order-4"],
+      "expected_objects": ["private feedback abuse ledger", "service-only feedback RPC"],
+      "preflight": "feedback grants, policies and target inventory",
+      "post_apply_verification": "origin/CAPTCHA/rate/idempotency role matrix",
+      "forward_fix_class": "gateway-forward-fix",
+      "findings": ["SEC-004"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260814005517_p007_atomic_application_workflows.sql",
+      "timestamp": "20260814005517",
+      "sha256": "1049f9219342afa67ce0a0959140713c280ca1de5339074f9fad4016bcb5c370",
+      "order": 6,
+      "dependencies": ["order-5"],
+      "expected_objects": ["atomic application/revision RPCs", "domain events", "audit/outbox leases"],
+      "preflight": "duplicate/idempotency/outbox state inventory",
+      "post_apply_verification": "race/failure injection and fake email worker tests",
+      "forward_fix_class": "transactional-forward-fix",
+      "findings": ["SEC-007", "SEC-008", "SEC-018"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260816020000_sec006_fail_closed_media_cleanup.sql",
+      "timestamp": "20260816020000",
+      "sha256": "17f9fffdbad793ffb07e64b98765b6b4e73b0729941740d865e9226db3749afe",
+      "order": 7,
+      "dependencies": ["order-6"],
+      "expected_objects": ["private cleanup ledger", "reference registry", "claim/ack primitives"],
+      "preflight": "media reference/provenance inventory; worker remains disabled",
+      "post_apply_verification": "report-only cleanup, active-reference and failure injection tests",
+      "forward_fix_class": "worker-disabled-by-default",
+      "findings": ["SEC-006"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260817090000_p009_catalog_identity_privileged_reads.sql",
+      "timestamp": "20260817090000",
+      "sha256": "b64ba5df1f819105ab528003544d5b9bdda987e1733cf922438a5036c94ecae6",
+      "order": 8,
+      "dependencies": ["order-7"],
+      "expected_objects": ["safe public projections", "API surface manifest", "account identity RPC", "privileged read RPCs", "default-deny privileges"],
+      "preflight": "view/function/default ACL and account drift inventory",
+      "post_apply_verification": "catalog/identity/AAL2 reads and future-object probes",
+      "forward_fix_class": "acl-projection-forward-fix",
+      "findings": ["SEC-010", "SEC-015", "SEC-016", "SEC-018", "SEC-025"]
+    },
+    {
+      "path": "supabase/forward-migrations/20260817103731_p010_resource_auth_release_controls.sql",
+      "timestamp": "20260817103731",
+      "sha256": "815f4cd16ea62b0d3d8fb46ace7a91de08434e046d89006b17adca371d54a9fa",
+      "order": 9,
+      "dependencies": ["order-8"],
+      "expected_objects": ["submission media provenance", "service-only registration", "SEC-026 column-minimized grant", "cleanup registry v9"],
+      "preflight": "profile-media ownership, object MIME/size and site_content grant inventory",
+      "post_apply_verification": "resource, provenance, cleanup and CONTENT-004 assertions",
+      "forward_fix_class": "provenance-and-column-grant-forward-fix",
+      "findings": ["SEC-017", "SEC-026"]
+    }
+  ]
+}

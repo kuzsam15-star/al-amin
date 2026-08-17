@@ -110,6 +110,24 @@ test("configuration rehearsal evidence records two-run safe boundaries", async (
   assert.equal(manifest.validation.complete_project_loss_walkthrough, "PASS");
 });
 
+test("pre-launch Auth and resource hardening is explicit and still pending remote action", async () => {
+  const manifest = await loadManifest();
+  const hardening = manifest.prelaunch_hardening;
+
+  assert.equal(hardening.status, "PENDING_CONSOLIDATED_REMOTE_CONFIGURATION");
+  assert.equal(hardening.remote_configuration_mutated, false);
+  assert.ok(hardening.auth_dashboard_actions.length >= 8);
+  assert.ok(hardening.auth_dashboard_actions.every(({ path, desired, launch_blocker, verification }) =>
+    typeof path === "string" && desired !== undefined && launch_blocker === true && typeof verification === "string"));
+  assert.deepEqual(hardening.application_resource_limits.acknowledgement, {
+    name: "ALAMIN_RESOURCE_LIMITS_ACK",
+    value: "v1",
+    launch_blocker: true,
+  });
+  assert.equal(hardening.application_resource_limits.limits.ALAMIN_IMAGE_MAX_FRAMES, 1);
+  assert.equal(hardening.application_resource_limits.limits.ALAMIN_PUBLIC_CATALOG_MAX_ROWS, 100);
+});
+
 test("manifest contains no common credential material", async () => {
   const raw = await readFile(manifestPath, "utf8");
   const forbidden = [

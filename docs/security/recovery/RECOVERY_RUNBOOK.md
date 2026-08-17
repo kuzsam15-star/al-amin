@@ -189,3 +189,19 @@ Revoke temporary source credentials, delete target credentials, securely delete
 plaintext temporary files, retain encrypted artifacts according to policy, and
 remove only the named isolated target after the owner confirms evidence capture.
 Never use broad Docker, cloud-project, Storage, or filesystem pruning.
+
+## 10. P0-10 pre-launch configuration overlay
+
+Before the consolidated backend window, reconcile the `prelaunch_hardening`
+section of `CONFIG_RECOVERY_MANIFEST.json`. It contains desired Auth Dashboard
+actions and bounded non-secret resource values; `remote_configuration_mutated`
+must remain false until the owner-approved window. Re-enter secrets only through
+their named Dashboard/provider/deployment stores.
+
+For a production application runtime, set the reviewed resource values and
+`ALAMIN_RESOURCE_LIMITS_ACK=v1`. Missing acknowledgement or an out-of-range
+value intentionally disables the affected route/worker. The deployment gate
+also requires a fresh encrypted recovery artifact outside the repository whose
+age is within the approved 24-hour database/Storage RPO. Do not delete an older
+generation until the fresh generation is authenticated and the deployment
+verification completes.

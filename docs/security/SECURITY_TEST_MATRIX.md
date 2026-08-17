@@ -359,3 +359,20 @@ Dashboard configuration. SEC-018 remains partial for wider operational audit,
 monitoring and hosting/runtime evidence. Remote Supabase was not contacted.
 Evidence: `docs/security/changes/P0-09_CATALOG_IDENTITY_PRIVILEGED_READ_CLOSURE.md`
 and `docs/security/P0-09_LOCAL_VERIFICATION.md`.
+
+### 10.5 P0-10 resource, Auth and release-control closure
+
+The preserved red phase matched at **183 PASS / 5 XFAIL / 0 XPASS / 0 FAIL /
+0 SKIP**: SEC-017 `CAT-008`, `STORAGE-007..009` and SEC-026 `CONTENT-004`.
+After streamed/resource bounds, server-owned submission provenance, exact public
+content grants and the privileged MFA enrollment/Next 16 Proxy contract, both
+fresh disposable runs matched at **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL /
+0 SKIP**. Database lint is 0/0/0; advisors are 0 ERROR / 8 WARN / 3 INFO with
+only the expected private-provenance INFO delta. Cleanup passed twice.
+
+Targeted P0-10 tests cover N/N+1 streamed bodies without Content-Length,
+content type/field limits, image geometry/pixels/frames, bounded executor and
+provider response, production config acknowledgement, Auth Proxy/MFA/redirect/
+no-store, SEC-026 column minimization and all release-gate failure injections.
+No unadjudicated XFAIL remains. Remote and hosting controls are classified in
+`PRELAUNCH_SECURITY_FINAL_STATUS.md`, not represented as local PASS.

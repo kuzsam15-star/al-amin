@@ -244,7 +244,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Уязвимый production dependency graph.
 - **Severity:** High; launch blocker.
 - **Affected components:** package graph, image/build tooling, supply chain.
-- **Current evidence:** Baseline registry audit зафиксировал unresolved High/Moderate advisories, включая Sharp/PostCSS/nanoid paths.
+- **Current evidence:** P0-10A commit `8d38496de8353ade809350a0453013c22e060b8a` exact-pins the runtime/framework graph and patched Sharp/PostCSS/Nanoid paths. Two frozen installs and regression runs passed; production and full audits are 0 Critical / 0 High / 0 Moderate. Status: `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_RELEASE`.
 - **Threat:** Advisory-dependent input или build path может дать file-read/traversal/availability/build compromise.
 - **Expected secure behavior:** Reproducible pinned graph без unresolved Critical/High либо с формально ограниченным exception; clean-cache build и image corpus проходят.
 - **Files likely affected:** `package.json`, `pnpm-lock.yaml`, runtime/toolchain pins и CI verification.
@@ -332,7 +332,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Отсутствует Supabase SSR Proxy; refresh-reuse causality не доказана.
 - **Severity:** High; launch blocker.
 - **Affected components:** Next.js SSR session refresh, request/response cookies, Auth cache/session lifecycle.
-- **Current evidence:** Server client подавляет cookie-write failure, Proxy/middleware отсутствует; исторические reuse events есть, но causal link остаётся hypothesis.
+- **Current evidence:** P0-10 locally adds the documented Next 16 Proxy using Supabase SSR request/response cookie synchronization and `getClaims()`, with no-store private responses. Hosted short-lifetime/multi-tab/log causality remains a deployment canary, not a local claim.
 - **Threat:** Concurrent refresh оставляет stale cookies и invalidates token family, вызывая session loss/replay risk.
 - **Expected secure behavior:** Documented request-scoped Proxy/session updater, coherent request/response cookies, correct cache exclusions и fail-closed invalid/revoked session behavior.
 - **Files likely affected:** Будущий `proxy.ts`/middleware, `src/lib/supabase/server.ts`, Auth/session integration tests.
@@ -383,7 +383,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Буферизация request body и media/resource abuse.
 - **Severity:** Medium; launch blocker.
 - **Affected components:** API routes, upload/media transformation/cache, ingress/hosting controls.
-- **Current evidence:** Handlers buffer text/JSON/formData до effective byte check; media cache miss вызывает DB+Storage+Sharp; durable quota/rate/concurrency controls не доказаны.
+- **Current evidence:** P0-10 locally replaces relevant request buffering with streamed caps, authenticates before application/media body reads, validates and transcodes unique submission media under bounded Sharp/concurrency limits, bounds queries/workers/providers and requires production resource acknowledgement. Two final role-matrix runs are 188 PASS / 0 XFAIL; hosting ingress/WAF proof remains SEC-020.
 - **Threat:** Oversized/chunked bodies, cache busting и orphan uploads истощают memory/CPU/egress/storage.
 - **Expected secure behavior:** Ingress и streamed limits, auth-before-body, canonical cache keys, bounded transforms и durable quota/concurrency controls.
 - **Files likely affected:** Applications/reviews/complaints/media routes, media view route, hosting/edge config и resource tests.
@@ -536,7 +536,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Название:** Public `site_content.updated_by` раскрывает admin UUID.
 - **Severity:** Low; not an original launch blocker.
 - **Affected components:** Public content projection, metadata minimization, admin identity privacy.
-- **Current evidence:** `anon` может выбрать `site_content.updated_by` напрямую, хотя UI поле не показывает.
+- **Current evidence:** P0-10 exact column grants exclude `site_content.updated_by`; public approved content remains readable and `CONTENT-004` passes in two clean-room runs. Status: `IMPLEMENTED_LOCAL_VERIFIED_PENDING_PRELAUNCH_BACKEND_DEPLOYMENT`.
 - **Threat:** Public caller коррелирует stable operational actor UUID.
 - **Expected secure behavior:** Exact public projection содержит только content fields; anon base-table access revoked; admin update remains AAL2 controlled.
 - **Files likely affected:** Public site-content caller, `src/app/admin/page.tsx`, future projection migration/tests.

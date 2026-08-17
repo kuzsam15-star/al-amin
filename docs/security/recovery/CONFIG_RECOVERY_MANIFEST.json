@@ -108,6 +108,46 @@
     { "id": "email.worker_secret", "domain": "EMAIL", "expected": "MUST_REENTER", "classification": "PROVEN_MANUAL_REENTRY", "launch_critical": true, "secret_name": "EMAIL_WORKER_SECRET", "evidence": "secret name only from tracked server route", "recovery": "re-enter in deployment secret store", "dashboard": { "path": "Deployment environment", "setting": "EMAIL_WORKER_SECRET", "secret_required": true, "secret_name": "EMAIL_WORKER_SECRET", "verification": "unauthorized worker call fails and authorized synthetic call succeeds", "failure_impact": "email queue cannot run or becomes exposed" } },
     { "id": "email.dns_contract", "domain": "EMAIL", "expected": { "sender_domain": "ailvi.ru", "tracking_domain": "alamin.ailvi.ru", "spf": "single-record-preserved", "dkim": "provider-managed" }, "classification": "PROVEN_MANUAL_REENTRY", "launch_critical": true, "evidence": "tracked email infrastructure evidence", "recovery": "verify external DNS/provider state; do not recreate blindly", "dashboard": { "path": "External DNS and UniSender Go dashboards", "setting": "Sender domain, SPF, DKIM, tracking domain", "secret_required": false, "verification": "provider status and independent DNS resolution pass", "failure_impact": "email rejection, broken confirmation links, or domain reputation damage" } }
   ],
+  "prelaunch_hardening": {
+    "status": "PENDING_CONSOLIDATED_REMOTE_CONFIGURATION",
+    "remote_configuration_mutated": false,
+    "auth_dashboard_actions": [
+      { "id": "leaked-password-protection", "path": "Authentication > Sign In / Providers > Email", "desired": "enabled", "launch_blocker": true, "verification": "breached-password synthetic registration is denied" },
+      { "id": "password-policy", "path": "Authentication > Sign In / Providers > Email", "desired": { "minimum_length": 12, "requirements": "lowercase-uppercase-digit-symbol" }, "launch_blocker": true, "verification": "N-1 and weak passwords deny; compliant synthetic password proceeds to confirmation" },
+      { "id": "email-confirmation", "path": "Authentication > Sign In / Providers > Email", "desired": "enabled", "launch_blocker": true, "verification": "unconfirmed synthetic user cannot sign in" },
+      { "id": "mfa-totp", "path": "Authentication > Multi-Factor", "desired": { "totp": "enabled", "aal1_duration_limit": "enabled" }, "launch_blocker": true, "verification": "privileged account without verified TOTP is routed only to enrollment; AAL2 canary passes" },
+      { "id": "auth-abuse-controls", "path": "Authentication > Attack Protection / Rate Limits", "desired": { "captcha": "enabled", "rates": "owner-reviewed conservative values" }, "launch_blocker": true, "verification": "synthetic signup/login/reset burst is bounded without sending real mail" },
+      { "id": "session-controls", "path": "Authentication > Sessions", "desired": { "refresh_rotation": "enabled", "reuse_interval_seconds": 10, "jwt_expiry_seconds": 3600, "single_session": "owner-plan-decision", "timebox": "owner-plan-decision", "inactivity_timeout": "owner-plan-decision" }, "launch_blocker": true, "verification": "exact Dashboard reconciliation and revoked-membership/AAL tests" },
+      { "id": "auth-urls", "path": "Authentication > URL Configuration", "desired": "MUST_REENTER_EXACT_HTTPS_HOSTING_ORIGIN", "launch_blocker": true, "verification": "exact-set redirect allowlist; no wildcard or localhost in public launch configuration" },
+      { "id": "smtp", "path": "Authentication > Emails > SMTP Settings", "desired": "owner-approved provider configuration", "launch_blocker": true, "verification": "one owner-controlled synthetic confirmation/reset flow; no secret logging" }
+    ],
+    "application_resource_limits": {
+      "acknowledgement": { "name": "ALAMIN_RESOURCE_LIMITS_ACK", "value": "v1", "launch_blocker": true },
+      "limits": {
+        "ALAMIN_APPLICATION_BODY_BYTES": 98304,
+        "ALAMIN_MEDIA_MULTIPART_BYTES": 13631488,
+        "ALAMIN_MEDIA_FILE_BYTES": 12582912,
+        "ALAMIN_MEDIA_OUTPUT_BYTES": 5242880,
+        "ALAMIN_IMAGE_MAX_WIDTH": 10000,
+        "ALAMIN_IMAGE_MAX_HEIGHT": 10000,
+        "ALAMIN_IMAGE_MAX_PIXELS": 40000000,
+        "ALAMIN_IMAGE_MAX_FRAMES": 1,
+        "ALAMIN_IMAGE_PROCESSING_SECONDS": 8,
+        "ALAMIN_GALLERY_MAX_FILES": 10,
+        "ALAMIN_PUBLIC_CATALOG_MAX_ROWS": 100,
+        "ALAMIN_PUBLIC_REFERENCE_MAX_ROWS": 200,
+        "ALAMIN_PROVIDER_TIMEOUT_MS": 8000,
+        "ALAMIN_PROVIDER_RESPONSE_BYTES": 16384,
+        "ALAMIN_EMAIL_BATCH_SIZE": 20,
+        "ALAMIN_MEDIA_WORKER_BATCH_SIZE": 10,
+        "ALAMIN_MEDIA_CONCURRENCY": 2,
+        "ALAMIN_MEDIA_QUEUE_DEPTH": 8,
+        "ALAMIN_LOG_FIELD_CHARACTERS": 256
+      },
+      "recovery": "restore non-secret bounded values exactly; endpoint/worker remains fail-closed until acknowledgement is present",
+      "verification": "P0-10 N/N+1, malformed/unlimited and production-missing-ack tests"
+    }
+  },
   "secrets": [
     { "name": "DATABASE_PASSWORD", "status": "MUST_REENTER", "source_of_truth": "owner password manager; create a new target-specific value during project creation" },
     { "name": "GOOGLE_OAUTH_CLIENT_SECRET", "status": "MUST_REENTER", "source_of_truth": "Google Cloud provider dashboard and owner password manager" },

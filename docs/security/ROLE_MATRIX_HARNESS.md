@@ -203,3 +203,11 @@ current membership checks, real TOTP AAL2 queue reads, and private no-store
 responses. The five remaining XFAIL map only to SEC-017 and SEC-026. SEC-010
 and SEC-018 retain their explicitly documented non-local/operational residual.
 See `P0-09_LOCAL_VERIFICATION.md`.
+
+P0-10 does not add a parallel framework. It converts the four existing
+SEC-017 catalog/Storage cases and SEC-026 `CONTENT-004` to secure PASS while
+retaining all earlier role/action IDs. Service fixtures now register exact
+submission-media provenance; direct owner Storage INSERT is expected to fail.
+Both final runs report **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP**.
+The harness still runs only with `ALAMIN_SECURITY_LOCAL_ONLY=1` against two
+disposable projects and removes both named environments after evidence capture.
