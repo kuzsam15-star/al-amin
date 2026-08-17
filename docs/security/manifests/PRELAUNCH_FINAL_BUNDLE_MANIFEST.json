@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-17T15:40:11Z",
+  "verdict": "FINAL_BUNDLE_FROZEN_READY_FOR_CONSOLIDATED_BACKEND_DEPLOYMENT",
+  "architecture": {
+    "state": "PRE-LAUNCH",
+    "application_deployment": "NONE",
+    "hosting": "NOT_CONFIGURED",
+    "remote_backend": "PENDING_CONSOLIDATED_DEPLOYMENT",
+    "remote_execution_performed": false
+  },
+  "git": {
+    "branch": "security/hardening",
+    "verification_start_head": "96f75332c7fd40981a2b276a45f8f594195a5f5b",
+    "verification_tooling_commit": "a4679cc6566e62fe3bb8b988ec49658d808e5ea0",
+    "verified_snapshot_commit": "a9ac98d38edfece452b46a3d89827eb15b633ace",
+    "final_freeze_commit": "ENCLOSING_GIT_COMMIT",
+    "main_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "baseline_tag": "baseline/pre-security-hardening-2026-08-09",
+    "baseline_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "freeze_tag": null,
+    "freeze_tag_reason": "no repository policy requires an additional local tag; manifest plus enclosing commit is authoritative"
+  },
+  "protected_artifacts": {
+    "baseline_sql_sha256": "cf61cdb37d9b82b3affff035a0eaf68b1fabc2022c261f87027ae95583c153e1",
+    "baseline_manifest_canonical_lf_sha256": "33770760b62a6ff618ece2a6685059d71f1d4786be0f697c7b7f57c73d8cb000",
+    "schema_sql_sha256": "ecab0a21f27ccd152c5c99226ff6d0894ed2b4e57eda114fd428da98e323b74a",
+    "historical_migration_count": 18,
+    "historical_migration_aggregate_sha256": "eb4023420974253430dda7eb3a3ea133c6eb5ddc96fd11ddc97a2d3a715ac3a5",
+    "historical_aggregate_model": "sorted path + NUL + SHA-256(committed Git blob) + LF"
+  },
+  "forward_migrations": {
+    "manifest_sha256": "51f0e458de4f6e42640eeaa586df78002f7036ef4d99c655cb54f71d03292ed7",
+    "count": 9,
+    "entries": [
+      { "order": 1, "path": "supabase/forward-migrations/202608110001_sec001_immutable_published_media.sql", "sha256": "28cd011096257c6203a2e77464e338f8c769b79743debe1099091034e55a1a0a" },
+      { "order": 2, "path": "supabase/forward-migrations/202608110002_sec001_enforce_canonical_published_media.sql", "sha256": "25d8667718dd26aa20da3c41088b3d5fc21fe4298cf4f5451aaa0d4982597282" },
+      { "order": 3, "path": "supabase/forward-migrations/20260813154850_sec002_owner_safe_applications_projection.sql", "sha256": "f375871d1c754fa03321dea7c1060fb326c09ea79351580e0f71028061d881c1" },
+      { "order": 4, "path": "supabase/forward-migrations/20260813163013_sec003_moderator_admin_boundary.sql", "sha256": "15412893f5464d446893b9f94189d8c13a7de9a53e0790c14c06f25eaba3b765" },
+      { "order": 5, "path": "supabase/forward-migrations/20260813202524_sec004_safe_feedback_gateway.sql", "sha256": "8319f59bd66a9790673ffac1cdfd260f775db77ddc93434b106b5adc90fb416b" },
+      { "order": 6, "path": "supabase/forward-migrations/20260814005517_p007_atomic_application_workflows.sql", "sha256": "1049f9219342afa67ce0a0959140713c280ca1de5339074f9fad4016bcb5c370" },
+      { "order": 7, "path": "supabase/forward-migrations/20260816020000_sec006_fail_closed_media_cleanup.sql", "sha256": "17f9fffdbad793ffb07e64b98765b6b4e73b0729941740d865e9226db3749afe" },
+      { "order": 8, "path": "supabase/forward-migrations/20260817090000_p009_catalog_identity_privileged_reads.sql", "sha256": "b64ba5df1f819105ab528003544d5b9bdda987e1733cf922438a5036c94ecae6" },
+      { "order": 9, "path": "supabase/forward-migrations/20260817103731_p010_resource_auth_release_controls.sql", "sha256": "815f4cd16ea62b0d3d8fb46ace7a91de08434e046d89006b17adca371d54a9fa" }
+    ]
+  },
+  "source_bundle": {
+    "source_artifact_manifest_sha256": "0ca77770f73d1ed0337642c5956919a36c0510842f88e7a075f562871d77d0f8",
+    "tree_hash_model": "sorted tracked path + NUL + SHA-256(committed Git blob) + LF",
+    "source_tree_sha256": "c4910409fe304347e50e522e8fe0d2d24e2d27f5f78b69c4fc036d12d4e08a59",
+    "test_tree_sha256": "1d6ccf88e798f6be3674a8d278a74b8857261462e57cb1ac4a135982f2711084",
+    "tooling_tree_sha256": "cefbdfa04c9e31937f32269c57e48d693f56e3a034888c2353687911e764339c"
+  },
+  "dependencies": {
+    "package_json_sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741",
+    "pnpm_lock_sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607",
+    "clean_installs": 2,
+    "production_audit": { "critical": 0, "high": 0, "moderate": 0 },
+    "full_audit": { "critical": 0, "high": 0, "moderate": 0 }
+  },
+  "security_tooling": {
+    "prelaunch_runner_sha256": "79ba6e6c679c04e126bd2914c55479e3fd88d7c0d8c1e0f4357459698c05132c",
+    "gate_core_sha256": "64af1afea52907d53bc78b7df336e1a53f2f0fd5b934e2502ab26642d9604ab2",
+    "powershell_launcher_sha256": "a9c900169409e38ff0d99d3e750ab6c696bf2da92e2af408954eecc46b2aba03",
+    "bat_launcher_sha256": "27cf181be14826b76dbcda6e2daa20c86cf4b687df613a57e1a2acc388e581a0"
+  },
+  "recovery": {
+    "level": 3,
+    "status": "RECOVERY_LEVEL_3_PROVEN",
+    "proof_sha256": "2ae51cdb2dfde0f7f8939adf091a6a3afebc4d67deff12d040d43a5723070df7",
+    "config_manifest_sha256": "ccfd546b6751a8fe586a025e84944c5f1278098925ebef5567a42d29ace5d3c9",
+    "deployment_freshness_requirement": { "database_max_age_hours": 24, "storage_max_age_hours": 24, "config_snapshot": "exact approved state" },
+    "new_production_backup_created_during_freeze": false
+  },
+  "evidence_ledgers": {
+    "security_findings_sha256": "653ac64b874eeccd662061e09eb5494f4300c9a9e635d429b845dbda6a738d2b",
+    "security_test_matrix_sha256": "23e7af4ca352436c0c06f5a3464cef6f5ea7259612c948e982ace0587aee1b91",
+    "role_matrix_cases_sha256": "2265abc49013bc5c0d6e9a77b055472190275aec54e94383f8f28a6a7e277ffc",
+    "expected_failures_sha256": "e13501c0001d97d321d3162031b0d8d8c792aa90f535be59968bd3391dca8889",
+    "finding_count": 26,
+    "unknown_findings": 0,
+    "unadjudicated_xfails": 0
+  },
+  "release_documents": {
+    "consolidated_backend_deployment_plan_sha256": "659f9dad290bc948c64e9c580c216d59837c9771da745e54355b32bff8aaa6b5"
+  },
+  "verified_results": {
+    "clean_room_runs": 2,
+    "each_role_matrix": { "pass": 188, "xfail": 0, "xpass": 0, "fail": 0, "skip": 0 },
+    "node_tests": { "pass": 175, "fail": 0 },
+    "targeted_gate_resource_tests": { "pass": 27, "fail": 0 },
+    "typecheck": "PASS",
+    "eslint": { "errors": 0, "existing_warnings": 12 },
+    "db_lint": { "error": 0, "warn": 0, "info": 0 },
+    "security_advisor": { "error": 0, "warn": 8, "info": 3 },
+    "production_build": "PASS",
+    "sharp_load": "0.35.3",
+    "prelaunch_gate": "READY_FOR_FINAL_BUNDLE_FREEZE",
+    "cleanup": "PASS"
+  },
+  "release_state": {
+    "local_security_implementation": "COMPLETE",
+    "local_security_verification": "COMPLETE",
+    "local_bundle": "FROZEN",
+    "remote_backend": "PENDING_CONSOLIDATED_DEPLOYMENT",
+    "hosting": "NOT_CONFIGURED",
+    "public_launch": "NOT_YET_APPROVED",
+    "local_implementation_packages_remaining": 0,
+    "local_verification_freeze_stages_remaining": 0,
+    "remote_backend_stages_remaining": 2
+  }
+}

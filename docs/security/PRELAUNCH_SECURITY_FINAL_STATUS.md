@@ -38,8 +38,8 @@ There is no unknown finding and no unadjudicated XFAIL. Historical severity is n
 ## Finish line
 
 - **Local implementation packages remaining:** 0.
-- **Local verification/freeze stages remaining:** 1 — Final Pre-Launch Clean-Room Bundle Verification and Freeze.
+- **Local verification/freeze stages remaining:** 0. The final bundle freeze passed twice independently and is recorded in `PRELAUNCH_FINAL_BUNDLE_VERIFICATION.md` and `PRELAUNCH_FINAL_BUNDLE_FREEZE.md`.
 - **Remote backend stages remaining:** 2 — one consolidated deployment and one final remote verification.
 - **Hosting-dependent stages:** choose/configure hosting; first exact-source deployment; public-origin SEC-020/024 verification; launch monitoring.
 
-After final bundle freeze, product functionality, UI/UX, design, hosting selection and launch preparation may resume. Public launch remains blocked until the consolidated backend deployment, remote backend verification, first hosting deployment and hosting-dependent verification all pass.
+The frozen local verdict is `FINAL_BUNDLE_FROZEN_READY_FOR_CONSOLIDATED_BACKEND_DEPLOYMENT`. Product functionality, UI/UX, design, hosting selection and launch preparation may now resume. Public launch remains blocked until the consolidated backend deployment, remote backend verification, first hosting deployment and hosting-dependent verification all pass.

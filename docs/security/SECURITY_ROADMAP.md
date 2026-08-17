@@ -275,11 +275,13 @@ window. Details: `SEC-001_PRELAUNCH_REASSESSMENT.md`.
 
 ## 8. Следующий один безопасный этап
 
-**Следующий этап: P0-10 — Resource, Auth and release-control closure.**
+**Следующий этап: CONSOLIDATED PRE-LAUNCH REMOTE BACKEND HARDENING DEPLOYMENT.**
+
+P0-10 и final pre-launch clean-room bundle verification/freeze завершены локально. Два независимых clean-room прогона дали 188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP, gate дважды вернул `READY_FOR_FINAL_BUNDLE_FREEZE`, а executable bundle зафиксирован machine-readable manifest и enclosing Git commit. Локальных implementation или verification/freeze stages больше нет. Remote Supabase остаётся неизменённым; следующий этап требует отдельного owner approval и выполняет единый 21-step consolidated backend plan, после чего требуется отдельная remote backend verification.
 
 P0-13 as a standalone immediate SEC-001 production deployment is superseded by
 the confirmed pre-launch architecture. Recovery and release rehearsals remain
 valid evidence, but source deployment/version-marker/public-traffic stages are
 deferred until first hosting. SEC-001 will be included in a separately approved
-consolidated pre-launch remote-backend hardening window after P0-10 and the
+consolidated pre-launch remote-backend hardening window now that P0-10 and the
 final full clean-room bundle have passed.

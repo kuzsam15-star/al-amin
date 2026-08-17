@@ -77,9 +77,8 @@ function loadJson(path) {
 
 function verifyArtifactEntries(entries) {
   for (const artifact of entries) {
-    const absolute = join(repositoryRoot, artifact.path);
-    if (!existsSync(absolute)) return false;
-    let bytes = readFileSync(absolute);
+    let bytes = committedBlob(artifact.path);
+    if (bytes === null) return false;
     if (artifact.canonical_text_eol === "LF") {
       bytes = Buffer.from(bytes.toString("utf8").replace(/\r\n?/gu, "\n"), "utf8");
     }

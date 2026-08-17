@@ -13,7 +13,7 @@
   "trees": [
     { "path": "src", "sha256": "c4910409fe304347e50e522e8fe0d2d24e2d27f5f78b69c4fc036d12d4e08a59", "hash_source": "committed-git-blobs", "class": "SOURCE" },
     { "path": "tests", "sha256": "1d6ccf88e798f6be3674a8d278a74b8857261462e57cb1ac4a135982f2711084", "hash_source": "committed-git-blobs", "class": "TEST" },
-    { "path": "scripts", "sha256": "0c72e69c6ee7f010c5123cdd2c3517c8a64e868e70f25faffcdfe19a8dc9257f", "hash_source": "committed-git-blobs", "class": "TOOLING" }
+    { "path": "scripts", "sha256": "cefbdfa04c9e31937f32269c57e48d693f56e3a034888c2353687911e764339c", "hash_source": "committed-git-blobs", "class": "TOOLING" }
   ],
   "artifacts": [
     { "path": ".gitattributes", "sha256": "caa9ffbfb9b7a265954acd9305cd90befa58bde06380a3c89a8668cb54eb714f", "class": "RELEASE_CONFIG" },
@@ -21,7 +21,7 @@
     { "path": "pnpm-lock.yaml", "sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607", "class": "PACKAGE" },
     { "path": "pnpm-workspace.yaml", "sha256": "5495bf69244558f180ac83a2be2cfc5d90267df3f506e3f640dec1c44c8c4c4a", "class": "PACKAGE" },
     { "path": "next.config.mjs", "sha256": "939122ba3bcc65d3e4d211744691293c98e5aba37507ce5272fe8f08303798be", "class": "CONFIG" },
-    { "path": "tsconfig.json", "sha256": "032ef215e32ec422b33f4074598d6a155eaeedf26a4bfb167562ef5b417d1423", "class": "CONFIG" },
+    { "path": "tsconfig.json", "sha256": "5563bf72ae43a35ad7902e45d2c0e491e6ac05cb1d35ea3b0c10e3711484903b", "hash_source": "committed-git-blob", "class": "CONFIG" },
     { "path": "eslint.config.mjs", "sha256": "cc84f608331e3daa4d7be9fd1e6df571fcc1fcd6f33117bf97c40be305943a19", "class": "CONFIG" },
     { "path": "docs/security/recovery/CONFIG_RECOVERY_MANIFEST.json", "sha256": "ccfd546b6751a8fe586a025e84944c5f1278098925ebef5567a42d29ace5d3c9", "class": "RECOVERY_CONFIG" },
     { "path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json", "sha256": "51f0e458de4f6e42640eeaa586df78002f7036ef4d99c655cb54f71d03292ed7", "class": "RELEASE_MANIFEST" },
