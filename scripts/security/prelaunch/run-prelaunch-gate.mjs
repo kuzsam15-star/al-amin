@@ -197,8 +197,11 @@ const actualForwardPaths = readdirSync(join(repositoryRoot, "supabase", "forward
   .filter((name) => name.endsWith(".sql"))
   .sort()
   .map((name) => `supabase/forward-migrations/${name}`);
+const declaredForwardPaths = migrations.migrations.map(({ path }) => path);
 gate.forwardBundleValid = verifyArtifactEntries(migrations.migrations)
-  && JSON.stringify(migrations.migrations.map(({ path }) => path)) === JSON.stringify(actualForwardPaths);
+  && migrations.migrations.every(({ order }, index) => order === index + 1)
+  && new Set(declaredForwardPaths).size === declaredForwardPaths.length
+  && JSON.stringify([...declaredForwardPaths].sort()) === JSON.stringify(actualForwardPaths);
 gate.resourceConfigValid = (() => { try { loadResourceLimits({}); return true; } catch { return false; } })();
 gate.recoveryLevel3Valid = recovery.recovery_level === 3 && recovery.status === "RECOVERY_LEVEL_3_PROVEN" && recovery.rehearsal?.result === "PASS";
 gate.configurationManifestValid = recovery.fields.every((field) => field.classification !== "UNKNOWN_BLOCKER")
