@@ -179,7 +179,7 @@ function recoveryArtifactState() {
   return { required: true, present: true, fresh: ageMs <= 24 * 60 * 60 * 1000 };
 }
 
-const integrity = loadJson("docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST.json");
+const integrity = loadJson("docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json");
 const migrations = loadJson("docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json");
 const recovery = loadJson("docs/security/recovery/CONFIG_RECOVERY_MANIFEST.json");
 const expectedFailures = loadJson("tests/security/role-matrix/expected-failures.json");

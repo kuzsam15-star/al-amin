@@ -22,7 +22,16 @@ try {
   let checkpoint = await readCheckpoint(checkpointPath, repoRoot);
   if (mode === 'inventory') {
     const result = await runSec001Backfill({ service, dryRun: true });
-    const counts = { totalLegacy: result.planned, alreadyCanonical: 0, missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0 };
+    const counts = {
+      totalLegacy: result.planned,
+      alreadyCanonical: 0,
+      allowlistedLegacyReferences: result.namespaceSummary.allowlistedLegacyReferenceCount,
+      allowlistedLegacyObjects: result.namespaceSummary.allowlistedLegacyObjectCount,
+      sharedSameOwnerObjects: result.namespaceSummary.sharedSameOwnerObjectCount,
+      crossOwnerObjects: result.namespaceSummary.crossOwnerObjectCount,
+      unknownReferences: result.namespaceSummary.unknownReferenceCount,
+      missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0,
+    };
     checkpoint = advance(checkpoint, 'INVENTORY_REVIEWED', { evidence: { counts } });
     await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
     process.stdout.write(`\n${JSON.stringify({ status: 'PASS', counts })}\n`);
@@ -30,13 +39,13 @@ try {
     if (checkpoint.state === 'INVENTORY_REVIEWED') checkpoint = advance(checkpoint, 'BACKFILL_IN_PROGRESS');
     for (const batch of [1, 10, 25]) {
       const result = await runSec001Backfill({ service, dryRun: false, stopAfter: batch });
-      checkpoint = recordBackfillProgress(checkpoint, result);
+      checkpoint = recordBackfillProgress(checkpoint, { planned: result.planned, applied: result.applied, remaining: result.remaining });
       await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
       if (result.remaining === 0) break;
     }
     while (checkpoint.counters.remaining > 0) {
       const result = await runSec001Backfill({ service, dryRun: false, stopAfter: 25 });
-      checkpoint = recordBackfillProgress(checkpoint, result);
+      checkpoint = recordBackfillProgress(checkpoint, { planned: result.planned, applied: result.applied, remaining: result.remaining });
       await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
     }
     checkpoint = advance(checkpoint, 'BACKFILL_COMPLETE', { evidence: { counts: checkpoint.counters } });
@@ -50,8 +59,13 @@ try {
     await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
     process.stdout.write(`\n${JSON.stringify({ status: 'PASS', counts })}\n`);
   }
-} catch {
-  process.stderr.write('\n{"status":"FAILED_SAFE","safeErrorCode":"BACKFILL_INTEGRITY_OR_ACCESS_ERROR"}\n');
+} catch (error) {
+  const message = error instanceof Error ? error.message : '';
+  let safeErrorCode = 'BACKFILL_INTEGRITY_OR_ACCESS_ERROR';
+  if (message.includes('cross-owner or ambiguous')) safeErrorCode = 'BACKFILL_SOURCE_OWNERSHIP_AMBIGUOUS';
+  else if (message.includes('namespace is not allowlisted')) safeErrorCode = 'BACKFILL_SOURCE_NAMESPACE_NOT_ALLOWLISTED';
+  else if (message.includes('authoritative DB reference proof')) safeErrorCode = 'BACKFILL_SOURCE_REFERENCE_PROOF_MISSING';
+  process.stderr.write(`\n${JSON.stringify({ status: 'FAILED_SAFE', safeErrorCode })}\n`);
   process.exitCode = 1;
 } finally {
   // Supabase client keeps no persistent credential store; references are released on exit.

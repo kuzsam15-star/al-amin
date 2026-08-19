@@ -10,7 +10,7 @@ import sharp from 'sharp';
 import { publishCanonicalMedia } from '../../src/lib/published-media.mjs';
 import { runSec001Backfill } from './helpers/sec001-backfill.mjs';
 import { redactCommandError, runCommand } from './role-matrix/helpers/command.mjs';
-import { cleanupLocalStack, createLocalStack, queryLocalSql } from './role-matrix/helpers/local-stack.mjs';
+import { applyForwardMigration, cleanupLocalStack, createLocalStack, queryLocalSql } from './role-matrix/helpers/local-stack.mjs';
 import {
   acquireLocalLock, advance, assertObservationGate, assertPhaseBGate, createCheckpoint,
   finish, readCheckpoint, recordBackfillProgress, releaseLocalLock, writeCheckpoint,
@@ -21,6 +21,15 @@ const repoRoot = resolve(here, '..', '..');
 const requiredBaselineHash = 'CF61CDB37D9B82B3AFFFF035A0EAF68B1FABC2022C261F87027AE95583C153E1';
 const phaseA = '202608110001_sec001_immutable_published_media.sql';
 const phaseB = '202608110002_sec001_enforce_canonical_published_media.sql';
+const remainingForwardMigrations = [
+  '20260813154850_sec002_owner_safe_applications_projection.sql',
+  '20260813163013_sec003_moderator_admin_boundary.sql',
+  '20260813202524_sec004_safe_feedback_gateway.sql',
+  '20260814005517_p007_atomic_application_workflows.sql',
+  '20260816020000_sec006_fail_closed_media_cleanup.sql',
+  '20260817090000_p009_catalog_identity_privileged_reads.sql',
+  '20260817103731_p010_resource_auth_release_controls.sql',
+];
 const results = [];
 
 const clientOptions = {
@@ -141,7 +150,7 @@ function application(id, ownerId, mainImagePath, status = 'approved', galleryPat
   };
 }
 
-function specialist(id, ownerId, applicationId, categoryId, avatarPath) {
+function specialist(id, ownerId, applicationId, categoryId, avatarPath, galleryPaths = []) {
   return {
     id, owner_id: ownerId, application_id: applicationId, category_id: categoryId,
     slug: `sec001-${id.slice(-6)}`, full_name: 'Synthetic SEC-001 specialist', country: 'Synthetic Country',
@@ -150,7 +159,7 @@ function specialist(id, ownerId, applicationId, categoryId, avatarPath) {
     full_description: 'Synthetic local-only specialist description long enough for the verified contract.',
     public_contact: 'public-fixture@example.invalid', contract_version: 2,
     profile_summary: 'Synthetic summary', help_topics: [{ title: 'Synthetic help', description: 'Synthetic.' }],
-    work_offers: [{ title: 'Synthetic offer', mode: 'online' }], avatar_path: avatarPath,
+    work_offers: [{ title: 'Synthetic offer', mode: 'online' }], avatar_path: avatarPath, gallery_paths: galleryPaths,
     status: 'published', published_at: new Date().toISOString(),
   };
 }
@@ -183,7 +192,7 @@ async function executeRehearsal(runNumber, tools, env) {
       runNumber, repoRoot, ...tools, env, projectPrefix: 'alamin-sec001-rehearsal', forwardMigrationNames: [],
     });
     const service = createClient(stack.apiUrl, stack.serviceRoleKey, clientOptions);
-    const owners = await createOwners(service, stack, 8);
+    const owners = await createOwners(service, stack, 9);
     const ids = {
       category: '11111111-1111-4111-8111-000000000001',
       valid: '11111111-1111-4111-8111-000000000010',
@@ -193,7 +202,10 @@ async function executeRehearsal(runNumber, tools, env) {
       mixed: '11111111-1111-4111-8111-000000000050',
       pending: '11111111-1111-4111-8111-000000000060',
       rejected: '11111111-1111-4111-8111-000000000070',
+      legacy: '11111111-1111-4111-8111-000000000080',
+      legacyConflict: '11111111-1111-4111-8111-000000000090',
       specialist: '11111111-1111-4111-8111-000000000110',
+      legacySpecialist: '11111111-1111-4111-8111-000000000140',
       revisionPending: '11111111-1111-4111-8111-000000000120',
       revisionRejected: '11111111-1111-4111-8111-000000000130',
     };
@@ -203,11 +215,15 @@ async function executeRehearsal(runNumber, tools, env) {
       valid: sourcePath(owners[0].id), missing: sourcePath(owners[1].id), corrupt: sourcePath(owners[2].id),
       conflict: sourcePath(owners[3].id), mixedAvatar: sourcePath(owners[4].id), mixedGallery: sourcePath(owners[4].id, 'gallery'),
       pending: sourcePath(owners[5].id), rejected: sourcePath(owners[6].id), orphan: sourcePath(owners[7].id),
+      legacyFresh: sourcePath(owners[8].id),
+      legacyMain: `submissions/${randomUUID()}/main-${randomUUID()}.png`,
+      legacyGallery: `submissions/${randomUUID()}/gallery-0-${randomUUID()}.jpg`,
     };
     await Promise.all([
       upload(service, paths.valid, bytes), upload(service, paths.missing, bytes), upload(service, paths.corrupt, bytes),
       upload(service, paths.conflict, bytes), upload(service, paths.mixedAvatar, bytes), upload(service, paths.mixedGallery, bytes),
       upload(service, paths.pending, bytes), upload(service, paths.rejected, bytes), upload(service, paths.orphan, bytes),
+      upload(service, paths.legacyFresh, bytes), upload(service, paths.legacyMain, bytes), upload(service, paths.legacyGallery, bytes),
     ]);
     const { error: categoryError } = await service.from('categories').insert({
       id: ids.category, name: 'Synthetic SEC-001', slug: `sec001-${stack.projectId.slice(-8)}`, group_name: 'Synthetic', is_active: true,
@@ -218,13 +234,26 @@ async function executeRehearsal(runNumber, tools, env) {
       application(ids.corrupt, owners[2].id, paths.corrupt), application(ids.conflict, owners[3].id, paths.conflict),
       application(ids.mixed, owners[4].id, paths.mixedAvatar, 'approved', [paths.mixedGallery]),
       application(ids.pending, owners[5].id, paths.pending, 'new'), application(ids.rejected, owners[6].id, paths.rejected, 'rejected'),
+      application(ids.legacy, owners[8].id, paths.legacyFresh, 'approved', []),
     ];
     const { error: appError } = await service.from('applications').insert(applications);
     if (appError) throw new Error(`Synthetic application fixtures failed: ${appError.message}`);
-    const { error: specialistError } = await service.from('specialists').insert(
+    const { error: specialistError } = await service.from('specialists').insert([
       specialist(ids.specialist, owners[0].id, ids.valid, ids.category, paths.valid),
-    );
+      specialist(ids.legacySpecialist, owners[8].id, ids.legacy, ids.category, paths.legacyFresh),
+    ]);
     if (specialistError) throw new Error(`Synthetic specialist fixture failed: ${specialistError.message}`);
+    await queryLocalSql(stack, tools.dockerBin, env, `
+      begin;
+      set local session_replication_role = replica;
+      update public.applications
+      set main_image_path='${sqlQuote(paths.legacyMain)}', gallery_paths=array['${sqlQuote(paths.legacyGallery)}']::text[]
+      where id='${ids.legacy}'::uuid;
+      update public.specialists
+      set avatar_path='${sqlQuote(paths.legacyMain)}', gallery_paths=array['${sqlQuote(paths.legacyGallery)}']::text[]
+      where id='${ids.legacySpecialist}'::uuid;
+      commit;
+    `);
     const revisionPayload = {
       contract_version: 2, full_name: 'Synthetic SEC-001 specialist', country: 'Synthetic Country',
       city: 'Synthetic City', category_id: ids.category, additional_category_ids: [],
@@ -246,6 +275,21 @@ async function executeRehearsal(runNumber, tools, env) {
     record(runNumber, 'PHASE-A-APPLIED', true);
     checkpoint = advance(checkpoint, 'PHASE_A_APPLIED', { evidence: { catalogVerification: 'PASS' } });
     checkpoint = advance(checkpoint, 'SOURCE_DEPLOY_CONFIRMED', { evidence: { localSourceCommit: checkpoint.sourceCommit } });
+
+    const { error: conflictFixtureError } = await service.from('applications').insert(
+      application(ids.legacyConflict, owners[7].id, paths.orphan, 'new'),
+    );
+    if (conflictFixtureError) throw new Error('Synthetic cross-owner fixture failed');
+    await queryLocalSql(stack, tools.dockerBin, env, `
+      begin;
+      set local session_replication_role = replica;
+      update public.applications set status='approved', main_image_path='${sqlQuote(paths.legacyMain)}'
+      where id='${ids.legacyConflict}'::uuid;
+      commit;
+    `);
+    await assert.rejects(runSec001Backfill({ service, dryRun: true }), /cross-owner or ambiguous/u);
+    record(runNumber, 'LEGACY-CROSS-OWNER-BLOCKED', true);
+    await queryLocalSql(stack, tools.dockerBin, env, `delete from public.applications where id='${ids.legacyConflict}'::uuid;`);
 
     const mixedCanonical = await publishCanonicalMedia({
       storage: service.storage, ownerId: owners[4].id, entityType: 'backfill-applications',
@@ -272,8 +316,12 @@ async function executeRehearsal(runNumber, tools, env) {
     record(runNumber, 'PHASE-B-BLOCKS-LEGACY', prematurePhaseB.code !== 0 && phaseBConstraintCount === '0');
 
     const dryRun = await runSec001Backfill({ service, dryRun: true });
-    record(runNumber, 'DRY-RUN-NO-MUTATION', dryRun.planned === 6 && dryRun.applied === 0 && (await row(service, 'applications', ids.valid, 'main_image_path')).main_image_path === paths.valid);
-    checkpoint = advance(checkpoint, 'INVENTORY_REVIEWED', { evidence: { counts: { totalLegacy: 6, alreadyCanonical: 0, missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0 } } });
+    record(runNumber, 'DRY-RUN-NO-MUTATION', dryRun.planned === 8 && dryRun.applied === 0 && (await row(service, 'applications', ids.valid, 'main_image_path')).main_image_path === paths.valid);
+    record(runNumber, 'LEGACY-ALLOWLIST-INVENTORY',
+      dryRun.namespaceSummary.allowlistedLegacyReferenceCount === 4
+      && dryRun.namespaceSummary.allowlistedLegacyObjectCount === 2
+      && dryRun.namespaceSummary.crossOwnerObjectCount === 0);
+    checkpoint = advance(checkpoint, 'INVENTORY_REVIEWED', { evidence: { counts: { totalLegacy: 8, alreadyCanonical: 0, missing: 0, corrupt: 0, conflict: 0, unsupported: 0, blocked: 0 } } });
     checkpoint = advance(checkpoint, 'BACKFILL_IN_PROGRESS');
     await writeCheckpoint(checkpointPath, checkpoint, repoRoot);
 
@@ -312,7 +360,7 @@ async function executeRehearsal(runNumber, tools, env) {
     const { error: removeConflictError } = await service.storage.from('profile-media').remove([conflictCanonical.canonical_path]);
     if (removeConflictError) throw new Error('Synthetic conflict remediation failed');
     const resumed = await runSec001Backfill({ service, dryRun: false });
-    record(runNumber, 'RESUME-COMPLETES', resumed.applied === 3 && resumed.remaining === 0);
+    record(runNumber, 'RESUME-COMPLETES', resumed.applied === 5 && resumed.remaining === 0);
     const idempotent = await runSec001Backfill({ service, dryRun: false });
     record(runNumber, 'SECOND-APPLY-ZERO', idempotent.planned === 0 && idempotent.applied === 0);
     checkpoint = recordBackfillProgress(checkpoint, { planned: 0, applied: 0, remaining: 0 });
@@ -321,6 +369,13 @@ async function executeRehearsal(runNumber, tools, env) {
 
     const mixedAfter = await row(service, 'applications', ids.mixed, 'main_image_path,gallery_paths');
     record(runNumber, 'MIXED-STATE-ATOMIC', mixedAfter.main_image_path === mixedCanonical.canonical_path && mixedAfter.gallery_paths[0].startsWith(`published/${owners[4].id}/backfill-applications/`));
+    const legacyApplicationAfter = await row(service, 'applications', ids.legacy, 'main_image_path,gallery_paths');
+    const legacySpecialistAfter = await row(service, 'specialists', ids.legacySpecialist, 'avatar_path,gallery_paths');
+    record(runNumber, 'VERIFIED-LEGACY-FAMILY-CANONICALIZED',
+      legacyApplicationAfter.main_image_path.startsWith(`published/${owners[8].id}/backfill-applications/`)
+      && legacyApplicationAfter.gallery_paths[0].startsWith(`published/${owners[8].id}/backfill-applications/`)
+      && legacySpecialistAfter.avatar_path.startsWith(`published/${owners[8].id}/backfill-specialists/`)
+      && legacySpecialistAfter.gallery_paths[0].startsWith(`published/${owners[8].id}/backfill-specialists/`));
     record(runNumber, 'PENDING-REJECTED-UNCHANGED',
       (await row(service, 'applications', ids.pending, 'main_image_path')).main_image_path === paths.pending
       && (await row(service, 'applications', ids.rejected, 'main_image_path')).main_image_path === paths.rejected
@@ -334,6 +389,10 @@ async function executeRehearsal(runNumber, tools, env) {
     await applyReleasePhase({ stack, tools, env, name: phaseB });
     await applyReleasePhase({ stack, tools, env, name: phaseB });
     record(runNumber, 'PHASE-B-APPLIED-IDEMPOTENT', true);
+    for (const name of remainingForwardMigrations) {
+      await applyForwardMigration({ stack, repoRoot, dockerBin: tools.dockerBin, env, name });
+    }
+    record(runNumber, 'FULL-FROZEN-FORWARD-CHAIN', true);
     checkpoint = advance(checkpoint, 'PHASE_B_APPLIED', { evidence: { catalogVerification: 'PASS' } });
     const validAfter = await row(service, 'applications', ids.valid, 'main_image_path');
     const foreignSubstitution = await service.from('applications').update({ main_image_path: mixedAfter.main_image_path }).eq('id', ids.valid);
@@ -346,7 +405,10 @@ async function executeRehearsal(runNumber, tools, env) {
     const noRegression = await runSec001Backfill({ service, dryRun: false });
     record(runNumber, 'POST-CUTOVER-RETRY-IDEMPOTENT', noRegression.planned === 0);
 
-    const oldSources = await Promise.all([paths.missing, paths.corrupt, paths.conflict, paths.mixedAvatar, paths.mixedGallery].map((path) => service.storage.from('profile-media').download(path)));
+    const oldSources = await Promise.all([
+      paths.missing, paths.corrupt, paths.conflict, paths.mixedAvatar, paths.mixedGallery,
+      paths.legacyMain, paths.legacyGallery,
+    ].map((path) => service.storage.from('profile-media').download(path)));
     const orphan = await service.storage.from('profile-media').download(paths.orphan);
     record(runNumber, 'OLD-SOURCES-NOT-AUTO-DELETED', oldSources.every((entry) => Boolean(entry.data)) && Boolean(orphan.data));
 

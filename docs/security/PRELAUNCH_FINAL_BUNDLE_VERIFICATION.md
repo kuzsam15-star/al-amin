@@ -10,7 +10,7 @@ The verification started at `96f75332c7fd40981a2b276a45f8f594195a5f5b`. A clean-
 
 ## Frozen integrity boundary
 
-The machine-readable authority is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST.json`. It freezes:
+The original machine-readable authority is retained at `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST.json`. The SEC-001R deployment-retry authority is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001R.json`. It freezes:
 
 - 18 immutable historical migrations and their aggregate committed-blob hash;
 - `supabase/bootstrap/baseline.sql`, its manifest and `supabase/schema.sql`;

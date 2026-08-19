@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-19T00:00:00Z",
+  "verdict": "SEC001R_REFROZEN_READY_FOR_CONSOLIDATED_BACKEND_DEPLOYMENT_RETRY",
+  "architecture": {
+    "state": "PRE-LAUNCH",
+    "application_deployment": "NONE",
+    "hosting": "NOT_CONFIGURED",
+    "remote_backend": "UNCHANGED_PENDING_CONSOLIDATED_DEPLOYMENT_RETRY",
+    "remote_mutations_during_remediation": 0
+  },
+  "git": {
+    "branch": "security/hardening",
+    "previous_frozen_head": "a1d1ecce4b3fd3025ea8d98b25e6b51217a013b4",
+    "remediation_commit": "ENCLOSING_GIT_COMMIT",
+    "new_bundle_head": "ENCLOSING_GIT_COMMIT",
+    "main_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "baseline_tag": "baseline/pre-security-hardening-2026-08-09",
+    "baseline_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "freeze_tag": null,
+    "freeze_identity": "manifest plus enclosing clean reviewed commit"
+  },
+  "previous_freeze": {
+    "source_artifact_manifest_path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST.json",
+    "source_artifact_manifest_sha256": "0ca77770f73d1ed0337642c5956919a36c0510842f88e7a075f562871d77d0f8",
+    "final_bundle_manifest_path": "docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST.json",
+    "final_bundle_manifest_sha256": "fe050ea08174748b413db9eaff4bde2fb589a5d473bd4b06aad2d219c7cff63e",
+    "status": "HISTORICAL_SUPERSEDED_BY_SEC001R"
+  },
+  "protected_artifacts": {
+    "baseline_sql_sha256": "cf61cdb37d9b82b3affff035a0eaf68b1fabc2022c261f87027ae95583c153e1",
+    "baseline_manifest_canonical_lf_sha256": "33770760b62a6ff618ece2a6685059d71f1d4786be0f697c7b7f57c73d8cb000",
+    "schema_sql_sha256": "ecab0a21f27ccd152c5c99226ff6d0894ed2b4e57eda114fd428da98e323b74a",
+    "historical_migration_count": 18,
+    "historical_migration_aggregate_sha256": "eb4023420974253430dda7eb3a3ea133c6eb5ddc96fd11ddc97a2d3a715ac3a5"
+  },
+  "forward_migrations": {
+    "manifest_path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json",
+    "manifest_sha256": "51f0e458de4f6e42640eeaa586df78002f7036ef4d99c655cb54f71d03292ed7",
+    "count": 9,
+    "changed_by_sec001r": false
+  },
+  "source_bundle": {
+    "manifest_path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json",
+    "manifest_sha256": "87e73eaba501fbd5bdb91e26ae8a9b503c9408dde6d3a2857df1beb1fe37020b",
+    "tree_hash_model": "sorted tracked path + NUL + SHA-256(committed Git blob) + LF",
+    "source_tree_sha256": "e261dc81bf9fa5b44196ea17c98fd20fba439eff3140ce4838fef47ae83a6b71",
+    "test_tree_sha256": "6ac6eaa011bd46a9dd0a200f7e2f2f3ee3053640344edeecb77f67ede5f6cf22",
+    "tooling_tree_sha256": "0b53604e5e670d8036c9db402be346c6eccfe7cd8c1207a70b6b6006ebb725e6"
+  },
+  "sec001r_release_bundle": {
+    "manifest_path": "docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json",
+    "manifest_sha256": "5400d564ae8c950500b8b37c56189edf02892e971cc115700bc549beeddc4795",
+    "previous_manifest_preserved": true,
+    "migration_bytes_changed": false
+  },
+  "sec001r_live_evidence": {
+    "access": "READ_ONLY_AGGREGATE_METADATA",
+    "media_bytes_read": false,
+    "raw_paths_or_identifiers_emitted": false,
+    "total_references": 24,
+    "distinct_objects": 14,
+    "affected_legacy_references": 4,
+    "affected_legacy_objects": 4,
+    "unknown_references": 0,
+    "missing_objects": 0,
+    "cross_owner_objects": 0,
+    "storage_owner_mismatches_for_legacy_family": 4,
+    "ownership_authority": "DATABASE_RELATION"
+  },
+  "sec001r_contract": {
+    "allowlisted_family": "submissions/<opaque-legacy-scope-uuid>/<main|gallery-N>-<object-uuid>.<png|jpg|jpeg|webp>",
+    "path_owner_segment_authoritative": false,
+    "unknown_ambiguous_conflicting_cross_owner": "BLOCK",
+    "ordinary_publication_namespace_relaxed": false,
+    "canonical_upload_overwrite": false,
+    "old_source_retained": true
+  },
+  "dependencies": {
+    "package_json_sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741",
+    "pnpm_lock_sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607",
+    "changed_by_sec001r": false,
+    "production_audit": { "critical": 0, "high": 0, "moderate": 0 },
+    "full_audit": { "critical": 0, "high": 0, "moderate": 0 }
+  },
+  "security_tooling": {
+    "prelaunch_runner_sha256": "a4a3161f0cb4cb074b2fe6c92357ac77c1a5814726243dfac84f31d5bb8ce40e",
+    "gate_core_sha256": "64af1afea52907d53bc78b7df336e1a53f2f0fd5b934e2502ab26642d9604ab2",
+    "powershell_launcher_sha256": "a9c900169409e38ff0d99d3e750ab6c696bf2da92e2af408954eecc46b2aba03",
+    "bat_launcher_sha256": "27cf181be14826b76dbcda6e2daa20c86cf4b687df613a57e1a2acc388e581a0"
+  },
+  "recovery": {
+    "level": 3,
+    "status": "RECOVERY_LEVEL_3_PROVEN",
+    "proof_sha256": "2ae51cdb2dfde0f7f8939adf091a6a3afebc4d67deff12d040d43a5723070df7",
+    "deployment_freshness_requirement_hours": 24,
+    "archive_preserved": true
+  },
+  "evidence_ledgers": {
+    "security_findings_sha256": "653ac64b874eeccd662061e09eb5494f4300c9a9e635d429b845dbda6a738d2b",
+    "security_test_matrix_sha256": "23e7af4ca352436c0c06f5a3464cef6f5ea7259612c948e982ace0587aee1b91",
+    "role_matrix_cases_sha256": "2265abc49013bc5c0d6e9a77b055472190275aec54e94383f8f28a6a7e277ffc",
+    "expected_failures_sha256": "e13501c0001d97d321d3162031b0d8d8c792aa90f535be59968bd3391dca8889",
+    "unadjudicated_xfails": 0
+  },
+  "release_documents": {
+    "consolidated_backend_deployment_plan_sha256": "668edc5a5986bf12bdc8d28cd7003a57c9706da1190e648c6735367871a2f432"
+  },
+  "verified_results": {
+    "targeted_sec001r_tests": { "pass": 14, "fail": 0 },
+    "sec001r_clean_room_runs": 2,
+    "each_sec001r_rehearsal": { "pass": 24, "fail": 0 },
+    "each_role_matrix": { "pass": 188, "xfail": 0, "xpass": 0, "fail": 0, "skip": 0 },
+    "node_tests": { "pass": 182, "fail": 0 },
+    "typecheck": "PASS",
+    "eslint": { "errors": 0, "existing_warnings": 12 },
+    "db_lint": { "error": 0, "warn": 0, "info": 0 },
+    "security_advisor": { "error": 0, "warn": 8, "info": 3 },
+    "production_build": "PASS",
+    "prelaunch_gate": "READY_FOR_FINAL_BUNDLE_FREEZE",
+    "cleanup": "PASS"
+  },
+  "release_state": {
+    "local_sec001r_remediation": "COMPLETE",
+    "local_bundle": "REFROZEN",
+    "remote_backend": "UNCHANGED_PENDING_RETRY",
+    "remote_mutations": 0,
+    "next_stage": "CONSOLIDATED PRE-LAUNCH REMOTE BACKEND HARDENING DEPLOYMENT — RETRY"
+  }
+}

@@ -160,6 +160,15 @@ catalog drift, or unknown deployed source version are blockers.
 
 ## Dry-run inventory contract
 
+SEC-001R adds one exact compatibility family observed by aggregate-only live evidence:
+`submissions/<legacy-scope-uuid>/<main|gallery-N>-<object-uuid>.<png|jpg|jpeg|webp>`.
+The first UUID is opaque and MUST NOT be treated as owner identity. The runner
+builds a complete in-memory registry from approved application and published
+specialist references. An exact path is eligible only when all its references
+resolve to one DB owner. Unknown/root families and multi-owner references stop
+before Storage access. Same-owner reuse is counted and may canonicalize into
+separate entity/slot destinations.
+
 The future owner wrapper may output only aggregate counts and error categories:
 
 - total approved/published references examined;

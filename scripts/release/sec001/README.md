@@ -26,7 +26,10 @@ argument, environment variable, log field, checkpoint field, or Git artifact.
 - The target is identified by a hash over project ref, region, DB host, catalog
   marker and sorted bucket names. The owner-approved identity package is also
   outside Git.
-- `SEC-001_RELEASE_ARTIFACT_MANIFEST.json` freezes every executable release
+- `SEC-001R_RELEASE_ARTIFACT_MANIFEST.json` is the authoritative SEC-001R retry
+  freeze. The earlier `SEC-001_RELEASE_ARTIFACT_MANIFEST.json` is retained as
+  historical evidence and is intentionally no longer executable authority. The
+  SEC-001R manifest freezes every executable release
   artifact. A mismatch stops before mutation.
 - A local exclusive lock prevents parallel wrapper processes. Migration
   sessions additionally use a PostgreSQL advisory lock only for their lifetime.

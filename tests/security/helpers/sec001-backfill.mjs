@@ -1,4 +1,9 @@
-import { isCanonicalPublishedMediaPath, publishCanonicalMedia, validatePublicationSource } from '../../../src/lib/published-media.mjs';
+import {
+  createSec001BackfillSourceRegistry,
+  isCanonicalPublishedMediaPath,
+  publishCanonicalMedia,
+  validatePublicationSource,
+} from '../../../src/lib/published-media.mjs';
 
 const contracts = {
   applications: {
@@ -39,6 +44,7 @@ async function inventory(service, targetType) {
     if ((data ?? []).length < pageSize) break;
   }
   return rows.map((row) => ({
+    targetType,
     id: row.id,
     ownerId: row.owner_id,
     avatarPath: row[contract.avatar] ?? null,
@@ -52,19 +58,42 @@ function needsBackfill(target) {
   return target.galleryPaths.some((path) => !isCanonicalPublishedMediaPath(target.ownerId, path));
 }
 
-async function validateTarget(service, target) {
+function sourceAuthorization(registry, target, slot, sourcePath) {
+  return registry.authorizationFor({
+    targetType: target.targetType,
+    targetId: target.id,
+    ownerId: target.ownerId,
+    slot,
+    sourcePath,
+  });
+}
+
+async function validateTarget(service, target, registry) {
   if (target.avatarPath && !isCanonicalPublishedMediaPath(target.ownerId, target.avatarPath)) {
-    await validatePublicationSource({ storage: service.storage, ownerId: target.ownerId, slot: 'avatar', sourcePath: target.avatarPath });
+    await validatePublicationSource({
+      storage: service.storage,
+      ownerId: target.ownerId,
+      slot: 'avatar',
+      sourcePath: target.avatarPath,
+      sourceAuthorization: sourceAuthorization(registry, target, 'avatar', target.avatarPath),
+    });
   }
   for (let index = 0; index < target.galleryPaths.length; index += 1) {
     const sourcePath = target.galleryPaths[index];
     if (!isCanonicalPublishedMediaPath(target.ownerId, sourcePath)) {
-      await validatePublicationSource({ storage: service.storage, ownerId: target.ownerId, slot: `gallery-${index}`, sourcePath });
+      const slot = `gallery-${index}`;
+      await validatePublicationSource({
+        storage: service.storage,
+        ownerId: target.ownerId,
+        slot,
+        sourcePath,
+        sourceAuthorization: sourceAuthorization(registry, target, slot, sourcePath),
+      });
     }
   }
 }
 
-async function descriptorFor(service, target, slot, sourcePath) {
+async function descriptorFor(service, target, registry, slot, sourcePath) {
   if (isCanonicalPublishedMediaPath(target.ownerId, sourcePath)) return null;
   return await publishCanonicalMedia({
     storage: service.storage,
@@ -73,16 +102,17 @@ async function descriptorFor(service, target, slot, sourcePath) {
     entityId: target.id,
     slot,
     sourcePath,
+    sourceAuthorization: sourceAuthorization(registry, target, slot, sourcePath),
   });
 }
 
-async function applyTarget(service, target) {
+async function applyTarget(service, target, registry) {
   const avatar = target.avatarPath
-    ? await descriptorFor(service, target, 'avatar', target.avatarPath)
+    ? await descriptorFor(service, target, registry, 'avatar', target.avatarPath)
     : null;
   const gallery = [];
   for (let index = 0; index < target.galleryPaths.length; index += 1) {
-    gallery.push(await descriptorFor(service, target, `gallery-${index}`, target.galleryPaths[index]));
+    gallery.push(await descriptorFor(service, target, registry, `gallery-${index}`, target.galleryPaths[index]));
   }
   const { error } = await service.rpc('backfill_canonical_published_media', {
     target_type: target.contract === contracts.applications ? 'applications' : 'specialists',
@@ -107,20 +137,22 @@ export async function runSec001Backfill({ service, dryRun = true, stopAfter = Nu
     throw new Error('SEC-001 backfill stopAfter is invalid');
   }
 
-  const targets = [
+  const inventoryTargets = [
     ...(await inventory(service, 'applications')),
     ...(await inventory(service, 'specialists')),
-  ].filter(needsBackfill);
+  ];
+  const registry = createSec001BackfillSourceRegistry(inventoryTargets);
+  const targets = inventoryTargets.filter(needsBackfill);
   if (dryRun) {
-    for (const target of targets) await validateTarget(service, target);
-    return { planned: targets.length, applied: 0, remaining: targets.length };
+    for (const target of targets) await validateTarget(service, target, registry);
+    return { planned: targets.length, applied: 0, remaining: targets.length, namespaceSummary: registry.summary };
   }
 
   let applied = 0;
   for (const target of targets) {
     if (applied >= stopAfter) break;
-    await applyTarget(service, target);
+    await applyTarget(service, target, registry);
     applied += 1;
   }
-  return { planned: targets.length, applied, remaining: targets.length - applied };
+  return { planned: targets.length, applied, remaining: targets.length - applied, namespaceSummary: registry.summary };
 }

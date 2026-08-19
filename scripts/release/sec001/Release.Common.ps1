@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:ReleaseRoot = Split-Path -Parent $PSScriptRoot
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$script:ManifestPath = Join-Path $script:RepoRoot 'docs\security\SEC-001_RELEASE_ARTIFACT_MANIFEST.json'
+$script:ManifestPath = Join-Path $script:RepoRoot 'docs\security\SEC-001R_RELEASE_ARTIFACT_MANIFEST.json'
 $script:Node = (Get-Command node.exe -ErrorAction Stop).Source
 $script:Cli = Join-Path $PSScriptRoot 'lib\release-cli.mjs'
 $script:StateRoot = Join-Path $env:LOCALAPPDATA 'AL-AMIN-Security-Releases\sec001'
@@ -95,7 +95,7 @@ function Invoke-Sec001State([string]$Action, [string]$State = '', [string]$Evide
 
 function New-Sec001Checkpoint([string]$ProjectFingerprint) {
   $commit = Assert-Sec001GitGuard
-  & $script:Node $script:Cli '--action' 'init' '--repo' $script:RepoRoot '--checkpoint' $script:CheckpointPath '--manifest' 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json' '--commit' $commit '--fingerprint' $ProjectFingerprint
+  & $script:Node $script:Cli '--action' 'init' '--repo' $script:RepoRoot '--checkpoint' $script:CheckpointPath '--manifest' 'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json' '--commit' $commit '--fingerprint' $ProjectFingerprint
   if ($LASTEXITCODE -ne 0) { throw 'CHECKPOINT_INITIALIZATION_FAILED' }
 }
 
@@ -105,7 +105,7 @@ function Read-Sec001Checkpoint {
 }
 
 function Assert-Sec001ArtifactFreeze {
-  $code = "import('node:url').then(async u=>{const root=process.argv[1];const m=await import(u.pathToFileURL(root + '/scripts/release/sec001/lib/release-state.mjs').href);process.stdout.write(JSON.stringify(await m.verifyArtifactManifest(root,'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json')))}).catch(e=>{process.stderr.write(e.message);process.exit(1)})"
+  $code = "import('node:url').then(async u=>{const root=process.argv[1];const m=await import(u.pathToFileURL(root + '/scripts/release/sec001/lib/release-state.mjs').href);process.stdout.write(JSON.stringify(await m.verifyArtifactManifest(root,'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json')))}).catch(e=>{process.stderr.write(e.message);process.exit(1)})"
   $result = & $script:Node -e $code $script:RepoRoot.Replace('\','/')
   if ($LASTEXITCODE -ne 0) { throw 'ARTIFACT_FREEZE_MISMATCH' }
   $verified = $result | ConvertFrom-Json

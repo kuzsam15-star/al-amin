@@ -52,7 +52,7 @@ test('SEC-001 release state machine completes two independent deterministic rehe
   assert.deepEqual(classifications[1], classifications[0]);
 });
 
-test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-launch source drift', async () => {
+test('the historical SEC-001 release bundle records the exact superseded drift', async () => {
   const manifestPath = 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json';
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   assert.equal(manifest.artifacts.length, 42);
@@ -68,17 +68,31 @@ test('the frozen SEC-001 release bundle fails closed on the exact reviewed pre-l
   assert.deepEqual(mismatches.sort(), [
     'admin-actions',
     'admin-page',
+    'backfill-core',
+    'backfill-runner',
     'deployment-runbook',
     'media-source-route',
     'media-upload-route',
     'media-view-route',
+    'powershell-common',
     'published-media',
+    'published-media-types',
     'state-machine',
+    'wrapper-readme',
   ]);
   await assert.rejects(
     verifyArtifactManifest(process.cwd(), manifestPath),
     /ARTIFACT_HASH_MISMATCH_/u,
   );
+});
+
+test('the SEC-001R retry artifact manifest verifies every current reviewed byte', async () => {
+  const manifestPath = 'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json';
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  assert.equal(manifest.stage, 'SEC-001R');
+  assert.equal(manifest.previousFrozenManifest.path, 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json');
+  const verified = await verifyArtifactManifest(process.cwd(), manifestPath);
+  assert.equal(verified.checked.length, manifest.artifacts.length);
 });
 
 test('SEC-001 release failure injections fail closed', async (t) => {

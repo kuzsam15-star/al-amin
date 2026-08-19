@@ -14,7 +14,7 @@ The role matrix is now **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP** in two
 
 `FINAL PRE-LAUNCH CLEAN-ROOM BUNDLE VERIFICATION AND FREEZE` completed successfully in two independent clean rooms. The local executable security bundle is frozen; a new local implementation package is permitted only for a newly proven Critical/High blocker.
 
-The completed stage replayed the frozen candidate from clean commits using `PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json`, `PRELAUNCH_SOURCE_ARTIFACT_MANIFEST.json` and the owner-friendly local gate. It was verification, not another implementation package.
+The completed stage replayed the frozen candidate from clean commits. After SEC-001R, the retry candidate uses unchanged `PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json`, new `PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json` and the owner-friendly local gate. The previous source manifest remains historical evidence.
 
 ## Remote backend finish line
 
