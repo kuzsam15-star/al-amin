@@ -113,7 +113,7 @@ SEC-016 остаётся частью ранней database-baseline работ�
 - **Rollback strategy:** Сначала совместимый server writer и canary, затем revoke broad path; rollback отключает новый writer/переключение, но не возвращает broad Storage DML.
 - **Risk of fixing:** Высокий — неверный rollout может остановить upload, оставить orphan objects или снова открыть overwrite.
 - **Dependencies:** P0-01 controls, P0-02 reproducible DB baseline, disposable Storage fixtures, publication transaction, restore evidence.
-- **Status:** `LOCAL_VERIFIED_AWAITING_CONSOLIDATED_PRELAUNCH_BACKEND_RELEASE`; not fixed live. Adversarial review, role-matrix, Recovery Level 3, backfill controls, Phase B gate, failure injection and disposable rehearsals PASS. There is no deployed application, so source-version/public-canary/traffic gates are deferred until first hosting. The remote-backend risk remains until SEC-001 is included in an owner-approved consolidated pre-launch backend window with Phase A, inventory/backfill/zero pass, Phase B and live verification.
+- **Status:** `LOCAL_VERIFIED_WITH_SEC001L_FORWARD_FIX_AWAITING_REMOTE_RESUME`; not fixed live. Remote Phase A is applied/verified; backfill and Phase B remain pending. SEC-001L handles only the proven contract-v1 canonical-backfill blocker, preserves all business fields and has two 29/29 clean-room rehearsals. There is no deployed application, so source-version/public-canary/traffic gates are deferred until first hosting. The remote risk remains until SEC-001L, backfill/zero pass, Phase B and live verification complete.
 
 ### SEC-002 — Owner column exposure
 
@@ -586,7 +586,7 @@ P0-03A выполнил этот vertical slice локально, а P0-03B не
 
 ### Final local freeze status (2026-08-17)
 
-All local implementation packages and the final clean-room verification/freeze are complete. SEC-001R then added a narrowly allowlisted compatibility adapter for a verified legacy media namespace and repeated the relevant clean-room and role-matrix gates. The original manifest remains historical; the authoritative retry manifest is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001R.json`. The next stage is `CONSOLIDATED PRE-LAUNCH REMOTE BACKEND HARDENING DEPLOYMENT — RETRY`. This status does not claim any remote or live finding is fixed.
+All planned local implementation packages and the original clean-room freeze are complete. SEC-001R added the verified legacy namespace adapter. SEC-001L now adds one reviewed forward migration for the exact legacy contract-v1 backfill blocker discovered after remote Phase A. Earlier manifests remain historical; the authoritative resume manifest is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001L.json`. The next remote step is the separately owner-gated SEC-001L apply/verify followed by resume of the existing consolidated deployment checkpoint. This status does not claim SEC-001 is fixed live.
 
 После создания документов необходимо выполнить read-only команды:
 

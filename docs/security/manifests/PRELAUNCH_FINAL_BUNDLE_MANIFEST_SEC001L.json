@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-20T00:00:00Z",
+  "verdict": "SEC001L_FORWARD_FIX_FROZEN_READY_FOR_OWNER_GATED_REMOTE_RESUME",
+  "architecture": {
+    "state": "PRE-LAUNCH",
+    "application_deployment": "NONE",
+    "hosting": "NOT_CONFIGURED",
+    "remote_backend": "SEC001_PHASE_A_APPLIED_VERIFIED_BACKFILL_PHASE_B_ABSENT",
+    "remote_mutations_during_sec001l_preparation": 0,
+    "known_remote_mutation_stages_before_sec001l": ["SEC001_PHASE_A"]
+  },
+  "git": {
+    "branch": "security/hardening",
+    "previous_frozen_head": "7d83b1af04d027d3152a6938d6f3140a68ec90eb",
+    "forward_fix_commit": "ENCLOSING_GIT_COMMIT",
+    "new_bundle_head": "ENCLOSING_GIT_COMMIT",
+    "main_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "baseline_tag": "baseline/pre-security-hardening-2026-08-09",
+    "baseline_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "freeze_tag": null,
+    "freeze_identity": "manifest plus enclosing clean reviewed commit"
+  },
+  "previous_freeze": {
+    "source_artifact_manifest_path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json",
+    "source_artifact_manifest_sha256": "87e73eaba501fbd5bdb91e26ae8a9b503c9408dde6d3a2857df1beb1fe37020b",
+    "final_bundle_manifest_path": "docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001R.json",
+    "status": "HISTORICAL_SUPERSEDED_BY_SEC001L"
+  },
+  "protected_artifacts": {
+    "baseline_sql_sha256": "cf61cdb37d9b82b3affff035a0eaf68b1fabc2022c261f87027ae95583c153e1",
+    "baseline_manifest_canonical_lf_sha256": "33770760b62a6ff618ece2a6685059d71f1d4786be0f697c7b7f57c73d8cb000",
+    "schema_sql_sha256": "ecab0a21f27ccd152c5c99226ff6d0894ed2b4e57eda114fd428da98e323b74a",
+    "historical_migration_count": 18,
+    "historical_migration_aggregate_sha256": "eb4023420974253430dda7eb3a3ea133c6eb5ddc96fd11ddc97a2d3a715ac3a5"
+  },
+  "forward_migrations": {
+    "manifest_path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json",
+    "manifest_sha256": "9218dc4f1d87c5d0d9d5b1889bf5173368351463388cd7bf55a9c740360f0ecd",
+    "count": 10,
+    "changed_by_sec001l": true,
+    "legacy_contract_forward_fix": {
+      "order": 2,
+      "path": "supabase/forward-migrations/20260811000150_sec001_legacy_contract_backfill_compatibility.sql",
+      "sha256": "1badad41b50713d33687316fde8709f25cc214722bc311e3f477b017d39cc67d",
+      "phase_a_precondition": "PRESENT_VERIFIED",
+      "phase_b_precondition": "ABSENT"
+    }
+  },
+  "source_bundle": {
+    "manifest_path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001L.json",
+    "manifest_sha256": "45eb1e7289df5e93630bcdfdba3906ace5b7e99d94518bc97da560021378c043",
+    "tree_hash_model": "sorted tracked path + NUL + SHA-256(committed Git blob) + LF",
+    "source_tree_sha256": "e261dc81bf9fa5b44196ea17c98fd20fba439eff3140ce4838fef47ae83a6b71",
+    "test_tree_sha256": "772c66ca73c0e7c67e16aaae91a7bbf3ad56a74f7bf43797d0486fea5cdb9e34",
+    "tooling_tree_sha256": "3fec03692907ffa83628ecc74cc0f61c442534dd22507ac4de93acccf8f2f15d"
+  },
+  "sec001l_release_bundle": {
+    "manifest_path": "docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json",
+    "manifest_sha256": "140357aff843848f73811e17f40870160443878f19afb23f381c383ad8988aa6",
+    "verified_artifact_count": 56,
+    "previous_manifests_preserved": true
+  },
+  "remote_checkpoint_contract": {
+    "state": "INVENTORY_REVIEWED",
+    "planned_counter": null,
+    "applied_counter": null,
+    "target_fingerprint_preserved": true,
+    "checkpoint_rebind_scope": "LOCAL_MANIFEST_AND_COMMIT_ONLY",
+    "remote_mutation_authorized_by_manifest": false
+  },
+  "sec001l_root_cause": {
+    "safe_error_class": "P0001_LEGACY_CONTRACT_V1_CONTENT_GUARD",
+    "affected_operation": "SERVICE_CONTROLLED_CANONICAL_MEDIA_BACKFILL",
+    "database_cutover_occurred": false,
+    "phase_b_applied": false,
+    "temporary_operator_credential_deleted": true
+  },
+  "sec001l_contract": {
+    "ordinary_owner_content_guard_relaxed": false,
+    "contract_version_upgraded": false,
+    "non_media_fields_mutable": false,
+    "service_role_required": true,
+    "active_exact_provenance_required": true,
+    "owner_entity_slot_and_source_bound": true,
+    "canonical_upload_overwrite": false,
+    "old_source_retained": true,
+    "helper_client_execute": false
+  },
+  "dependencies": {
+    "package_json_sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741",
+    "pnpm_lock_sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607",
+    "changed_by_sec001l": false,
+    "production_audit": { "critical": 0, "high": 0, "moderate": 0 },
+    "full_audit": { "critical": 0, "high": 0, "moderate": 0 }
+  },
+  "security_tooling": {
+    "prelaunch_runner_sha256": "ebf8041dfb947e3820a2bbfb0ed8f6d5c8bba8ec92f4fbcac233f281782f418c",
+    "gate_core_sha256": "64af1afea52907d53bc78b7df336e1a53f2f0fd5b934e2502ab26642d9604ab2",
+    "powershell_launcher_sha256": "a9c900169409e38ff0d99d3e750ab6c696bf2da92e2af408954eecc46b2aba03",
+    "bat_launcher_sha256": "27cf181be14826b76dbcda6e2daa20c86cf4b687df613a57e1a2acc388e581a0"
+  },
+  "recovery": {
+    "level": 3,
+    "status": "RECOVERY_LEVEL_3_PROVEN",
+    "proof_sha256": "2ae51cdb2dfde0f7f8939adf091a6a3afebc4d67deff12d040d43a5723070df7",
+    "deployment_freshness_requirement_hours": 24,
+    "archive_preserved": true
+  },
+  "evidence_ledgers": {
+    "security_findings_sha256": "967878b47b17f359379d3c87c11b60a148928b843c118b21668c3ec727077ddb",
+    "security_test_matrix_sha256": "23e7af4ca352436c0c06f5a3464cef6f5ea7259612c948e982ace0587aee1b91",
+    "role_matrix_cases_sha256": "2265abc49013bc5c0d6e9a77b055472190275aec54e94383f8f28a6a7e277ffc",
+    "expected_failures_sha256": "e13501c0001d97d321d3162031b0d8d8c792aa90f535be59968bd3391dca8889",
+    "unadjudicated_xfails": 0
+  },
+  "release_documents": {
+    "consolidated_backend_deployment_plan_sha256": "ccfc26d5186ae55402c125d70f46924633be591c6b105b3dd5aadeb4696266a9"
+  },
+  "verified_results": {
+    "targeted_release_and_backfill_tests": { "pass": 25, "fail": 0 },
+    "sec001l_clean_room_runs": 2,
+    "each_sec001l_rehearsal": { "pass": 29, "fail": 0 },
+    "each_role_matrix": { "pass": 188, "xfail": 0, "xpass": 0, "fail": 0, "skip": 0 },
+    "node_tests": { "pass": 184, "fail": 0 },
+    "typecheck": "PASS",
+    "eslint": { "errors": 0, "existing_warnings": 12 },
+    "db_lint": { "error": 0, "warn": 0, "info": 0 },
+    "security_advisor": { "error": 0, "warn": 8, "info": 3 },
+    "production_build": "PASS",
+    "secret_pii_scan": "PASS",
+    "client_bundle_scan": "PASS",
+    "cleanup": "PASS"
+  },
+  "release_state": {
+    "local_sec001l_forward_fix": "COMPLETE",
+    "local_bundle": "REFROZEN",
+    "remote_backend": "PHASE_A_ONLY",
+    "next_owner_gate": "APPLY SEC-001 LEGACY CONTRACT FORWARD-FIX",
+    "next_stage": "OWNER-GATED SEC-001L APPLY/VERIFY THEN RESUME CONSOLIDATED DEPLOYMENT"
+  }
+}

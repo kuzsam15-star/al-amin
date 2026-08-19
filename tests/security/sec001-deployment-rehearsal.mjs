@@ -20,6 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
 const requiredBaselineHash = 'CF61CDB37D9B82B3AFFFF035A0EAF68B1FABC2022C261F87027AE95583C153E1';
 const phaseA = '202608110001_sec001_immutable_published_media.sql';
+const legacyContractForwardFix = '20260811000150_sec001_legacy_contract_backfill_compatibility.sql';
 const phaseB = '202608110002_sec001_enforce_canonical_published_media.sql';
 const remainingForwardMigrations = [
   '20260813154850_sec002_owner_safe_applications_projection.sql',
@@ -85,7 +86,7 @@ async function applyReleasePhase({ stack, tools, env, name, allowFailure = false
   const databaseUrl = new URL(stack.dbUrl);
   const sqlPath = join(repoRoot, 'supabase', 'forward-migrations', name);
   const helperPath = join(repoRoot, 'scripts', 'release', 'sec001', 'Invoke-IsolatedReleasePsql.sh');
-  const mode = name === phaseA ? 'phase-a' : 'phase-b';
+  const mode = name === phaseA ? 'phase-a' : name === legacyContractForwardFix ? 'legacy-fix' : 'phase-b';
   try {
     return await runCommand(tools.dockerBin, [
     'run', '--rm', '-i', '--tmpfs', '/run/secrets:rw,noexec,nosuid,nodev,size=64k',
@@ -203,6 +204,7 @@ async function executeRehearsal(runNumber, tools, env) {
       pending: '11111111-1111-4111-8111-000000000060',
       rejected: '11111111-1111-4111-8111-000000000070',
       legacy: '11111111-1111-4111-8111-000000000080',
+      legacyV1: '11111111-1111-4111-8111-000000000081',
       legacyConflict: '11111111-1111-4111-8111-000000000090',
       specialist: '11111111-1111-4111-8111-000000000110',
       legacySpecialist: '11111111-1111-4111-8111-000000000140',
@@ -216,6 +218,7 @@ async function executeRehearsal(runNumber, tools, env) {
       conflict: sourcePath(owners[3].id), mixedAvatar: sourcePath(owners[4].id), mixedGallery: sourcePath(owners[4].id, 'gallery'),
       pending: sourcePath(owners[5].id), rejected: sourcePath(owners[6].id), orphan: sourcePath(owners[7].id),
       legacyFresh: sourcePath(owners[8].id),
+      legacyV1: sourcePath(owners[8].id),
       legacyMain: `submissions/${randomUUID()}/main-${randomUUID()}.png`,
       legacyGallery: `submissions/${randomUUID()}/gallery-0-${randomUUID()}.jpg`,
     };
@@ -223,7 +226,8 @@ async function executeRehearsal(runNumber, tools, env) {
       upload(service, paths.valid, bytes), upload(service, paths.missing, bytes), upload(service, paths.corrupt, bytes),
       upload(service, paths.conflict, bytes), upload(service, paths.mixedAvatar, bytes), upload(service, paths.mixedGallery, bytes),
       upload(service, paths.pending, bytes), upload(service, paths.rejected, bytes), upload(service, paths.orphan, bytes),
-      upload(service, paths.legacyFresh, bytes), upload(service, paths.legacyMain, bytes), upload(service, paths.legacyGallery, bytes),
+      upload(service, paths.legacyFresh, bytes), upload(service, paths.legacyV1, bytes),
+      upload(service, paths.legacyMain, bytes), upload(service, paths.legacyGallery, bytes),
     ]);
     const { error: categoryError } = await service.from('categories').insert({
       id: ids.category, name: 'Synthetic SEC-001', slug: `sec001-${stack.projectId.slice(-8)}`, group_name: 'Synthetic', is_active: true,
@@ -235,6 +239,7 @@ async function executeRehearsal(runNumber, tools, env) {
       application(ids.mixed, owners[4].id, paths.mixedAvatar, 'approved', [paths.mixedGallery]),
       application(ids.pending, owners[5].id, paths.pending, 'new'), application(ids.rejected, owners[6].id, paths.rejected, 'rejected'),
       application(ids.legacy, owners[8].id, paths.legacyFresh, 'approved', []),
+      application(ids.legacyV1, owners[8].id, paths.legacyV1, 'approved', []),
     ];
     const { error: appError } = await service.from('applications').insert(applications);
     if (appError) throw new Error(`Synthetic application fixtures failed: ${appError.message}`);
@@ -249,6 +254,7 @@ async function executeRehearsal(runNumber, tools, env) {
       update public.applications
       set main_image_path='${sqlQuote(paths.legacyMain)}', gallery_paths=array['${sqlQuote(paths.legacyGallery)}']::text[]
       where id='${ids.legacy}'::uuid;
+      update public.applications set contract_version=1 where id='${ids.legacyV1}'::uuid;
       update public.specialists
       set avatar_path='${sqlQuote(paths.legacyMain)}', gallery_paths=array['${sqlQuote(paths.legacyGallery)}']::text[]
       where id='${ids.legacySpecialist}'::uuid;
@@ -275,6 +281,50 @@ async function executeRehearsal(runNumber, tools, env) {
     record(runNumber, 'PHASE-A-APPLIED', true);
     checkpoint = advance(checkpoint, 'PHASE_A_APPLIED', { evidence: { catalogVerification: 'PASS' } });
     checkpoint = advance(checkpoint, 'SOURCE_DEPLOY_CONFIRMED', { evidence: { localSourceCommit: checkpoint.sourceCommit } });
+
+    const legacyV1Before = await row(service, 'applications', ids.legacyV1, 'contract_version,full_name,main_image_path');
+    const legacyV1Descriptor = await publishCanonicalMedia({
+      storage: service.storage, ownerId: owners[8].id, entityType: 'backfill-applications',
+      entityId: ids.legacyV1, slot: 'avatar', sourcePath: paths.legacyV1,
+    });
+    const legacyV1Red = await service.rpc('backfill_canonical_published_media', {
+      target_type: 'applications', target_uuid: ids.legacyV1,
+      expected_avatar_path: paths.legacyV1, expected_gallery_paths: [],
+      avatar_descriptor: legacyV1Descriptor, gallery_descriptors: [],
+    });
+    record(runNumber, 'LEGACY-V1-RED-PHASE-REPRODUCED',
+      legacyV1Red.error?.code === 'P0001'
+      && legacyV1Red.error?.message === 'Changed application content must use contract version 2'
+      && (await row(service, 'applications', ids.legacyV1, 'main_image_path')).main_image_path === paths.legacyV1);
+
+    await applyReleasePhase({ stack, tools, env, name: legacyContractForwardFix });
+    await applyReleasePhase({ stack, tools, env, name: legacyContractForwardFix });
+    const compatibilityMarker = await queryLocalSql(stack, tools.dockerBin, env, `
+      select obj_description('public.require_application_contract_v2_on_content_write()'::regprocedure, 'pg_proc');
+    `);
+    record(runNumber, 'LEGACY-V1-FORWARD-FIX-APPLIED',
+      compatibilityMarker === 'AL-AMIN SEC-001 legacy canonical backfill compatibility v1');
+
+    const legacyV1Retry = await service.rpc('backfill_canonical_published_media', {
+      target_type: 'applications', target_uuid: ids.legacyV1,
+      expected_avatar_path: paths.legacyV1, expected_gallery_paths: [],
+      avatar_descriptor: legacyV1Descriptor, gallery_descriptors: [],
+    });
+    const legacyV1After = await row(service, 'applications', ids.legacyV1, 'contract_version,full_name,main_image_path');
+    record(runNumber, 'LEGACY-V1-CANONICAL-BACKFILL-PASS',
+      !legacyV1Retry.error
+      && legacyV1After.main_image_path === legacyV1Descriptor.canonical_path);
+    record(runNumber, 'LEGACY-V1-BUSINESS-CONTRACT-PRESERVED',
+      legacyV1After.contract_version === 1
+      && legacyV1After.full_name === legacyV1Before.full_name);
+    await assert.rejects(queryLocalSql(stack, tools.dockerBin, env, `
+      begin;
+      set local request.jwt.claims = '{"role":"service_role"}';
+      update public.applications set full_name=full_name || ' blocked' where id='${ids.legacyV1}'::uuid;
+      commit;
+    `));
+    record(runNumber, 'LEGACY-V1-NONMEDIA-BYPASS-DENIED',
+      (await row(service, 'applications', ids.legacyV1, 'full_name')).full_name === legacyV1Before.full_name);
 
     const { error: conflictFixtureError } = await service.from('applications').insert(
       application(ids.legacyConflict, owners[7].id, paths.orphan, 'new'),
@@ -407,7 +457,7 @@ async function executeRehearsal(runNumber, tools, env) {
 
     const oldSources = await Promise.all([
       paths.missing, paths.corrupt, paths.conflict, paths.mixedAvatar, paths.mixedGallery,
-      paths.legacyMain, paths.legacyGallery,
+      paths.legacyV1, paths.legacyMain, paths.legacyGallery,
     ].map((path) => service.storage.from('profile-media').download(path)));
     const orphan = await service.storage.from('profile-media').download(paths.orphan);
     record(runNumber, 'OLD-SOURCES-NOT-AUTO-DELETED', oldSources.every((entry) => Boolean(entry.data)) && Boolean(orphan.data));
@@ -448,6 +498,6 @@ try {
   assert.deepEqual(secondIds, firstIds);
   console.log(`SEC001_DEPLOYMENT_REHEARSAL_PASS RUN1=${first.count} RUN2=${second.count} FAIL=0`);
 } catch (error) {
-  console.error(`SEC001_DEPLOYMENT_REHEARSAL_BLOCKED: ${error?.safeMessage ?? (error instanceof Error ? error.message : String(error))}`);
+  console.error(`SEC001_DEPLOYMENT_REHEARSAL_BLOCKED: ${error?.safeMessage ?? redactCommandError(error)}`);
   process.exitCode = 1;
 }

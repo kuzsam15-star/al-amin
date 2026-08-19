@@ -1,0 +1,58 @@
+{
+  "format_version": 1,
+  "generated_at": "2026-08-20",
+  "hash_algorithm": "SHA-256",
+  "remote_execution_performed_during_sec001l": false,
+  "remote_backend_state": "SEC001_PHASE_A_APPLIED_VERIFIED_BACKFILL_PHASE_B_ABSENT",
+  "previous_authoritative_manifest": {
+    "path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json",
+    "sha256": "87e73eaba501fbd5bdb91e26ae8a9b503c9408dde6d3a2857df1beb1fe37020b",
+    "status": "HISTORICAL_SUPERSEDED_BY_SEC001L"
+  },
+  "git": {
+    "branch": "security/hardening",
+    "minimum_commit": "7d83b1af04d027d3152a6938d6f3140a68ec90eb",
+    "main_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "baseline_tag": "baseline/pre-security-hardening-2026-08-09",
+    "baseline_commit": "10df78b416ae872eeefe9e8c2c7a641bb6fce89c",
+    "freeze_commit": "ENCLOSING_GIT_COMMIT"
+  },
+  "trees": [
+    { "path": "src", "sha256": "e261dc81bf9fa5b44196ea17c98fd20fba439eff3140ce4838fef47ae83a6b71", "hash_source": "committed-git-blobs", "class": "SOURCE" },
+    { "path": "tests", "sha256": "772c66ca73c0e7c67e16aaae91a7bbf3ad56a74f7bf43797d0486fea5cdb9e34", "hash_source": "committed-git-blobs", "class": "TEST" },
+    { "path": "scripts", "sha256": "3fec03692907ffa83628ecc74cc0f61c442534dd22507ac4de93acccf8f2f15d", "hash_source": "committed-git-blobs", "class": "TOOLING" }
+  ],
+  "artifacts": [
+    { "path": ".gitattributes", "sha256": "caa9ffbfb9b7a265954acd9305cd90befa58bde06380a3c89a8668cb54eb714f", "class": "RELEASE_CONFIG" },
+    { "path": "package.json", "sha256": "ab1f2ba7193bfa6f7af14c6339c62177fee4a10bed834f3b507c2471c898b741", "class": "PACKAGE" },
+    { "path": "pnpm-lock.yaml", "sha256": "04d690d404e74a8d9669263305a112cb3961505e28fa6efc364b20d22151c607", "class": "PACKAGE" },
+    { "path": "pnpm-workspace.yaml", "sha256": "5495bf69244558f180ac83a2be2cfc5d90267df3f506e3f640dec1c44c8c4c4a", "class": "PACKAGE" },
+    { "path": "next.config.mjs", "sha256": "939122ba3bcc65d3e4d211744691293c98e5aba37507ce5272fe8f08303798be", "class": "CONFIG" },
+    { "path": "tsconfig.json", "sha256": "5563bf72ae43a35ad7902e45d2c0e491e6ac05cb1d35ea3b0c10e3711484903b", "hash_source": "committed-git-blob", "class": "CONFIG" },
+    { "path": "eslint.config.mjs", "sha256": "cc84f608331e3daa4d7be9fd1e6df571fcc1fcd6f33117bf97c40be305943a19", "class": "CONFIG" },
+    { "path": "docs/security/recovery/CONFIG_RECOVERY_MANIFEST.json", "sha256": "ccfd546b6751a8fe586a025e84944c5f1278098925ebef5567a42d29ace5d3c9", "class": "RECOVERY_CONFIG" },
+    { "path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json", "sha256": "9218dc4f1d87c5d0d9d5b1889bf5173368351463388cd7bf55a9c740360f0ecd", "class": "RELEASE_MANIFEST" },
+    { "path": "supabase/bootstrap/baseline.sql", "sha256": "cf61cdb37d9b82b3affff035a0eaf68b1fabc2022c261f87027ae95583c153e1", "class": "VERIFIED_BASELINE" },
+    { "path": "supabase/bootstrap/manifest.json", "sha256": "33770760b62a6ff618ece2a6685059d71f1d4786be0f697c7b7f57c73d8cb000", "canonical_text_eol": "LF", "class": "VERIFIED_BASELINE" },
+    { "path": "supabase/bootstrap/verify.sql", "sha256": "759ceaf2ef80b1ad9b9deb82efcb5d7000cfb3f4b9996948ffdd2a1ea559d25c", "class": "VERIFIED_BASELINE" },
+    { "path": "supabase/schema.sql", "sha256": "ecab0a21f27ccd152c5c99226ff6d0894ed2b4e57eda114fd428da98e323b74a", "class": "LEGACY_NON_EXECUTABLE" },
+    { "path": "supabase/migrations/202607280001_accounts_media_publication.sql", "sha256": "5599d631dd9dad40a0d029c6bfcd65330a9dd33514124fc041446a6e0708d28c", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607280002_product-test-fixes.sql", "sha256": "9c968b1c8607ffdaa1954fc722d95e3d74ac150d11bc825e0a8f50a5e311732b", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290001_00_application_changes_requested.sql", "sha256": "4ed0e3be3fcf9a264c814f3ffaf4a5af5b0d24c7fa63d46510362f4465e508a0", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290002_admin_moderation_deletion.sql", "sha256": "2b3bb1f28e3cafae8ff000eb6665173647be077d138572b89e39059c7fc7d392", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290003_application_workflow_and_admin_profiles.sql", "sha256": "8cd01e6a7ad82e9b0d1887b6bf9736c7845552b2759f6231c31025c4d274deb6", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290004_email_notifications.sql", "sha256": "3c0f54e37b3f43a70a46ef4e3b09dbcfbe64264f3e98c61d112d093701b23e7f", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290005_email_retry_guard.sql", "sha256": "17a9e8e9e70416a09d4778fb3b7dcb6d819cbcc1bc55c7883c5eccc52e1a2fd1", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290006_expand_category_catalog.sql", "sha256": "96158cd0aeed455a039fd28ca92d145c2069799954636ec6d67505145a625cfb", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290007_reclassify_category_groups.sql", "sha256": "cccf8e3ad0ff54ad2b53cf6b1c39bc438c7d24a60878ba154803da2d35c0ed0a", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290008_site_content.sql", "sha256": "83edbab9ef159984b22828dc07e2873a6d04a46b4ba4b82a4e64376f6a54ffb1", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290009_specialist_revisions.sql", "sha256": "f0206ac3f870107c0ce9b09d892c4264aa8dc684c8e5e64fc89050a15b289571", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607290010_trust_badges.sql", "sha256": "78560b673c32cf9b9834f4f4a807a59ffa2ec6c3348284edb74963d0f66c65f8", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607300001_security_hardening.sql", "sha256": "ae1e21fff262efd5f225dce0bec000640d50287c43ff3cfac82fa3660e7066e0", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202607310001_security_hardening.sql", "sha256": "451a759bc6b43267e524bea54ab5c6def90ca4cf62dccbd13bea260d0bbed1ac", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/202608070001_specialist_data_contract.sql", "sha256": "9b4cb3f7cae5bfc378c51da19463d62c8fa5d58f12dda214f1f730c710d40e83", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/20260808172951_harden_email_rpc_acl.sql", "sha256": "f7567e40b4f627c881f45ac7cac626484ffc4c1706d19fb5841d14734554f357", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/20260808212241_fix_email_notification_recipient_regex.sql", "sha256": "f0e6368631f856df820527b7da410b991cd9d3733ba6d6ae8329a5411e38718d", "class": "HISTORICAL_MIGRATION" },
+    { "path": "supabase/migrations/20260809001646_enforce_server_only_specialist_writes.sql", "sha256": "5e79860ba9d020f434ea704a69b31f3021ea0ec7a7a8ca672f50540681d142fd", "class": "HISTORICAL_MIGRATION" }
+  ]
+}

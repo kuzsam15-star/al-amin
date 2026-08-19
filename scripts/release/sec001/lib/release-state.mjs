@@ -162,6 +162,52 @@ export function recordBackfillProgress(checkpoint, counters, { now = new Date() 
   return updated;
 }
 
+export function rebindFrozenBundle(checkpoint, {
+  previousArtifactManifestHash,
+  artifactManifestHash,
+  sourceCommit,
+  now = new Date(),
+} = {}) {
+  if (checkpoint.state !== 'INVENTORY_REVIEWED') fail('BUNDLE_REBIND_STATE_NOT_ALLOWED');
+  if (!/^[A-F0-9]{64}$/u.test(previousArtifactManifestHash ?? '')
+      || !/^[A-F0-9]{64}$/u.test(artifactManifestHash ?? '')
+      || !/^[a-f0-9]{40}$/u.test(sourceCommit ?? '')) fail('BUNDLE_REBIND_INPUT_INVALID');
+  if (checkpoint.artifactManifestHash !== previousArtifactManifestHash) fail('BUNDLE_REBIND_PREVIOUS_MANIFEST_MISMATCH');
+  if (checkpoint.counters.planned != null || checkpoint.counters.applied != null) fail('BUNDLE_REBIND_AFTER_BACKFILL_FORBIDDEN');
+
+  const updated = structuredClone(checkpoint);
+  const previousSourceCommit = updated.sourceCommit;
+  updated.sourceCommit = sourceCommit;
+  updated.artifactManifestHash = artifactManifestHash;
+  updated.updatedAt = iso(now);
+  updated.history.push({
+    state: updated.state,
+    at: updated.updatedAt,
+    evidence: {
+      bundleRebind: 'SEC001_LEGACY_CONTRACT_FORWARD_FIX',
+      previousArtifactManifestHash,
+      previousSourceCommit,
+    },
+  });
+  return updated;
+}
+
+export function recordLegacyContractForwardFix(checkpoint, { now = new Date() } = {}) {
+  if (checkpoint.state !== 'INVENTORY_REVIEWED') fail('LEGACY_CONTRACT_FORWARD_FIX_STATE_NOT_ALLOWED');
+  const alreadyRecorded = checkpoint.history.some(
+    (entry) => entry?.evidence?.legacyContractForwardFix === 'APPLIED_VERIFIED',
+  );
+  if (alreadyRecorded) return checkpoint;
+  const updated = structuredClone(checkpoint);
+  updated.updatedAt = iso(now);
+  updated.history.push({
+    state: updated.state,
+    at: updated.updatedAt,
+    evidence: { legacyContractForwardFix: 'APPLIED_VERIFIED' },
+  });
+  return updated;
+}
+
 export async function verifyArtifactManifest(repoRoot, manifestPath) {
   const manifestAbsolute = resolve(repoRoot, manifestPath);
   const manifest = JSON.parse(await readFile(manifestAbsolute, 'utf8'));

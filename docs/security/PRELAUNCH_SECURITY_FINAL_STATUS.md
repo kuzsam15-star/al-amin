@@ -1,12 +1,12 @@
 # AL-AMIN Pre-Launch Security Final Local Status
 
-Architecture is PRE-LAUNCH: the Next.js application is local-only; no hosting/provider/public traffic exists; remote Supabase is a live backend and has not received this local hardening chain.
+Architecture is PRE-LAUNCH: the Next.js application is local-only; no hosting/provider/public traffic exists. Remote Supabase is a live backend where SEC-001 Phase A is applied/verified; backfill, Phase B and all later local hardening migrations remain pending.
 
 ## Finding classification
 
 | Finding | Historical severity | Final local classification | Exact remaining gate |
 |---|---|---|---|
-| SEC-001 | Critical | LOCAL_IMPLEMENTED_PENDING_REMOTE | inventory/backfill/Phase B in consolidated window |
+| SEC-001 | Critical | PARTIALLY_DEPLOYED_WITH_LOCAL_SEC001L_FORWARD_FIX | apply/verify SEC-001L, then backfill/zero pass/Phase B |
 | SEC-002 | High | LOCAL_IMPLEMENTED_PENDING_REMOTE | deploy and verify owner projection |
 | SEC-003 | Critical | LOCAL_IMPLEMENTED_PENDING_REMOTE | deploy named boundary and role canary |
 | SEC-004 | Critical | LOCAL_IMPLEMENTED_PENDING_REMOTE | deploy DB gateway; hosting origin/Turnstile config |

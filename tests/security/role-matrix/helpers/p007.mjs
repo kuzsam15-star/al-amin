@@ -93,7 +93,10 @@ async function recordBeforeState(recorder, service, users, fixtures) {
   const ids = [left.id, right.id];
   const { count } = await service.from('applications').select('id', { count: 'exact', head: true }).in('id', ids);
   recorder.record('P007-002', attempts.filter((entry) => !entry.error).length === 1 && count === 1, 'concurrent direct backend inserts were bounded by the active-owner invariant');
-  await service.from('applications').update({ status: 'rejected' }).in('id', ids);
+  const cleanup = await service.from('applications').update({ status: 'rejected' }).in('id', ids);
+  if (cleanup.error) {
+    throw new Error(`P0-07 synthetic active-application fixture cleanup failed: ${cleanup.error.code ?? 'unknown'} ${cleanup.error.message ?? 'unknown'}`);
+  }
 }
 
 function recordUnavailable(recorder) {

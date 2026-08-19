@@ -26,14 +26,14 @@ argument, environment variable, log field, checkpoint field, or Git artifact.
 - The target is identified by a hash over project ref, region, DB host, catalog
   marker and sorted bucket names. The owner-approved identity package is also
   outside Git.
-- `SEC-001R_RELEASE_ARTIFACT_MANIFEST.json` is the authoritative SEC-001R retry
-  freeze. The earlier `SEC-001_RELEASE_ARTIFACT_MANIFEST.json` is retained as
-  historical evidence and is intentionally no longer executable authority. The
-  SEC-001R manifest freezes every executable release
+- `SEC-001L_RELEASE_ARTIFACT_MANIFEST.json` is the authoritative forward-fix
+  freeze. The earlier `SEC-001_RELEASE_ARTIFACT_MANIFEST.json` and
+  `SEC-001R_RELEASE_ARTIFACT_MANIFEST.json` are retained as historical evidence
+  and are intentionally no longer executable authority. The SEC-001L manifest freezes every executable release
   artifact. A mismatch stops before mutation.
 - A local exclusive lock prevents parallel wrapper processes. Migration
   sessions additionally use a PostgreSQL advisory lock only for their lifetime.
-- SQL uses the exact Phase A/Phase B files. Read-only verification sessions set
+- SQL uses the exact Phase A/SEC-001L/Phase B files. Read-only verification sessions set
   `default_transaction_read_only=on`.
 - Phase B requires state `OBSERVATION_PASSED`, seven zero counters, and the
   case-sensitive phrase `APPLY PHASE B`.
@@ -47,6 +47,12 @@ PHASE_B_APPLIED -> POST_VERIFY_PASSED -> COMPLETE`.
 
 `COMPLETE` is written only by the state machine after post-verification.
 Failures and owner aborts end in `FAILED_SAFE` or `ABORTED_SAFE`.
+
+The SEC-001L forward-fix does not advance this sequence. It may be applied only
+at the preserved `INVENTORY_REVIEWED` checkpoint before any planned/applied
+backfill count. The local checkpoint is rebound to the SEC-001L manifest while
+preserving its release ID, target fingerprint and state; exact owner confirmation
+is `APPLY SEC-001 LEGACY CONTRACT FORWARD-FIX`.
 
 ## Manual boundaries
 

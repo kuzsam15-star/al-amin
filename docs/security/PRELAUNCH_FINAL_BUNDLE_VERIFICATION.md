@@ -4,17 +4,17 @@
 
 `FINAL_BUNDLE_FROZEN_READY_FOR_CONSOLIDATED_BACKEND_DEPLOYMENT`
 
-This verification covers the pre-launch local Next.js source, the verified no-data database baseline, all nine forward migrations, the local security test/gate tooling and the release/recovery evidence. No public application deployment exists, hosting is not configured, and neither remote Supabase nor production data, media or credentials were contacted.
+This verification originally covered nine forward migrations. SEC-001L adds the tenth reviewed migration after Phase A and before Phase B; its independent addendum is `SEC-001L_LOCAL_VERIFICATION.md`. No public application deployment exists and hosting is not configured.
 
 The verification started at `96f75332c7fd40981a2b276a45f8f594195a5f5b`. A clean-clone portability defect in the artifact verifier was the only permitted tooling correction: protected files are now verified from committed Git blobs, so Windows CRLF conversion cannot produce a false mismatch. The correction did not change application behavior, SQL, dependencies or finding classifications.
 
 ## Frozen integrity boundary
 
-The original machine-readable authority is retained at `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST.json`. The SEC-001R deployment-retry authority is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001R.json`. It freezes:
+The original and SEC-001R machine-readable authorities are historical. The current forward-fix authority is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001L.json`. It freezes:
 
 - 18 immutable historical migrations and their aggregate committed-blob hash;
 - `supabase/bootstrap/baseline.sql`, its manifest and `supabase/schema.sql`;
-- all nine forward migrations and their dependency order;
+- all ten forward migrations and their dependency order;
 - source, test and security-tooling tree hashes;
 - `package.json`, `pnpm-lock.yaml`, findings/test ledgers and recovery evidence;
 - the consolidated remote deployment plan;

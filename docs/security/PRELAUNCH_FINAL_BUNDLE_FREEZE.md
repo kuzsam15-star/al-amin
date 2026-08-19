@@ -9,7 +9,7 @@
 - `HOSTING`: `NOT_CONFIGURED`
 - `PUBLIC_LAUNCH`: `NOT_YET_APPROVED`
 
-The original frozen bytes and results remain recorded in `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST.json`. After the SEC-001R live-compatibility remediation, the authoritative retry identity is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001R.json` plus its enclosing reviewed Git commit. No freeze tag is created; `baseline/pre-security-hardening-2026-08-09` remains solely on the original baseline commit.
+The original and SEC-001R frozen bytes remain historical evidence. After the fail-closed legacy-contract backfill blocker, the authoritative forward-fix identity is `docs/security/manifests/PRELAUNCH_FINAL_BUNDLE_MANIFEST_SEC001L.json` plus its enclosing reviewed Git commit. No freeze tag is created; `baseline/pre-security-hardening-2026-08-09` remains solely on the original baseline commit.
 
 ## Change control after freeze
 

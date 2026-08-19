@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   abortSafe, advance, assertInventoryGate, assertObservationGate, assertPhaseBGate,
   createCheckpoint, failSafe, finish, readCheckpoint, validateCheckpoint,
-  verifyArtifactManifest, writeCheckpoint,
+  rebindFrozenBundle, recordLegacyContractForwardFix, verifyArtifactManifest, writeCheckpoint,
 } from './release-state.mjs';
 
 function args(argv) {
@@ -18,6 +19,9 @@ const checkpointPath = options.checkpoint;
 const action = options.action;
 
 async function evidence() { return options.evidence ? JSON.parse(await readFile(options.evidence, 'utf8')) : {}; }
+async function fileSha256(path) {
+  return createHash('sha256').update(await readFile(path)).digest('hex').toUpperCase();
+}
 
 try {
   if (action === 'init') {
@@ -33,7 +37,23 @@ try {
     let checkpoint = await readCheckpoint(checkpointPath, repoRoot);
     validateCheckpoint(checkpoint, {});
     const data = await evidence();
-    if (action === 'gate-phase-b') {
+    if (action === 'rebind-bundle') {
+      const verified = await verifyArtifactManifest(repoRoot, options.manifest);
+      const previousHash = await fileSha256(resolve(repoRoot, options['previous-manifest']));
+      const sourceCommit = String(options.commit ?? '').toLowerCase();
+      if (checkpoint.artifactManifestHash === verified.manifestHash
+          && checkpoint.sourceCommit === sourceCommit) {
+        process.stdout.write(JSON.stringify({ status: 'PASS', state: checkpoint.state, releaseId: checkpoint.releaseId }));
+        process.exit(0);
+      }
+      checkpoint = rebindFrozenBundle(checkpoint, {
+        previousArtifactManifestHash: previousHash,
+        artifactManifestHash: verified.manifestHash,
+        sourceCommit,
+      });
+    } else if (action === 'record-legacy-contract-forward-fix') {
+      checkpoint = recordLegacyContractForwardFix(checkpoint);
+    } else if (action === 'gate-phase-b') {
       assertPhaseBGate(checkpoint, data.counts, data.confirmation);
       process.stdout.write(JSON.stringify({ status: 'PASS', state: checkpoint.state, releaseId: checkpoint.releaseId }));
       process.exit(0);

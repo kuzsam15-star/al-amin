@@ -2,7 +2,7 @@
 
 ## Current position
 
-AL-AMIN remains pre-launch: the Next.js application is local-only, no public hosting exists, and remote Supabase has not received the local hardening chain. P0-10 is the final local implementation/evidence package.
+AL-AMIN remains pre-launch: the Next.js application is local-only and no public hosting exists. Remote Supabase has received only verified SEC-001 Phase A; backfill, Phase B and the rest of the local hardening chain remain pending.
 
 The role matrix is now **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP** in two independent clean-room environments. SEC-017's four cases and SEC-026 `CONTENT-004` are PASS. There is no unknown finding and no unadjudicated expected failure.
 
@@ -14,7 +14,7 @@ The role matrix is now **188 PASS / 0 XFAIL / 0 XPASS / 0 FAIL / 0 SKIP** in two
 
 `FINAL PRE-LAUNCH CLEAN-ROOM BUNDLE VERIFICATION AND FREEZE` completed successfully in two independent clean rooms. The local executable security bundle is frozen; a new local implementation package is permitted only for a newly proven Critical/High blocker.
 
-The completed stage replayed the frozen candidate from clean commits. After SEC-001R, the retry candidate uses unchanged `PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json`, new `PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001R.json` and the owner-friendly local gate. The previous source manifest remains historical evidence.
+The completed stage replayed the original frozen candidate from clean commits. SEC-001R added the verified namespace adapter. SEC-001L now inserts one forward migration after Phase A/before Phase B and refreezes `PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001L.json`; every earlier source manifest remains historical evidence.
 
 ## Remote backend finish line
 

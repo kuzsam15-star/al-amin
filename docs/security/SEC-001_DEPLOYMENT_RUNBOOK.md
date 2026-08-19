@@ -178,6 +178,28 @@ The future owner wrapper may output only aggregate counts and error categories:
 - canonical object conflict, duplicate content, and blocked rows;
 - planned, applied, remaining, retry, and unchanged counts.
 
+### SEC-001L legacy-contract forward fix
+
+Remote Phase A was applied and verified, but the first reviewed backfill attempt
+failed closed before DB cutover because an approved legacy application retained
+`contract_version=1`. The historical content trigger correctly denied the media
+UPDATE. Phase B and later migrations were not applied, and the temporary API key
+was deleted.
+
+The only authorized forward path is the new ordered migration
+`20260811000150_sec001_legacy_contract_backfill_compatibility.sql` after Phase A
+and before Phase B. It does not upgrade the contract or weaken ordinary writes.
+It permits only the service-controlled Phase-A RPC transition whose non-media
+row fields are unchanged and whose exact old source/new canonical slot is
+registered in active provenance. The helper and trigger function remain
+non-client-callable.
+
+Resume sequence: verify the SEC-001L manifests and clean enclosing commit;
+rebind the preserved `INVENTORY_REVIEWED` checkpoint without changing its target
+fingerprint/state; require `APPLY SEC-001 LEGACY CONTRACT FORWARD-FIX`; apply and
+verify SEC-001L; then rerun the unchanged dry-run/backfill. Phase B is now order
+3 and remains blocked until the zero-change/observation gates pass.
+
 It must not output owner IDs, row IDs, object paths, emails, profile content,
 media bytes, hashes linked to a user, tokens, signed URLs, or credentials.
 

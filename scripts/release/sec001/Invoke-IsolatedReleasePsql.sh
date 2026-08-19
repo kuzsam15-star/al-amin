@@ -10,11 +10,13 @@ unset password
 chmod 0600 "$pgpass"
 test "$(stat -c '%a' "$pgpass")" = 600
 export PGPASSFILE="$pgpass"
-if [[ "$mode" == phase-a || "$mode" == phase-b ]]; then
+if [[ "$mode" == phase-a || "$mode" == phase-b || "$mode" == legacy-fix ]]; then
   if [[ "$mode" == phase-a ]]; then
     state="$(PGOPTIONS='-c default_transaction_read_only=on' psql --no-password --host "$host" --port "$port" --username "$user" --dbname "$database" --set ON_ERROR_STOP=1 --tuples-only --no-align --command "select case when to_regclass('private.published_media_assets') is null then 'ABSENT' when to_regprocedure('public.backfill_canonical_published_media(text,uuid,text,text[],jsonb,jsonb)') is not null and exists (select 1 from pg_trigger where tgname='applications_guard_approved_canonical_media' and not tgisinternal) then 'PRESENT' else 'PARTIAL' end")"
-  else
+  elif [[ "$mode" == phase-b ]]; then
     state="$(PGOPTIONS='-c default_transaction_read_only=on' psql --no-password --host "$host" --port "$port" --username "$user" --dbname "$database" --set ON_ERROR_STOP=1 --tuples-only --no-align --command "select case count(*) when 0 then 'ABSENT' when 2 then 'PRESENT' else 'PARTIAL' end from pg_constraint where conname in ('applications_approved_media_canonical','specialists_published_media_canonical') and convalidated")"
+  else
+    state="$(PGOPTIONS='-c default_transaction_read_only=on' psql --no-password --host "$host" --port "$port" --username "$user" --dbname "$database" --set ON_ERROR_STOP=1 --tuples-only --no-align --command "select case when to_regclass('private.published_media_assets') is null then 'PARTIAL' when obj_description(to_regprocedure('public.require_application_contract_v2_on_content_write()'),'pg_proc')='AL-AMIN SEC-001 legacy canonical backfill compatibility v1' and to_regprocedure('private.is_sec001_legacy_application_canonical_backfill(public.applications,public.applications)') is not null and not has_function_privilege('service_role','private.is_sec001_legacy_application_canonical_backfill(public.applications,public.applications)','EXECUTE') then 'PRESENT' when to_regprocedure('private.is_sec001_legacy_application_canonical_backfill(public.applications,public.applications)') is null then 'ABSENT' else 'PARTIAL' end")"
   fi
   [[ "$state" != PARTIAL ]]
   if [[ "$state" == PRESENT ]]; then

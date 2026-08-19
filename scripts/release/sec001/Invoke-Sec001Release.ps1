@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('Interactive','Preflight','PhaseA','VerifyPhaseA','SourceCheckpoint','Inventory','Backfill','VerifyBackfill','PhaseB','VerifyPhaseB','Resume','Abort')]
+  [ValidateSet('Interactive','Preflight','PhaseA','VerifyPhaseA','LegacyContractFix','VerifyLegacyContractFix','SourceCheckpoint','Inventory','Backfill','VerifyBackfill','PhaseB','VerifyPhaseB','Resume','Abort')]
   [string]$Stage = 'Interactive'
 )
 . (Join-Path $PSScriptRoot 'Release.Common.ps1')
@@ -46,6 +46,7 @@ try {
   }
   Assert-Sec001ProductionAuthorization
   $identity = Get-Sec001IdentityFile
+  if ($Stage -eq 'LegacyContractFix') { Invoke-Sec001ArtifactRebind }
   if ($Stage -ne 'Preflight') { Assert-Sec001ArtifactFreeze | Out-Null }
   switch ($Stage) {
     'Preflight' {
@@ -66,6 +67,17 @@ try {
       Invoke-Sec001State 'advance' 'PHASE_A_APPLIED'
     }
     'VerifyPhaseA' { Invoke-Sec001VerificationSql 'verify-phase-a.sql' $identity 'SEC001_PHASE_A_OK' | Out-Null }
+    'LegacyContractFix' {
+      $checkpoint = Read-Sec001Checkpoint
+      if (-not $checkpoint -or $checkpoint.state -ne 'INVENTORY_REVIEWED') { throw 'LEGACY_CONTRACT_FORWARD_FIX_STATE_NOT_ALLOWED' }
+      Confirm-Exact 'Type APPLY SEC-001 LEGACY CONTRACT FORWARD-FIX' 'APPLY SEC-001 LEGACY CONTRACT FORWARD-FIX'
+      Invoke-Sec001LegacyContractForwardFixSql $identity | Out-Null
+      Invoke-Sec001VerificationSql 'verify-legacy-contract-forward-fix.sql' $identity 'SEC001_LEGACY_CONTRACT_FORWARD_FIX_OK' | Out-Null
+      Invoke-Sec001State 'record-legacy-contract-forward-fix'
+    }
+    'VerifyLegacyContractFix' {
+      Invoke-Sec001VerificationSql 'verify-legacy-contract-forward-fix.sql' $identity 'SEC001_LEGACY_CONTRACT_FORWARD_FIX_OK' | Out-Null
+    }
     'SourceCheckpoint' {
       $checkpoint = Read-Sec001Checkpoint
       if ($checkpoint.state -eq 'PHASE_A_APPLIED') {

@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import {
   acquireLocalLock, advance, assertInventoryGate, assertObservationGate,
   assertPhaseBGate, assertProjectIdentity, assertUnexpectedPhaseAState,
-  createCheckpoint, finish, fingerprintIdentity, readCheckpoint,
+  createCheckpoint, finish, fingerprintIdentity, readCheckpoint, rebindFrozenBundle,
+  recordLegacyContractForwardFix,
   recordBackfillProgress, releaseLocalLock, validateCheckpoint,
   verifyArtifactManifest, writeCheckpoint,
 } from '../scripts/release/sec001/lib/release-state.mjs';
@@ -71,12 +72,15 @@ test('the historical SEC-001 release bundle records the exact superseded drift',
     'backfill-core',
     'backfill-runner',
     'deployment-runbook',
+    'isolated-psql',
     'media-source-route',
     'media-upload-route',
     'media-view-route',
     'powershell-common',
+    'powershell-controller',
     'published-media',
     'published-media-types',
+    'state-cli',
     'state-machine',
     'wrapper-readme',
   ]);
@@ -86,11 +90,19 @@ test('the historical SEC-001 release bundle records the exact superseded drift',
   );
 });
 
-test('the SEC-001R retry artifact manifest verifies every current reviewed byte', async () => {
+test('the historical SEC-001R manifest fails after the reviewed SEC-001L forward fix', async () => {
   const manifestPath = 'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json';
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   assert.equal(manifest.stage, 'SEC-001R');
   assert.equal(manifest.previousFrozenManifest.path, 'docs/security/SEC-001_RELEASE_ARTIFACT_MANIFEST.json');
+  await assert.rejects(verifyArtifactManifest(process.cwd(), manifestPath), /ARTIFACT_HASH_MISMATCH_/u);
+});
+
+test('the SEC-001L forward-fix artifact manifest verifies every current reviewed byte', async () => {
+  const manifestPath = 'docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json';
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  assert.equal(manifest.stage, 'SEC-001L');
+  assert.equal(manifest.previousFrozenManifest.path, 'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json');
   const verified = await verifyArtifactManifest(process.cwd(), manifestPath);
   assert.equal(verified.checked.length, manifest.artifacts.length);
 });
@@ -129,4 +141,37 @@ test('SEC-001 release failure injections fail closed', async (t) => {
       await assert.rejects(verifyArtifactManifest(root, 'manifest.json'), /ARTIFACT_HASH_MISMATCH_x/u);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+});
+
+test('SEC-001 legacy contract forward-fix rebind is narrow, auditable and idempotent', () => {
+  let cp = checkpoint();
+  for (const state of ['PREFLIGHT_PASSED', 'PHASE_A_APPLIED', 'SOURCE_DEPLOY_CONFIRMED', 'CANARY_PASSED', 'INVENTORY_REVIEWED']) {
+    cp = advance(cp, state);
+  }
+  const previousHash = cp.artifactManifestHash;
+  const replacementHash = 'C'.repeat(64);
+  const replacementCommit = 'd'.repeat(40);
+  cp = rebindFrozenBundle(cp, {
+    previousArtifactManifestHash: previousHash,
+    artifactManifestHash: replacementHash,
+    sourceCommit: replacementCommit,
+  });
+  assert.equal(cp.state, 'INVENTORY_REVIEWED');
+  assert.equal(cp.artifactManifestHash, replacementHash);
+  assert.equal(cp.sourceCommit, replacementCommit);
+  assert.equal(cp.history.at(-1).evidence.bundleRebind, 'SEC001_LEGACY_CONTRACT_FORWARD_FIX');
+  cp = recordLegacyContractForwardFix(cp);
+  assert.equal(cp.history.at(-1).evidence.legacyContractForwardFix, 'APPLIED_VERIFIED');
+  assert.equal(recordLegacyContractForwardFix(cp).history.length, cp.history.length);
+
+  assert.throws(() => rebindFrozenBundle(checkpoint(), {
+    previousArtifactManifestHash: manifestHash,
+    artifactManifestHash: replacementHash,
+    sourceCommit: replacementCommit,
+  }), /BUNDLE_REBIND_STATE_NOT_ALLOWED/u);
+  assert.throws(() => rebindFrozenBundle(cp, {
+    previousArtifactManifestHash: previousHash,
+    artifactManifestHash: replacementHash,
+    sourceCommit: replacementCommit,
+  }), /BUNDLE_REBIND_PREVIOUS_MANIFEST_MISMATCH/u);
 });
