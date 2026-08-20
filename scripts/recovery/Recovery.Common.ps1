@@ -204,7 +204,19 @@ function Invoke-RecoveryPostgresClient {
 
 function Get-Sha256Lower {
   param([Parameter(Mandatory)][string]$Path)
-  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  $stream = $null
+  $sha = $null
+  $hash = $null
+  try {
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $hash = $sha.ComputeHash($stream)
+    return ([BitConverter]::ToString($hash).Replace('-','')).ToLowerInvariant()
+  } finally {
+    if ($hash) { [Array]::Clear($hash, 0, $hash.Length) }
+    if ($sha) { $sha.Dispose() }
+    if ($stream) { $stream.Dispose() }
+  }
 }
 
 function Get-PathSafeHash {

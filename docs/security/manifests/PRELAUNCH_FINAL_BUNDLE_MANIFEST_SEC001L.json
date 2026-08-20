@@ -49,15 +49,15 @@
   },
   "source_bundle": {
     "manifest_path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001L.json",
-    "manifest_sha256": "51b3db54a0f8094998f349b598fdf7c0889a4f64ef58f51040bdaebf2c237398",
+    "manifest_sha256": "8b2554815f59fff34c711c57cbeef5ea4a3e3735017692de5c5d71f7c05c8fb8",
     "tree_hash_model": "sorted tracked path + NUL + SHA-256(committed Git blob) + LF",
     "source_tree_sha256": "e261dc81bf9fa5b44196ea17c98fd20fba439eff3140ce4838fef47ae83a6b71",
     "test_tree_sha256": "772c66ca73c0e7c67e16aaae91a7bbf3ad56a74f7bf43797d0486fea5cdb9e34",
-    "tooling_tree_sha256": "6795554719ab85640a35cd6710316a17bc78e3110c117a202dee0affb3b48294"
+    "tooling_tree_sha256": "0ffad79ce3c865aa2e38669d046419ce85c045d2c5bc30a6d35cf7279efafef0"
   },
   "sec001l_release_bundle": {
     "manifest_path": "docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json",
-    "manifest_sha256": "c1c2367bf0eed02a14a04b22a86c5fbe11398845b1e0be3c9f7d5542c539579d",
+    "manifest_sha256": "4612fcf536ef60f80fed8384b2097eef77f0ebee6a6a214de1c9d2b4d5a0302c",
     "verified_artifact_count": 56,
     "previous_manifests_preserved": true
   },

@@ -20,7 +20,7 @@
   "trees": [
     { "path": "src", "sha256": "e261dc81bf9fa5b44196ea17c98fd20fba439eff3140ce4838fef47ae83a6b71", "hash_source": "committed-git-blobs", "class": "SOURCE" },
     { "path": "tests", "sha256": "772c66ca73c0e7c67e16aaae91a7bbf3ad56a74f7bf43797d0486fea5cdb9e34", "hash_source": "committed-git-blobs", "class": "TEST" },
-    { "path": "scripts", "sha256": "6795554719ab85640a35cd6710316a17bc78e3110c117a202dee0affb3b48294", "hash_source": "committed-git-blobs", "class": "TOOLING" }
+    { "path": "scripts", "sha256": "0ffad79ce3c865aa2e38669d046419ce85c045d2c5bc30a6d35cf7279efafef0", "hash_source": "committed-git-blobs", "class": "TOOLING" }
   ],
   "artifacts": [
     { "path": ".gitattributes", "sha256": "caa9ffbfb9b7a265954acd9305cd90befa58bde06380a3c89a8668cb54eb714f", "class": "RELEASE_CONFIG" },

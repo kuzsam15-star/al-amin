@@ -60,16 +60,17 @@ async function seedSyntheticSource(stack) {
     values ('${applicationId}','${userId}','Synthetic Recovery Person','synthetic@example.invalid','Synthetic','Synthetic','Synthetic','${categoryId}',2,'Synthetic recovery profile',repeat('Synthetic recovery description. ',3),'Synthetic recovery service','[{"title":"Synthetic topic"}]'::jsonb,'[{"title":"Synthetic offer","mode":"online"}]'::jsonb,true,true,'new');
   `);
   const tinyPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c63606060f80f0001040100f5f57f5a0000000049454e44ae426082', 'hex');
+  const tinyWebp = Buffer.from('52494646340000005745425056503820280000009001009d012a0200020001402625880274ba00039800fef2225fb5362aa79ddfc6ecb386e9000000', 'hex');
   const objects = [
-    ['avatars', `synthetic/${randomUUID()}.png`],
-    ['profile-media', `submissions/${userId}/${randomUUID()}.png`],
+    ['avatars', `synthetic/${randomUUID()}.png`, 'image/png', tinyPng],
+    ['profile-media', `submissions/${userId}/${randomUUID()}.webp`, 'image/webp', tinyWebp],
   ];
-  for (const [bucket, path] of objects) {
+  for (const [bucket, path, contentType, bytes] of objects) {
     const encoded = path.split('/').map(encodeURIComponent).join('/');
     const response = await fetch(`${stack.apiUrl}/storage/v1/object/${bucket}/${encoded}`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${stack.serviceRoleKey}`, apikey: stack.serviceRoleKey, 'content-type': 'image/png', 'x-upsert': 'false' },
-      body: tinyPng,
+      headers: { authorization: `Bearer ${stack.serviceRoleKey}`, apikey: stack.serviceRoleKey, 'content-type': contentType, 'x-upsert': 'false' },
+      body: bytes,
     });
     if (!response.ok) throw new Error(`Synthetic Storage fixture creation failed (${response.status})`);
   }
