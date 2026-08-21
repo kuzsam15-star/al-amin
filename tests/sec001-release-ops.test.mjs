@@ -98,11 +98,19 @@ test('the historical SEC-001R manifest fails after the reviewed SEC-001L forward
   await assert.rejects(verifyArtifactManifest(process.cwd(), manifestPath), /ARTIFACT_HASH_MISMATCH_/u);
 });
 
-test('the SEC-001L forward-fix artifact manifest verifies every current reviewed byte', async () => {
+test('the historical SEC-001L manifest fails after the reviewed media-free-row backfill fix', async () => {
   const manifestPath = 'docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json';
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   assert.equal(manifest.stage, 'SEC-001L');
   assert.equal(manifest.previousFrozenManifest.path, 'docs/security/SEC-001R_RELEASE_ARTIFACT_MANIFEST.json');
+  await assert.rejects(verifyArtifactManifest(process.cwd(), manifestPath), /ARTIFACT_HASH_MISMATCH_/u);
+});
+
+test('the SEC-001M tooling-fix artifact manifest verifies every current reviewed byte', async () => {
+  const manifestPath = 'docs/security/SEC-001M_RELEASE_ARTIFACT_MANIFEST.json';
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  assert.equal(manifest.stage, 'SEC-001M');
+  assert.equal(manifest.previousFrozenManifest.path, 'docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json');
   const verified = await verifyArtifactManifest(process.cwd(), manifestPath);
   assert.equal(verified.checked.length, manifest.artifacts.length);
 });

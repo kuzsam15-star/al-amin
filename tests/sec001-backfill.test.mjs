@@ -123,6 +123,32 @@ test('SEC-001R cross-owner or ambiguous legacy reference blocks before Storage a
   assert.equal(service.downloadCalls, 0);
 });
 
+test('SEC-001 backfill ignores ownerless rows only when they contain no media references', async () => {
+  const owner = randomUUID();
+  const source = legacyPath(randomUUID());
+  const service = inventoryService(
+    [
+      { id: randomUUID(), owner_id: null, main_image_path: null, gallery_paths: [] },
+      { id: randomUUID(), owner_id: owner, main_image_path: source, gallery_paths: [] },
+    ],
+    [{ id: randomUUID(), owner_id: null, avatar_path: null, gallery_paths: [] }],
+  );
+  const result = await runSec001Backfill({ service, dryRun: true });
+  assert.equal(result.planned, 1);
+  assert.equal(result.namespaceSummary.allowlistedLegacyReferenceCount, 1);
+  assert.equal(service.downloadCalls, 1);
+  assert.equal(service.rpcCalls, 0);
+});
+
+test('SEC-001 backfill still rejects an ownerless row with any media reference before Storage access', async () => {
+  const service = inventoryService([{
+    id: randomUUID(), owner_id: null, main_image_path: legacyPath(randomUUID()), gallery_paths: [],
+  }]);
+  await assert.rejects(runSec001Backfill({ service, dryRun: true }), /owner is invalid/u);
+  assert.equal(service.downloadCalls, 0);
+  assert.equal(service.rpcCalls, 0);
+});
+
 test('SEC-001R authorization is bound to exact DB owner, target, slot and path', async () => {
   const owner = randomUUID();
   const foreignOwner = randomUUID();

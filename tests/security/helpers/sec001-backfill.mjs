@@ -58,6 +58,10 @@ function needsBackfill(target) {
   return target.galleryPaths.some((path) => !isCanonicalPublishedMediaPath(target.ownerId, path));
 }
 
+function hasMediaReferences(target) {
+  return Boolean(target.avatarPath) || target.galleryPaths.length > 0;
+}
+
 function sourceAuthorization(registry, target, slot, sourcePath) {
   return registry.authorizationFor({
     targetType: target.targetType,
@@ -141,8 +145,13 @@ export async function runSec001Backfill({ service, dryRun = true, stopAfter = Nu
     ...(await inventory(service, 'applications')),
     ...(await inventory(service, 'specialists')),
   ];
-  const registry = createSec001BackfillSourceRegistry(inventoryTargets);
-  const targets = inventoryTargets.filter(needsBackfill);
+  // The ownership registry is deliberately complete for every media-bearing
+  // approved/published row. Rows with no media cannot contribute a path,
+  // ownership proof, ambiguity, or cutover target, so requiring owner_id for
+  // them would block an otherwise complete and fail-closed media inventory.
+  const mediaInventoryTargets = inventoryTargets.filter(hasMediaReferences);
+  const registry = createSec001BackfillSourceRegistry(mediaInventoryTargets);
+  const targets = mediaInventoryTargets.filter(needsBackfill);
   if (dryRun) {
     for (const target of targets) await validateTarget(service, target, registry);
     return { planned: targets.length, applied: 0, remaining: targets.length, namespaceSummary: registry.summary };

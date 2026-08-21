@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "stage": "SEC-001M",
+  "status": "READY_FOR_OWNER_GATED_MEDIA_FREE_ROW_BACKFILL_RESUME",
+  "generatedOn": "2026-08-21",
+  "hashAlgorithm": "SHA-256",
+  "previousFrozenManifest": {
+    "path": "docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json",
+    "sha256": "4612FCF536EF60F80FED8384B2097EEF77F0EBEE6A6A214DE1C9D2B4D5A0302C",
+    "status": "HISTORICAL_SUPERSEDED"
+  },
+  "forwardMigrationManifest": {
+    "path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json",
+    "sha256": "9218DC4F1D87C5D0D9D5B1889BF5173368351463388CD7BF55A9C740360F0ECD",
+    "changed": false
+  },
+  "candidateParentCommit": "c046961ace9feadc4f284ee88315e257e066ad1c",
+  "runtimeCommitPolicy": "The authoritative SEC-001M bundle is this manifest plus its enclosing clean security/hardening commit; a commit cannot contain its own hash.",
+  "authorization": "Local SEC-001M tooling preparation only. Remote backfill resume requires a new exact owner gate; this manifest authorizes no connection or mutation.",
+  "artifacts": [
+    { "id": "previous-release-manifest", "path": "docs/security/SEC-001L_RELEASE_ARTIFACT_MANIFEST.json", "sha256": "4612FCF536EF60F80FED8384B2097EEF77F0EBEE6A6A214DE1C9D2B4D5A0302C" },
+    { "id": "phase-a", "path": "supabase/forward-migrations/202608110001_sec001_immutable_published_media.sql", "sha256": "28CD011096257C6203A2E77464E338F8C769B79743DEBE1099091034E55A1A0A" },
+    { "id": "legacy-contract-forward-fix", "path": "supabase/forward-migrations/20260811000150_sec001_legacy_contract_backfill_compatibility.sql", "sha256": "1BADAD41B50713D33687316FDE8709F25CC214722BC311E3F477B017D39CC67D" },
+    { "id": "phase-b", "path": "supabase/forward-migrations/202608110002_sec001_enforce_canonical_published_media.sql", "sha256": "25D8667718DD26AA20DA3C41088B3D5FC21FE4298CF4F5451AAA0D4982597282" },
+    { "id": "forward-migration-manifest", "path": "docs/security/PRELAUNCH_FORWARD_MIGRATION_MANIFEST.json", "sha256": "9218DC4F1D87C5D0D9D5B1889BF5173368351463388CD7BF55A9C740360F0ECD" },
+    { "id": "backfill-core", "path": "tests/security/helpers/sec001-backfill.mjs", "sha256": "B2EB652ECE5A7D6B721C1FAF1D729C370160DBF0C9ECECA5763D9E63D0510A69", "canonicalTextEol": "LF" },
+    { "id": "backfill-tests", "path": "tests/sec001-backfill.test.mjs", "sha256": "623BCE2798C7239322DB954C16A71782965EE7128517E63AB1606208B4928F98", "canonicalTextEol": "LF" },
+    { "id": "release-ops-tests", "path": "tests/sec001-release-ops.test.mjs", "sha256": "0EE8C91A6EB327C33A4FB4FBFFE730B3557C322B8E957C317ED89C203A7257C7", "canonicalTextEol": "LF" },
+    { "id": "source-artifact-manifest", "path": "docs/security/PRELAUNCH_SOURCE_ARTIFACT_MANIFEST_SEC001M.json", "sha256": "C4FE2E9376CF167E21D74DA9FF0BC2341E53DE70C932B814977736A126FBB069", "canonicalTextEol": "LF" },
+    { "id": "sec001m-change", "path": "docs/security/changes/SEC-001M_MEDIA_FREE_BACKFILL_COMPATIBILITY.md", "sha256": "A8FA88510E0FBBD6AD09D20B561FE1A7334F77338A54F03420BF476A357A012F", "canonicalTextEol": "LF" },
+    { "id": "sec001m-verification", "path": "docs/security/SEC-001M_LOCAL_VERIFICATION.md", "sha256": "0F6DA58BC134988D62F865EEA704495A3C0A1CF23077AB365381A4656D344DE3", "canonicalTextEol": "LF" },
+    { "id": "protected-baseline", "path": "supabase/bootstrap/baseline.sql", "sha256": "CF61CDB37D9B82B3AFFFF035A0EAF68B1FABC2022C261F87027AE95583C153E1" },
+    { "id": "protected-bootstrap-manifest", "path": "supabase/bootstrap/manifest.json", "sha256": "33770760B62A6FF618ECE2A6685059D71F1D4786BE0F697C7B7F57C73D8CB000", "canonicalTextEol": "LF" },
+    { "id": "protected-legacy-schema", "path": "supabase/schema.sql", "sha256": "ECAB0A21F27CCD152C5C99226FF6D0894ED2B4E57EDA114FD428DA98E323B74A" }
+  ],
+  "invariants": {
+    "ownerlessRowsWithoutMediaIgnored": true,
+    "ownerlessRowsWithMediaFailClosed": true,
+    "ownerRepairPerformed": false,
+    "schemaChanged": false,
+    "storagePolicyChanged": false,
+    "phaseBAuthorized": false
+  }
+}
