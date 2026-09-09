@@ -1,5 +1,7 @@
 # AL-AMIN — Design Handoff
 
+> Исторический design handoff. В текущей static-directory версии сохраняются Civic Precision, Onest + Manrope, Home, Cover Flow, Catalog и Public Profile. Platform flows больше не реализуются.
+
 Этот документ передаёт ключевой контекст следующему Figma/Codex-этапу. Он фиксирует уже принятые продуктовые и визуальные решения. До утверждения дизайн-системы код приложения менять не нужно.
 
 ## 1. Текущее состояние проекта
@@ -163,4 +165,3 @@ Editorial-подход не должен превращать продукт в 
 - Product Design аудит AL-AMIN — проблемы доверия, пользовательские пути и приоритеты экранов;
 - `.dsb-state-alamin-civic-v1.json` — состояние незавершённой сборки Civic Precision Design System;
 - этот документ — утверждённое направление и порядок продолжения Figma-работы.
-

@@ -73,6 +73,7 @@ dumps/
 uploads/
 user-uploads/
 user-exports/
+.local-editor/
 
 # Supabase CLI state
 supabase/.temp/

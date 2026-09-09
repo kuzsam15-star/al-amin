@@ -7,13 +7,9 @@ import { CivicHeader } from "./CivicHeader";
 
 export function AdaptiveSiteShell({ children, brandName }: { children: ReactNode; brandName: string }) {
   const pathname = usePathname();
-  const standaloneCivicHome = pathname === "/" || pathname === "/design-preview";
+  const standaloneHome = pathname === "/";
 
-  return (
-    <div className="civic-preview-mode">
-      {standaloneCivicHome
-        ? children
-        : <><CivicHeader brandName={brandName} /><main className="civic-main">{children}</main><CivicFooter brandName={brandName} /></>}
-    </div>
-  );
+  return <div className="civic-site">
+    {standaloneHome ? children : <><CivicHeader brandName={brandName} /><main className="civic-main">{children}</main><CivicFooter brandName={brandName} /></>}
+  </div>;
 }

@@ -4,24 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "pnpm validate:content && next build && pnpm finalize:out && pnpm verify:out",
+    "preview": "node scripts/serve-static.mjs",
+    "owner:editor": "node scripts/owner-editor.mjs",
+    "migration:audit": "node scripts/migrate-supabase-readonly.mjs",
+    "validate:content": "node scripts/validate-content.mjs",
+    "finalize:out": "node scripts/finalize-static.mjs",
+    "verify:out": "node scripts/verify-static.mjs",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.3.0",
     "@fontsource/manrope": "^5.3.0",
     "@fontsource/onest": "^5.3.0",
-    "@supabase/ssr": "0.12.4",
-    "@supabase/supabase-js": "2.112.0",
     "lucide-react": "1.28.0",
     "next": "16.3.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "react-easy-crop": "^6.2.3",
-    "sharp": "^0.35.3"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@types/node": "26.1.2",
@@ -29,6 +29,7 @@
     "@types/react-dom": "19.2.4",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.3.1",
+    "sharp": "0.35.3",
     "typescript": "^5.9.3"
   }
 }

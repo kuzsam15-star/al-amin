@@ -1,2 +1,8 @@
-import { getSiteContent } from "@/lib/site-content";
-export default async function RulesPage() { const content = await getSiteContent(); return <section className="section"><div className="container narrow prose"><div className="eyebrow">Правила</div><h1 className="page-title">Принципы {content.brand_name}</h1><h2>Честность и добровольность</h2><p>Участник указывает достоверные сведения, описывает услуги без ложных обещаний и самостоятельно отвечает за договорённости с другими людьми.</p><h2>Что делает платформа</h2><p>{content.rules_intro}</p><h2>Публикация</h2><p>Профиль появляется в каталоге только после одобрения модератором. Отзывы также публикуются только после проверки.</p></div></section>; }
+import type { Metadata } from "next";
+import { siteContent } from "@/lib/static-content";
+
+export const metadata: Metadata = { title: "Правила", description: "Принципы использования публичного каталога AL-AMIN." };
+
+export default function RulesPage() {
+  return <section className="info-page"><div className="page-container narrow"><p className="page-eyebrow">Правила</p><h1>Принципы {siteContent.brandName}</h1><div className="legal-copy"><h2>Честная информация</h2><p>В каталоге публикуются сведения, которые специалист разрешил сделать публичными. Существенные изменения проходят редакционную проверку.</p><h2>Самостоятельные договорённости</h2><p>{siteContent.rulesIntro}</p><h2>Разумная осмотрительность</h2><p>До начала работы самостоятельно уточните условия, стоимость, сроки, документы и порядок урегулирования разногласий.</p></div></div></section>;
+}
