@@ -7,6 +7,7 @@
     "build": "pnpm validate:content && next build && pnpm finalize:out && pnpm verify:out",
     "preview": "node scripts/serve-static.mjs",
     "owner:editor": "node scripts/owner-editor.mjs",
+    "qa:owner-editor": "node scripts/owner-editor-qa.mjs",
     "migration:audit": "node scripts/migrate-supabase-readonly.mjs",
     "validate:content": "node scripts/validate-content.mjs",
     "finalize:out": "node scripts/finalize-static.mjs",

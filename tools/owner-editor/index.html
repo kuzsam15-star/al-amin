@@ -1,47 +1,111 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AL-AMIN · Local Owner Editor</title><link rel="stylesheet" href="/styles.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AL-AMIN · Редактор каталога</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
 <body>
-  <header><div><strong>AL-AMIN</strong><span>Local Owner Editor</span></div><p>Только 127.0.0.1 · изменения сохраняются в content/specialists.json</p></header>
-  <main>
-    <aside><button id="add" class="primary">+ Новый специалист</button><div id="list"></div></aside>
-    <form id="form" hidden>
-      <div class="form-head"><div><p class="eyebrow">Карточка каталога</p><h1 id="title">Специалист</h1></div><div class="actions"><a id="preview" target="_blank" rel="noopener">Preview</a><button id="remove" type="button" class="danger">Удалить</button><button class="primary">Сохранить</button></div></div>
-      <section class="grid">
-        <label>Slug<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*"></label>
-        <label>Порядок<input name="sortOrder" type="number" value="0"></label>
-        <label class="wide">Имя<input name="fullName" required maxlength="160"></label>
-        <label class="wide">Специализация<input name="specialization" required maxlength="180"></label>
-        <label>Страна<input name="country" required></label><label>Город<input name="city" required></label>
-        <label>Формат<select name="workMode"><option value="online">Онлайн</option><option value="offline">Очно</option><option value="both">Онлайн и очно</option></select></label>
-        <label>Опыт, лет<input name="experienceYears" type="number" min="0" max="80"></label>
-        <label class="wide">Категории, по одной на строку<textarea name="categories" required></textarea></label>
-        <label class="wide">Короткое описание, до 220 символов<textarea name="profileSummary" maxlength="220" required></textarea></label>
-        <label class="wide">О специалисте, до 3000 символов<textarea name="about" maxlength="3000" class="large" required></textarea></label>
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">A</span><div><strong>AL-AMIN</strong><span>Редактор каталога</span></div></div>
+    <p><span class="status-dot" aria-hidden="true"></span>Работает только на вашем компьютере</p>
+  </header>
+
+  <main class="app-shell">
+    <aside class="sidebar" aria-label="Специалисты">
+      <button id="add" class="button button-primary button-wide" type="button">+ Новый специалист</button>
+      <div class="sidebar-heading"><h2>Специалисты</h2><span id="list-count">0</span></div>
+      <p id="list-empty" class="list-empty">Пока нет специалистов</p>
+      <div id="list" class="specialist-list"></div>
+    </aside>
+
+    <form id="form" class="editor" hidden>
+      <div class="form-head">
+        <div><p class="eyebrow">Профиль специалиста</p><h1 id="title">Новый специалист</h1></div>
+        <div class="actions">
+          <button id="preview" type="button" class="button button-secondary">Предпросмотр</button>
+          <button id="remove" type="button" class="button button-danger">Удалить</button>
+          <button class="button button-primary" type="submit">Сохранить специалиста</button>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">01</p><h2>Основная информация</h2></div><p>То, что посетитель увидит в каталоге и в начале профиля.</p></div>
+        <div class="grid">
+          <label class="wide">Имя специалиста<input name="fullName" required maxlength="160" autocomplete="off" placeholder="Например, Амина Сафина"></label>
+          <label class="wide">Профессия или специализация<input name="specialization" required maxlength="180" placeholder="Например, семейный психолог"></label>
+          <label>Страна<input name="country" required placeholder="Россия"></label>
+          <label>Город<input name="city" required placeholder="Казань"></label>
+          <label>Формат работы<select name="workMode"><option value="online">Онлайн</option><option value="offline">Очно</option><option value="both">Онлайн и очно</option></select></label>
+          <label>Опыт, лет<input name="experienceYears" type="number" min="0" max="80" inputmode="numeric" placeholder="Например, 8"></label>
+          <label class="wide">Короткое описание<textarea name="profileSummary" maxlength="220" required placeholder="Одно–два предложения о пользе для клиента"></textarea><span class="hint">До 220 символов</span></label>
+          <label class="wide">Полное описание<textarea name="about" maxlength="3000" class="large" required placeholder="Расскажите о подходе, опыте и профессиональном контексте"></textarea><span class="hint">До 3000 символов</span></label>
+        </div>
       </section>
-      <section><h2>Фотография</h2><div class="photo-row"><img id="photo-preview" alt=""><label class="file">Выбрать и оптимизировать<input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></label><input name="photoSrc" readonly required placeholder="/images/specialists/.../profile.webp"><input name="photoAlt" required placeholder="Фотография Имя Фамилия"></div></section>
-      <section class="grid"><h2 class="wide">Содержание профиля</h2>
-        <label class="wide">С чем помогает: одна строка = заголовок | пояснение<textarea name="helpTopics" class="large"></textarea></label>
-        <label class="wide">Форматы работы, JSON-массив<textarea name="workOffers" class="large" placeholder='[{"title":"Консультация","durationMinutes":60,"mode":"online","price":5000,"currency":"RUB"}]'></textarea></label>
-        <label class="wide">Портфолио, JSON-массив<textarea name="portfolio" placeholder='[{"title":"Проект","description":"Контекст","url":"https://..."}]'></textarea></label>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">02</p><h2>Фотография</h2></div><p>Изображение автоматически оптимизируется для сайта.</p></div>
+        <div class="photo-editor">
+          <div class="photo-frame"><img id="photo-preview" alt=""><span id="photo-placeholder">Фото</span></div>
+          <div class="photo-controls">
+            <label class="file-button">Выбрать фотографию<input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
+            <p>JPG, PNG или WebP до 12 МБ. Обрезка и сжатие выполняются автоматически.</p>
+            <input name="photoSrc" type="hidden">
+            <details class="image-description"><summary>Изменить описание изображения</summary><label>Описание для доступности<input name="photoAlt" maxlength="180" placeholder="Заполнится автоматически по имени"></label></details>
+          </div>
+        </div>
       </section>
-      <section class="grid"><h2 class="wide">Прямые публичные контакты</h2>
-        <label>Телефон<input name="phone" placeholder="+7 ..."></label><label>Email<input name="email" type="email"></label>
-        <label>Telegram<input name="telegram" placeholder="@username"></label><label>WhatsApp<input name="whatsapp" placeholder="+7 ..."></label>
-        <label class="wide">Сайт<input name="website" type="url" placeholder="https://..."></label>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">03</p><h2>Категории</h2></div><p>Помогают найти специалиста через поиск и фильтры.</p></div>
+        <div id="categories" class="chip-list"></div>
+        <div class="add-row"><input id="category-input" list="category-suggestions" maxlength="120" placeholder="Введите или выберите категорию"><datalist id="category-suggestions"></datalist><button id="add-category" class="button button-secondary" type="button">+ Добавить категорию</button></div>
       </section>
-      <section class="grid"><h2 class="wide">Trust</h2>
-        <label class="check wide"><input name="recommendedByAlAmin" type="checkbox"> Рекомендован AL-AMIN</label>
-        <label>Дата проверки<input name="verificationDate" type="date"></label>
-        <label class="wide">Краткое описание проверки<textarea name="verificationSummary"></textarea></label>
-        <label class="wide">Проверенные факты, по одному на строку<textarea name="verifiedFacts"></textarea></label>
-        <label class="check"><input name="featured" type="checkbox"> Показывать в Home</label>
-        <label class="check"><input name="published" type="checkbox"> Опубликован</label>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">04</p><h2>С чем помогает</h2></div><p>Добавьте понятные клиенту направления помощи.</p></div>
+        <div id="help-topics" class="repeater"></div>
+        <button id="add-help-topic" class="button button-add" type="button">+ Добавить направление</button>
       </section>
-      <div id="errors" role="alert"></div>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">05</p><h2>Форматы работы</h2></div><p>Цена и длительность могут оставаться пустыми.</p></div>
+        <div id="work-offers" class="repeater"></div>
+        <button id="add-work-offer" class="button button-add" type="button">+ Добавить формат работы</button>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">06</p><h2>Кейсы и портфолио</h2></div><p>Необязательно. Добавляйте только материалы, которые можно показывать публично.</p></div>
+        <div id="portfolio-items" class="repeater"></div>
+        <button id="add-portfolio-item" class="button button-add" type="button">+ Добавить материал</button>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading"><div><p class="section-number">07</p><h2>Прямые контакты</h2></div><p>Показываются только заполненные способы связи.</p></div>
+        <div class="grid">
+          <label>Телефон<input name="phone" type="tel" placeholder="+7 900 000-00-00"></label>
+          <label>Email<input name="email" type="email" placeholder="name@example.com"></label>
+          <label>Telegram<input name="telegram" placeholder="@username"></label>
+          <label>WhatsApp<input name="whatsapp" placeholder="+7 900 000-00-00"></label>
+          <label class="wide">Сайт<input name="website" inputmode="url" placeholder="example.com"></label>
+        </div>
+      </section>
+
+      <section class="panel compact-panel">
+        <label class="feature-toggle"><input name="featured" type="checkbox"><span><strong>Показывать на главной странице</strong><small>Специалист сможет участвовать в витрине на главной.</small></span></label>
+        <label class="feature-toggle consent-toggle"><input name="publishConsent" type="checkbox" required><span><strong>Данные можно показывать публично</strong><small>Подтверждаю, что фотографию, описание и указанные контакты разрешено разместить в каталоге.</small></span></label>
+      </section>
+
+      <div class="save-bar"><div id="errors" role="alert" aria-live="polite"></div><button class="button button-primary button-save" type="submit">Сохранить специалиста</button></div>
     </form>
-    <div id="welcome"><h1>Локальный каталог</h1><p>Выберите специалиста слева или создайте нового. Редактор не публикуется вместе с сайтом и не выполняет Git-команды.</p></div>
   </main>
+
+  <dialog id="preview-dialog" class="preview-dialog">
+    <div class="preview-top"><div><p class="eyebrow">Предпросмотр</p><h2>Как выглядит профиль</h2></div><button id="close-preview" class="icon-button" type="button" aria-label="Закрыть">×</button></div>
+    <div id="preview-content"></div>
+  </dialog>
+
   <script src="/app.js"></script>
 </body>
 </html>

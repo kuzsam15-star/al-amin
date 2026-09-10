@@ -8,11 +8,18 @@ import { validateContent, validateSpecialistsDocument } from "../src/lib/static-
 const root = process.cwd();
 const host = "127.0.0.1";
 const port = Number(process.env.OWNER_EDITOR_PORT ?? 4173);
-const catalogPath = path.join(root, "content", "specialists.json");
+const catalogPath = process.env.OWNER_EDITOR_CATALOG_PATH
+  ? path.resolve(process.env.OWNER_EDITOR_CATALOG_PATH)
+  : path.join(root, "content", "specialists.json");
 const sitePath = path.join(root, "content", "site.json");
 const uiRoot = path.join(root, "tools", "owner-editor");
-const backupRoot = path.join(root, ".local-editor", "backups");
-const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
+const assetRoot = process.env.OWNER_EDITOR_ASSET_ROOT
+  ? path.resolve(process.env.OWNER_EDITOR_ASSET_ROOT)
+  : path.join(root, "public", "images", "specialists");
+const backupRoot = process.env.OWNER_EDITOR_BACKUP_ROOT
+  ? path.resolve(process.env.OWNER_EDITOR_BACKUP_ROOT)
+  : path.join(root, ".local-editor", "backups");
+const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".webp": "image/webp" };
 
 async function body(request, limit) {
   const chunks = [];
@@ -58,13 +65,18 @@ createServer(async (request, response) => {
     }
     if (url.pathname === "/api/photo" && request.method === "POST") {
       const slug = url.searchParams.get("slug") ?? "";
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(slug)) return json(response, 422, { errors: ["Сначала задайте корректный slug."] });
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(slug)) return json(response, 422, { errors: ["Сначала укажите имя специалиста."] });
       const input = await body(request, 12 * 1024 * 1024);
-      const directory = path.join(root, "public", "images", "specialists", slug);
+      const directory = path.join(assetRoot, slug);
       await mkdir(directory, { recursive: true });
       const destination = path.join(directory, "profile.webp");
       await sharp(input).rotate().resize({ width: 1200, height: 1440, fit: "cover", position: "attention", withoutEnlargement: true }).webp({ quality: 84 }).toFile(destination);
       return json(response, 200, { src: `/images/specialists/${slug}/profile.webp` });
+    }
+    const photoMatch = url.pathname.match(/^\/images\/specialists\/([a-z0-9]+(?:-[a-z0-9]+)*)\/profile\.webp$/u);
+    if (photoMatch && request.method === "GET") {
+      response.writeHead(200, { "Content-Type": "image/webp", "Cache-Control": "no-store" });
+      return response.end(await readFile(path.join(assetRoot, photoMatch[1], "profile.webp")));
     }
     const fileName = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
     if (!["index.html", "app.js", "styles.css"].includes(fileName)) throw new Error("not found");

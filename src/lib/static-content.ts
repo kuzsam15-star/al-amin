@@ -41,7 +41,7 @@ const catalog = validated.catalog as { version: 1; specialists: StaticSpecialist
 const allSpecialists = catalog?.specialists ?? [];
 
 export function getPublishedSpecialists() {
-  return allSpecialists.filter((item) => item.published).sort((a, b) => a.sortOrder - b.sortOrder || a.fullName.localeCompare(b.fullName, "ru"));
+  return allSpecialists.filter((item) => item.published).sort((a, b) => a.fullName.localeCompare(b.fullName, "ru"));
 }
 
 export function getFeaturedSpecialists() {
