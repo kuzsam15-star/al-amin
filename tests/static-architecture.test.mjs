@@ -76,6 +76,8 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(cropSource, /addEventListener\("touchmove"[\s\S]*passive:\s*false/u);
   assert.match(cropStyles, /touch-action:\s*none/u);
   assert.match(cropStyles, /overscroll-behavior:\s*contain/u);
+  assert.doesNotMatch(cropSource + cropStyles, /cropMoveHint|<Move\b|Перемещайте фото<\/span>/u);
+  assert.equal(source.match(/description="Перемещайте фото пальцем\. Используйте два пальца, чтобы изменить масштаб\."/gu)?.length, 2);
   assert.match(cropStyles, /\.photoPicker\s*>\s*p\s*\{[^}]*flex:\s*0\s+0\s+auto/su);
   assert.doesNotMatch(cropStyles, /\.submitBar\s*\{[^}]*position:\s*(?:sticky|fixed)/su);
   assert.ok(source.lastIndexOf("styles.submitBar") > source.lastIndexOf("styles.consentPanel"), "Download CTA stays once at the end of the form.");

@@ -33,7 +33,6 @@
 .cropSurface:focus-visible { outline: 4px solid rgba(21,81,60,.2); outline-offset: 3px; }
 .cropSurfaceRound { width: min(100%, 340px); border-radius: 50%; }
 .cropImage { position: absolute; display: block; max-width: none!important; object-fit: fill; pointer-events: none; user-select: none; -webkit-user-drag: none; }
-.cropMoveHint { position: absolute; right: 12px; bottom: 12px; display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid rgba(255,255,255,.55); border-radius: 999px; background: rgba(19,38,30,.66); color: #fff; font-size: 11px; font-weight: 700; pointer-events: none; backdrop-filter: blur(8px); }
 .cropActions { display: grid; width: 100%; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
 .cropActions button { display: inline-flex; min-width: 0; min-height: 44px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 1px solid var(--civic-line-strong); border-radius: 10px; background: #fff; color: var(--civic-green); font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .cropActions button:hover { border-color: var(--civic-green); }

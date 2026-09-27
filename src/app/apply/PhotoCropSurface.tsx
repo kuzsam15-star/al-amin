@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { Minus, Move, Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useId, useRef, useState } from "react";
 import {
   cropZoomRange,
@@ -229,7 +229,6 @@ export function PhotoCropSurface({
         style={imageStyle}
         onLoad={(event) => setNaturalSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
       />
-      <span className={styles.cropMoveHint} aria-hidden="true"><Move size={17} />Перемещайте фото</span>
     </div>
     <div className={styles.cropActions} aria-label={`Управление кадрированием: ${label}`}>
       <button type="button" onClick={() => zoomAtCenter(value.zoom / 1.25)} disabled={value.zoom <= cropZoomRange.min} aria-label={`Уменьшить: ${label}`}><Minus size={18} aria-hidden="true" /><span>Уменьшить</span></button>
