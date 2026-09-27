@@ -15,6 +15,8 @@ const defaultAvatarCrop = { positionX: 50, positionY: 24, zoom: 1 };
 const cropZoomRange = { min: 1, max: 8 };
 const selectedSpecialistStorageKey = "al-amin-owner-editor:selected-specialist";
 let catalog = { version: 1, specialists: [] };
+let categoryRegistry = { taxonomyVersion: "", selectionLimit: 8, groups: [], categories: [] };
+let categoryDraftIds = [];
 let siteContent = {};
 let selectedId = null;
 let submissions = [];
@@ -361,7 +363,11 @@ function submissionDraft(item) {
       avatar: payload.avatar || { ...defaultAvatarCrop },
     },
     specialization: payload.specialization || "",
+    taxonomyVersion: payload.taxonomyVersion || categoryRegistry.taxonomyVersion,
+    categoryIds: payload.categoryIds || [],
     categories: payload.categories || [],
+    legacyCategories: payload.legacyCategories || [],
+    missingCategoryRequest: payload.missingCategoryRequest || "",
     country: payload.country || "",
     city: payload.city || "",
     workMode: payload.workMode || "both",
@@ -379,35 +385,133 @@ function submissionDraft(item) {
   };
 }
 
-function renderCategorySuggestions() {
-  const values = [...new Set(catalog.specialists.flatMap((item) => item.categories || []))].sort((a, b) => a.localeCompare(b, "ru"));
-  $("#category-suggestions").replaceChildren(...values.map((item) => {
-    const option = document.createElement("option");
-    option.value = item;
-    return option;
-  }));
+function normalizeCategorySearch(valueToNormalize) {
+  return String(valueToNormalize || "").normalize("NFC").toLocaleLowerCase("ru").replaceAll("ё", "е").replace(/\s+/gu, " ").trim();
 }
 
-function addCategory(valueToAdd) {
-  const normalized = String(valueToAdd || "").normalize("NFC").trim();
-  if (!normalized) return;
-  const existing = $$("[data-category]", $("#categories")).map((item) => item.dataset.category.toLocaleLowerCase("ru"));
-  if (existing.includes(normalized.toLocaleLowerCase("ru"))) return;
+function categoryById(id) { return categoryRegistry.categories.find((item) => item.id === id) || null; }
+
+function resolveLegacyCategoryIds(values = []) {
+  const safeAliases = new Map([[normalizeCategorySearch("YouTube"), "creator-001"], [normalizeCategorySearch("ютуб"), "creator-001"], [normalizeCategorySearch("ютюб"), "creator-001"]]);
+  const categoryIds = [];
+  const unresolved = [];
+  values.forEach((rawValue) => {
+    const valueToResolve = String(rawValue || "").normalize("NFC").trim();
+    if (!valueToResolve) return;
+    const key = normalizeCategorySearch(valueToResolve);
+    const exact = categoryRegistry.categories.filter((item) => normalizeCategorySearch(item.label) === key);
+    const id = exact.length === 1 ? exact[0].id : safeAliases.get(key);
+    if (id && !categoryIds.includes(id)) categoryIds.push(id);
+    else if (!id && !unresolved.includes(valueToResolve)) unresolved.push(valueToResolve);
+  });
+  return { categoryIds, unresolved };
+}
+
+function addCategoryChip(id) {
+  const category = categoryById(id);
+  if (!category || $("#categories").querySelector(`[data-category-id="${CSS.escape(id)}"]`)) return;
   const chip = document.createElement("span");
   chip.className = "category-chip";
-  chip.dataset.category = normalized;
-  chip.append(textElement("span", "", normalized));
+  chip.dataset.categoryId = id;
+  chip.append(textElement("span", "", category.label));
   const remove = textElement("button", "", "Удалить");
   remove.type = "button";
-  remove.setAttribute("aria-label", `Удалить категорию ${normalized}`);
+  remove.setAttribute("aria-label", `Удалить категорию ${category.label}`);
   remove.onclick = () => chip.remove();
   chip.append(remove);
   $("#categories").append(chip);
 }
 
-function renderCategories(values = []) {
+function renderCategories(item = {}) {
   $("#categories").replaceChildren();
-  values.forEach(addCategory);
+  let categoryIds = Array.isArray(item.categoryIds) ? item.categoryIds.filter((id) => categoryById(id)) : [];
+  let unresolved = Array.isArray(item.legacyCategories) ? item.legacyCategories : [];
+  if (!categoryIds.length && Array.isArray(item.categories)) {
+    const resolved = resolveLegacyCategoryIds(item.categories);
+    categoryIds = resolved.categoryIds;
+    unresolved = [...new Set([...unresolved, ...resolved.unresolved])];
+  }
+  categoryIds.forEach(addCategoryChip);
+  const legacy = $("#legacy-categories");
+  legacy.hidden = unresolved.length === 0;
+  legacy.textContent = unresolved.length ? `Нужно вручную заменить старые категории: ${unresolved.join(", ")}` : "";
+  legacy.dataset.unresolved = JSON.stringify(unresolved);
+  const missing = $("#missing-category-request");
+  missing.hidden = !item.missingCategoryRequest;
+  missing.textContent = item.missingCategoryRequest ? `Запрос кандидата: ${item.missingCategoryRequest}` : "";
+}
+
+function ownerCategoryRank(item, query) {
+  const label = normalizeCategorySearch(item.label);
+  const aliases = (item.aliases || []).map(normalizeCategorySearch);
+  if (label === query) return 0;
+  if (aliases.includes(query)) return 1;
+  if (label.startsWith(query)) return 2;
+  if (aliases.some((alias) => alias.startsWith(query))) return 3;
+  if (label.includes(query)) return 4;
+  if (aliases.some((alias) => alias.includes(query))) return 5;
+  return Number.POSITIVE_INFINITY;
+}
+
+function ownerCategoryOption(item) {
+  const label = document.createElement("label");
+  label.className = "category-option";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = categoryDraftIds.includes(item.id);
+  checkbox.disabled = !checkbox.checked && categoryDraftIds.length >= categoryRegistry.selectionLimit;
+  checkbox.onchange = () => {
+    categoryDraftIds = checkbox.checked ? [...categoryDraftIds, item.id] : categoryDraftIds.filter((id) => id !== item.id);
+    renderOwnerCategoryDialog();
+  };
+  label.append(checkbox, textElement("span", "", item.label));
+  return label;
+}
+
+function renderOwnerCategoryDialog() {
+  $("#category-counter").textContent = `Выбрано: ${categoryDraftIds.length} из ${categoryRegistry.selectionLimit}`;
+  const container = $("#category-dialog-content");
+  container.replaceChildren();
+  const query = normalizeCategorySearch($("#category-search").value);
+  if (query) {
+    const matches = categoryRegistry.categories
+      .map((item) => ({ item, rank: ownerCategoryRank(item, query) }))
+      .filter(({ rank }) => Number.isFinite(rank))
+      .sort((a, b) => a.rank - b.rank || a.item.label.localeCompare(b.item.label, "ru"));
+    if (!matches.length) container.append(textElement("p", "category-empty", "Совпадений нет. Запрос кандидата останется заметен владельцу отдельно."));
+    else matches.forEach(({ item }) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "category-result";
+      wrapper.append(ownerCategoryOption(item), textElement("small", "", categoryRegistry.groups.find((group) => group.id === item.groupId)?.label || ""));
+      container.append(wrapper);
+    });
+    return;
+  }
+  categoryRegistry.groups.forEach((group) => {
+    const details = document.createElement("details");
+    details.className = "category-group";
+    const summary = document.createElement("summary");
+    const count = categoryRegistry.categories.filter((item) => item.groupId === group.id).length;
+    summary.append(textElement("strong", "", group.label), textElement("small", "", `${count} направлений`));
+    details.append(summary);
+    const options = document.createElement("div");
+    options.className = "category-options";
+    categoryRegistry.categories.filter((item) => item.groupId === group.id).sort((a, b) => a.label.localeCompare(b.label, "ru")).forEach((item) => options.append(ownerCategoryOption(item)));
+    details.append(options);
+    container.append(details);
+  });
+}
+
+function closeOwnerCategoryDialog(apply) {
+  if (apply) {
+    $("#categories").replaceChildren();
+    categoryDraftIds.forEach(addCategoryChip);
+    $("#legacy-categories").hidden = true;
+    $("#legacy-categories").textContent = "";
+    $("#legacy-categories").dataset.unresolved = "[]";
+  }
+  $("#category-dialog").close();
+  $("#open-category-selector").focus();
 }
 
 function renumberCards(container, label) {
@@ -473,9 +577,8 @@ function populateForm(item) {
   for (const name of ["phone", "email", "telegram", "whatsapp", "website"]) field(name).value = item.contacts?.[name] || "";
   field("featured").checked = item.featured === true;
   field("publishConsent").checked = item.published === true;
-  renderCategories(item.categories || []);
+  renderCategories(item);
   renderRepeaters(item);
-  renderCategorySuggestions();
   errors.className = "";
   errors.textContent = "";
 }
@@ -555,7 +658,9 @@ function readForm() {
     country: value("country"),
     city: value("city"),
     workMode: value("workMode"),
-    categories: $$("[data-category]", $("#categories")).map((item) => item.dataset.category),
+    taxonomyVersion: categoryRegistry.taxonomyVersion,
+    categoryIds: $$("[data-category-id]", $("#categories")).map((item) => item.dataset.categoryId),
+    categories: $$("[data-category-id]", $("#categories")).map((item) => categoryById(item.dataset.categoryId)?.label).filter(Boolean),
     profileSummary: value("profileSummary"),
     about: value("about"),
     experienceYears: value("experienceYears") ? Number(value("experienceYears")) : null,
@@ -608,7 +713,8 @@ async function persistSpecialist() {
   try {
     const item = readForm();
     if (!item.photo.src) throw new Error("Добавьте фотографию специалиста.");
-    if (!item.categories.length) throw new Error("Добавьте хотя бы одну категорию.");
+    if (!item.categoryIds.length) throw new Error("Выберите хотя бы одну категорию из справочника.");
+    if (JSON.parse($("#legacy-categories").dataset.unresolved || "[]").length) throw new Error("Замените старые категории выбором из справочника.");
     const index = catalog.specialists.findIndex((entry) => entry.id === selectedId);
     catalog.specialists[index] = item;
     catalog.specialists.sort((a, b) => a.fullName.localeCompare(b.fullName, "ru"));
@@ -618,7 +724,6 @@ async function persistSpecialist() {
     field("photoAlt").value = item.photo.alt;
     $("#title").textContent = item.fullName;
     renderList();
-    renderCategorySuggestions();
     errors.className = "working";
     errors.textContent = "Специалист сохранён. Обновляем локальный сайт…";
     const previewUrl = await rebuildStaticPreview();
@@ -643,7 +748,7 @@ async function save(event) {
 }
 
 function newItem() {
-  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "", profileCrop: { ...defaultProfileCrop }, avatar: { ...defaultAvatarCrop } }, specialization: "", categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
+  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "", profileCrop: { ...defaultProfileCrop }, avatar: { ...defaultAvatarCrop } }, specialization: "", taxonomyVersion: categoryRegistry.taxonomyVersion, categoryIds: [], categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
 }
 
 $("#add").onclick = () => {
@@ -736,7 +841,8 @@ $("#approve-submission").onclick = async () => {
   if (!form.reportValidity()) return;
   try {
     const specialist = { ...readForm(), reviewPhotoToken };
-    if (!specialist.categories.length) throw new Error("Добавьте хотя бы одну категорию.");
+    if (!specialist.categoryIds.length) throw new Error("Выберите хотя бы одну категорию из справочника.");
+    if (JSON.parse($("#legacy-categories").dataset.unresolved || "[]").length) throw new Error("Замените старые категории выбором из справочника.");
     errors.className = "working";
     errors.textContent = "Проверяем данные, создаём WebP и обновляем локальный каталог…";
     const response = await fetch(`/api/submissions/${encodeURIComponent(submission.id)}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(specialist) });
@@ -929,8 +1035,18 @@ async function showPreview() {
 }
 
 $("#preview").onclick = showPreview;
-$("#add-category").onclick = () => { addCategory($("#category-input").value); $("#category-input").value = ""; $("#category-input").focus(); };
-$("#category-input").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); $("#add-category").click(); } });
+$("#open-category-selector").onclick = () => {
+  categoryDraftIds = $$("[data-category-id]", $("#categories")).map((item) => item.dataset.categoryId);
+  $("#category-search").value = "";
+  renderOwnerCategoryDialog();
+  $("#category-dialog").showModal();
+  $("#close-category-dialog").focus();
+};
+$("#close-category-dialog").onclick = () => closeOwnerCategoryDialog(false);
+$("#cancel-category-dialog").onclick = () => closeOwnerCategoryDialog(false);
+$("#apply-category-dialog").onclick = () => closeOwnerCategoryDialog(true);
+$("#category-search").addEventListener("input", renderOwnerCategoryDialog);
+$("#category-dialog").addEventListener("cancel", (event) => { event.preventDefault(); closeOwnerCategoryDialog(false); });
 $("#add-help-topic").onclick = () => addHelpTopic();
 $("#add-work-offer").onclick = () => addWorkOffer();
 $("#add-portfolio-item").onclick = () => addPortfolioItem();
@@ -985,14 +1101,14 @@ for (const eventName of ["dragenter", "dragover"]) submissionDropzone.addEventLi
 for (const eventName of ["dragleave", "drop"]) submissionDropzone.addEventListener(eventName, (event) => { event.preventDefault(); submissionDropzone.classList.remove("dragging"); });
 submissionDropzone.addEventListener("drop", (event) => importSubmissionFile(event.dataTransfer?.files?.[0]));
 
-Promise.all([fetch("/api/catalog").then((response) => response.json()), fetch("/api/site").then((response) => response.json()), fetch("/api/submissions").then((response) => response.json())]).then(([catalogResult, siteResult, submissionResult]) => {
+Promise.all([fetch("/api/catalog").then((response) => response.json()), fetch("/api/site").then((response) => response.json()), fetch("/api/submissions").then((response) => response.json()), fetch("/api/category-registry").then((response) => response.json())]).then(([catalogResult, siteResult, submissionResult, registryResult]) => {
   catalog = catalogResult;
+  categoryRegistry = registryResult;
   submissions = submissionResult.submissions || [];
   loadHomeEditor(siteResult);
   persistedIds = new Set(catalog.specialists.map((item) => item.id));
   renderList();
   renderSubmissions();
-  renderCategorySuggestions();
   let rememberedId = null;
   try { rememberedId = localStorage.getItem(selectedSpecialistStorageKey); } catch {}
   const initialId = catalog.specialists.some((item) => item.id === rememberedId) ? rememberedId : catalog.specialists[0]?.id;

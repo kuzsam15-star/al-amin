@@ -93,9 +93,11 @@
       </section>
 
       <section class="panel">
-        <div class="section-heading"><div><p class="section-number">03</p><h2>Категории</h2></div><p>Помогают найти специалиста через поиск и фильтры.</p></div>
+        <div class="section-heading"><div><p class="section-number">03</p><h2>Категории</h2></div><p>Выберите до 8 направлений из единого справочника AL-AMIN.</p></div>
         <div id="categories" class="chip-list"></div>
-        <div class="add-row"><input id="category-input" list="category-suggestions" maxlength="120" placeholder="Введите или выберите категорию"><datalist id="category-suggestions"></datalist><button id="add-category" class="button button-secondary" type="button">+ Добавить категорию</button></div>
+        <button id="open-category-selector" class="button button-secondary category-selector-button" type="button">Выбрать категории</button>
+        <div id="legacy-categories" class="legacy-category-notice" hidden></div>
+        <div id="missing-category-request" class="legacy-category-notice" hidden></div>
       </section>
 
       <section class="panel">
@@ -175,6 +177,16 @@
       </div>
     </form>
   </main>
+
+  <dialog id="category-dialog" class="category-dialog" aria-labelledby="category-dialog-title">
+    <div class="category-dialog-shell">
+      <header><div><p class="eyebrow">Категории AL-AMIN</p><h2 id="category-dialog-title">Выберите категории</h2></div><button id="close-category-dialog" type="button" class="dialog-close" aria-label="Закрыть без изменений">×</button></header>
+      <label class="category-search">Найти категорию<input id="category-search" autocomplete="off" placeholder="Название или синоним"></label>
+      <p id="category-counter" class="category-counter"></p>
+      <div id="category-dialog-content" class="category-dialog-content"></div>
+      <footer><button id="cancel-category-dialog" class="button button-secondary" type="button">Отмена</button><button id="apply-category-dialog" class="button button-primary" type="button">Применить</button></footer>
+    </div>
+  </dialog>
 
   <script src="/app.js"></script>
 </body>

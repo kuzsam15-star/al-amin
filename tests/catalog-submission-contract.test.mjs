@@ -8,6 +8,7 @@ import {
   safeAlaminFileName,
   validateAlaminSubmissionPackage,
 } from "../src/lib/alamin-submission-file.mjs";
+import { categoryTaxonomyVersion } from "../src/lib/category-registry.mjs";
 
 function validPayload(photoBytes = 4) {
   return {
@@ -43,6 +44,17 @@ function validPackage() {
   });
 }
 
+function validV2Payload(photoBytes = 4) {
+  return {
+    ...validPayload(photoBytes),
+    contractVersion: 2,
+    taxonomyVersion: categoryTaxonomyVersion,
+    categoryIds: ["psychology-002", "creator-001"],
+    categories: ["Подменённое клиентом название"],
+    missingCategoryRequest: "",
+  };
+}
+
 test("candidate payload maps only to the candidate-facing contract", () => {
   const result = validateCatalogSubmissionPayload(validPayload());
   assert.deepEqual(result.errors, []);
@@ -64,6 +76,28 @@ test("candidate contract preserves high independent crops and rejects values bey
   payload.avatar.zoom = 8.01;
   const invalid = validateCatalogSubmissionPayload(payload);
   assert.ok(invalid.errors.some((message) => message.includes("avatar.zoom")));
+});
+
+test("current contract trusts registry IDs, regenerates labels and rejects unknown IDs", () => {
+  const valid = validateCatalogSubmissionPayload(validV2Payload());
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.data.categoryIds, ["psychology-002", "creator-001"]);
+  assert.deepEqual(valid.data.categories, ["Семейный психолог", "YouTube и видеоблогинг"]);
+
+  const tampered = validV2Payload();
+  tampered.categoryIds = ["candidate-created-category"];
+  assert.ok(validateCatalogSubmissionPayload(tampered).errors.some((message) => message.includes("неизвестная категория")));
+});
+
+test("missing category request is private application context and can replace a selection", () => {
+  const payload = validV2Payload();
+  payload.categoryIds = [];
+  payload.categories = [];
+  payload.missingCategoryRequest = "Нужно редкое направление, которого пока нет в справочнике.";
+  const result = validateCatalogSubmissionPayload(payload);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data.missingCategoryRequest, payload.missingCategoryRequest);
+  assert.deepEqual(result.data.categories, []);
 });
 
 test("legacy v1 packages without profileCrop remain valid and receive a centered profile crop", () => {

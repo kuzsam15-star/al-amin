@@ -1,12 +1,18 @@
 import { cropZoomRange } from "./photo-crop.mjs";
+import {
+  categorySelectionLimit,
+  categoryTaxonomyVersion,
+  resolveLegacyCategories,
+  validateCategorySelection,
+} from "./category-registry.mjs";
 
-export const catalogSubmissionContractVersion = 1;
+export const catalogSubmissionContractVersion = 2;
 
 export const catalogSubmissionConsent = "Я подтверждаю, что имею право передать эти данные и фотографию, и соглашаюсь на их обработку для рассмотрения заявки и возможную публикацию в каталоге AL-AMIN после проверки владельцем проекта.";
 
 export const catalogSubmissionLimits = Object.freeze({
   photoBytes: 8 * 1024 * 1024,
-  categories: 8,
+  categories: categorySelectionLimit,
   helpTopics: 12,
   workOffers: 12,
   portfolio: 12,
@@ -69,12 +75,31 @@ function stringList(value, path, errors, maxItems) {
 export function validateCatalogSubmissionPayload(value, { requirePhoto = true } = {}) {
   const errors = [];
   if (!record(value)) return { errors: ["submission: ожидается объект"], data: null };
-  if (value.contractVersion !== catalogSubmissionContractVersion) errors.push("contractVersion: неподдерживаемая версия");
+  const contractVersion = Number(value.contractVersion);
+  if (![1, catalogSubmissionContractVersion].includes(contractVersion)) errors.push("contractVersion: неподдерживаемая версия");
 
   const workMode = text(value.workMode, "workMode", errors, { required: true, max: 20 });
   if (workMode && !workModes.has(workMode)) errors.push("workMode: некорректный формат работы");
-  const categories = stringList(value.categories, "categories", errors, catalogSubmissionLimits.categories);
-  if (!categories.length) errors.push("categories: добавьте хотя бы одну категорию");
+  const missingCategoryRequest = text(value.missingCategoryRequest, "missingCategoryRequest", errors, { max: 500 });
+  let taxonomyVersion = categoryTaxonomyVersion;
+  let categoryIds = [];
+  let categories = [];
+  let legacyCategories = [];
+  if (contractVersion === 1) {
+    const legacy = stringList(value.categories, "categories", errors, catalogSubmissionLimits.categories);
+    if (!legacy.length) errors.push("categories: добавьте хотя бы одну категорию");
+    const resolved = resolveLegacyCategories(legacy);
+    categoryIds = resolved.categoryIds;
+    categories = resolved.categories;
+    legacyCategories = resolved.unresolved;
+  } else {
+    taxonomyVersion = text(value.taxonomyVersion, "taxonomyVersion", errors, { required: true, max: 40 });
+    const selection = validateCategorySelection(value.categoryIds, taxonomyVersion, { allowEmpty: Boolean(missingCategoryRequest) });
+    errors.push(...selection.errors);
+    categoryIds = selection.categoryIds;
+    categories = selection.categories;
+    if (!categoryIds.length && !missingCategoryRequest) errors.push("categoryIds: выберите категорию или опишите, чего не хватает");
+  }
 
   const helpTopics = Array.isArray(value.helpTopics) ? value.helpTopics.slice(0, catalogSubmissionLimits.helpTopics).map((entry, index) => {
     if (!record(entry)) { errors.push(`helpTopics.${index}: ожидается объект`); return null; }
@@ -147,7 +172,7 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
   if (value.consent !== true || value.consentText !== catalogSubmissionConsent) errors.push("consent: требуется согласие с актуальным текстом");
 
   const data = {
-    contractVersion: catalogSubmissionContractVersion,
+    contractVersion,
     fullName: text(value.fullName, "fullName", errors, { required: true, max: 160 }),
     specialization: text(value.specialization, "specialization", errors, { required: true, max: 180 }),
     country: text(value.country, "country", errors, { required: true, max: 100 }),
@@ -156,7 +181,11 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
     experienceYears: numberOrNull(value.experienceYears, "experienceYears", errors, 0, 80),
     profileSummary: text(value.profileSummary, "profileSummary", errors, { required: true, max: 220 }),
     about: text(value.about, "about", errors, { required: true, max: 3000 }),
+    taxonomyVersion,
+    categoryIds,
     categories,
+    legacyCategories,
+    missingCategoryRequest,
     helpTopics,
     workOffers,
     contacts,
@@ -178,7 +207,11 @@ export function catalogSubmissionToSpecialistDraft(submission) {
     fullName: payload.fullName,
     photo: { src: submission.photoPreviewUrl || "", alt: `Фото: ${payload.fullName}`, profileCrop: payload.profileCrop, avatar: payload.avatar },
     specialization: payload.specialization,
+    taxonomyVersion: payload.taxonomyVersion || categoryTaxonomyVersion,
+    categoryIds: payload.categoryIds || [],
     categories: payload.categories,
+    legacyCategories: payload.legacyCategories || [],
+    missingCategoryRequest: payload.missingCategoryRequest || "",
     country: payload.country,
     city: payload.city,
     workMode: payload.workMode,

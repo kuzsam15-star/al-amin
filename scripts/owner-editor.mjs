@@ -16,6 +16,7 @@ const previewUrl = process.env.STATIC_PREVIEW_URL ?? "http://127.0.0.1:4174/";
 const publicSiteUrl = process.env.OWNER_EDITOR_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000/";
 const catalogPath = process.env.OWNER_EDITOR_CATALOG_PATH ? path.resolve(process.env.OWNER_EDITOR_CATALOG_PATH) : path.join(root, "content", "specialists.json");
 const sitePath = process.env.OWNER_EDITOR_SITE_PATH ? path.resolve(process.env.OWNER_EDITOR_SITE_PATH) : path.join(root, "content", "site.json");
+const categoryRegistryPath = path.join(root, "content", "category-registry.json");
 const uiRoot = path.join(root, "tools", "owner-editor");
 const assetRoot = process.env.OWNER_EDITOR_ASSET_ROOT ? path.resolve(process.env.OWNER_EDITOR_ASSET_ROOT) : path.join(root, "public", "images", "specialists");
 const backupRoot = process.env.OWNER_EDITOR_BACKUP_ROOT ? path.resolve(process.env.OWNER_EDITOR_BACKUP_ROOT) : path.join(root, ".local-editor", "backups");
@@ -361,6 +362,15 @@ createServer(async (request, response) => {
     const submissionApproveMatch = url.pathname.match(/^\/api\/submissions\/([0-9a-f-]{36})\/approve$/iu);
     if (submissionApproveMatch && request.method === "POST") return json(response, 200, await serializeWrite(() => approveSubmission(submissionApproveMatch[1], request)));
     if (url.pathname === "/api/catalog" && request.method === "GET") return json(response, 200, JSON.parse(await readFile(catalogPath, "utf8")));
+    if (url.pathname === "/api/category-registry" && request.method === "GET") {
+      const source = JSON.parse(await readFile(categoryRegistryPath, "utf8"));
+      return json(response, 200, {
+        taxonomyVersion: source.taxonomyVersion,
+        selectionLimit: source.selectionLimit,
+        groups: source.groups.map(({ id, label, sortOrder }) => ({ id, label, sortOrder })),
+        categories: source.categories.filter((item) => item.active === true).map(({ id, groupId, label, aliases }) => ({ id, groupId, label, aliases })),
+      });
+    }
     if (url.pathname === "/api/catalog" && request.method === "PUT") {
       const result = await serializeWrite(async () => {
         const candidate = JSON.parse((await body(request, 2 * 1024 * 1024)).toString("utf8"));

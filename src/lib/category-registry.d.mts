@@ -1,0 +1,13 @@
+export type CategoryRegistryGroup = { id: string; label: string; sortOrder: number };
+export type CategoryRegistryItem = { id: string; groupId: string; label: string; aliases: readonly string[] };
+export const categoryRegistry: Readonly<{ schemaVersion: number; taxonomyVersion: string; locale: string; selectionLimit: number; groups: readonly CategoryRegistryGroup[]; categories: readonly CategoryRegistryItem[] }>;
+export const categoryTaxonomyVersion: string;
+export const categorySelectionLimit: number;
+export function normalizeCategorySearch(value: unknown): string;
+export function getCategoryById(id: unknown): CategoryRegistryItem | null;
+export function getCategoryGroup(groupId: unknown): CategoryRegistryGroup | null;
+export function getCategoryLabels(categoryIds: unknown): string[];
+export function validateCategorySelection(categoryIds: unknown, taxonomyVersion: unknown, options?: { allowEmpty?: boolean }): { errors: string[]; categoryIds: string[]; categories: string[] };
+export function resolveLegacyCategories(values: unknown): { categoryIds: string[]; categories: string[]; unresolved: string[] };
+export function searchCategoryRegistry(query: unknown): Array<CategoryRegistryItem & { groupLabel: string; rank: number }>;
+export function categoryRegistryIntegrity(): { errors: string[]; groups: number; categories: number; aliases: number };

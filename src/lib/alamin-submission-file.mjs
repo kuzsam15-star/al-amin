@@ -18,7 +18,8 @@ export const alaminSubmissionFileLimits = Object.freeze({
 const allowedTopLevel = new Set(["marker", "version", "packageId", "createdAt", "payload", "consent", "attachments"]);
 const allowedPayload = new Set([
   "contractVersion", "fullName", "specialization", "country", "city", "workMode", "experienceYears",
-  "profileSummary", "about", "categories", "helpTopics", "workOffers", "contacts", "portfolio", "profileCrop", "avatar", "photo",
+  "profileSummary", "about", "taxonomyVersion", "categoryIds", "categories", "missingCategoryRequest",
+  "helpTopics", "workOffers", "contacts", "portfolio", "profileCrop", "avatar", "photo",
 ]);
 const allowedConsent = new Set(["accepted", "version", "text"]);
 const allowedAttachment = new Set(["id", "role", "filename", "mediaType", "encoding", "data"]);

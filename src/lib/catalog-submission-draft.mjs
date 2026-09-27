@@ -1,7 +1,8 @@
 import { cropZoomRange } from "./photo-crop.mjs";
+import { categoryTaxonomyVersion, resolveLegacyCategories, validateCategorySelection } from "./category-registry.mjs";
 
 export const catalogSubmissionDraftStorageKey = "alamin.catalog-submission-draft.v1";
-export const catalogSubmissionDraftVersion = 1;
+export const catalogSubmissionDraftVersion = 2;
 
 const marker = "AL-AMIN-CATALOG-SUBMISSION-DRAFT";
 const workModes = new Set(["online", "offline", "both"]);
@@ -50,8 +51,10 @@ export function createEmptyCatalogSubmissionDraft() {
       website: "",
       consent: false,
     },
-    categoryDraft: "",
-    categories: [],
+    taxonomyVersion: categoryTaxonomyVersion,
+    categoryIds: [],
+    legacyCategories: [],
+    missingCategoryRequest: "",
     helpTopics: [{ title: "", description: "" }],
     workOffers: [{ title: "", mode: "online", durationMinutes: "", price: "", currency: "RUB" }],
     portfolio: [],
@@ -63,7 +66,7 @@ export function createEmptyCatalogSubmissionDraft() {
 
 export function normalizeCatalogSubmissionDraft(value) {
   const empty = createEmptyCatalogSubmissionDraft();
-  if (!record(value) || value.marker !== marker || value.version !== catalogSubmissionDraftVersion) return null;
+  if (!record(value) || value.marker !== marker || ![1, catalogSubmissionDraftVersion].includes(value.version)) return null;
 
   const sourceFields = record(value.fields) ? value.fields : {};
   const fields = {
@@ -83,9 +86,23 @@ export function normalizeCatalogSubmissionDraft(value) {
     consent: sourceFields.consent === true,
   };
 
-  const categories = Array.isArray(value.categories)
-    ? value.categories.slice(0, limits.categories).map((entry) => text(entry, 120)).filter(Boolean)
-    : [];
+  let categoryIds = [];
+  let legacyCategories = [];
+  if (value.version === 1) {
+    const legacyValues = [
+      ...(Array.isArray(value.categories) ? value.categories : []),
+      ...(typeof value.categoryDraft === "string" && value.categoryDraft.trim() ? [value.categoryDraft] : []),
+    ].slice(0, limits.categories).map((entry) => text(entry, 120)).filter(Boolean);
+    const resolved = resolveLegacyCategories(legacyValues);
+    categoryIds = resolved.categoryIds;
+    legacyCategories = resolved.unresolved;
+  } else {
+    const selection = validateCategorySelection(value.categoryIds, value.taxonomyVersion, { allowEmpty: true });
+    categoryIds = value.taxonomyVersion === categoryTaxonomyVersion ? selection.categoryIds : [];
+    legacyCategories = Array.isArray(value.legacyCategories)
+      ? value.legacyCategories.slice(0, limits.categories).map((entry) => text(entry, 120)).filter(Boolean)
+      : [];
+  }
   const helpTopics = Array.isArray(value.helpTopics)
     ? value.helpTopics.slice(0, limits.helpTopics).filter(record).map((entry) => ({ title: text(entry.title, 140), description: text(entry.description, 300) }))
     : empty.helpTopics;
@@ -106,8 +123,10 @@ export function normalizeCatalogSubmissionDraft(value) {
 
   return {
     fields,
-    categoryDraft: text(value.categoryDraft, 120),
-    categories,
+    taxonomyVersion: categoryTaxonomyVersion,
+    categoryIds,
+    legacyCategories,
+    missingCategoryRequest: text(value.missingCategoryRequest, 500),
     helpTopics: helpTopics.length ? helpTopics : empty.helpTopics,
     workOffers: workOffers.length ? workOffers : empty.workOffers,
     portfolio,
@@ -149,8 +168,9 @@ export function hasMeaningfulCatalogSubmissionDraft(draft) {
   return textFieldNames.some((key) => Boolean(draft.fields[key]))
     || draft.fields.workMode !== "both"
     || draft.fields.consent
-    || Boolean(draft.categoryDraft)
-    || draft.categories.length > 0
+    || draft.categoryIds.length > 0
+    || draft.legacyCategories.length > 0
+    || Boolean(draft.missingCategoryRequest)
     || draft.helpTopics.some((entry) => entry.title || entry.description)
     || draft.workOffers.some((entry) => entry.title || entry.durationMinutes || entry.price || entry.mode !== "online")
     || draft.portfolio.some((entry) => entry.title || entry.description || entry.url)

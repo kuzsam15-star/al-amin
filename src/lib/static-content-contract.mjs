@@ -1,4 +1,5 @@
 import { cropZoomRange } from "./photo-crop.mjs";
+import { categoryTaxonomyVersion, resolveLegacyCategories, validateCategorySelection } from "./category-registry.mjs";
 
 const workModes = new Set(["online", "offline", "both"]);
 const currencies = new Set(["RUB", "USD", "EUR", "KZT", "AED", "TRY", "UZS"]);
@@ -93,8 +94,24 @@ function validateSpecialist(value, index) {
   else if (!photo.src.startsWith("/images/specialists/")) errors.push(`${path}.photo.src: файл должен находиться в /public/images/specialists/`);
   else if (photo.avatarSrc && !photo.avatarSrc.startsWith("/images/specialists/")) errors.push(`${path}.photo.avatarSrc: файл должен находиться в /public/images/specialists/`);
 
-  const categories = stringList(value.categories, `${path}.categories`, errors, 8);
-  if (!categories.length) errors.push(`${path}.categories: нужна хотя бы одна категория`);
+  let taxonomyVersion = categoryTaxonomyVersion;
+  let categoryIds = [];
+  let categories = [];
+  let legacyCategories = [];
+  if (Array.isArray(value.categoryIds)) {
+    taxonomyVersion = text(value.taxonomyVersion, `${path}.taxonomyVersion`, errors, { required: true, max: 40 });
+    const selection = validateCategorySelection(value.categoryIds, taxonomyVersion);
+    errors.push(...selection.errors.map((message) => `${path}.${message}`));
+    categoryIds = selection.categoryIds;
+    categories = selection.categories;
+  } else {
+    const legacy = stringList(value.categories, `${path}.categories`, errors, 8);
+    if (!legacy.length) errors.push(`${path}.categories: нужна хотя бы одна категория`);
+    const resolved = resolveLegacyCategories(legacy);
+    categoryIds = resolved.categoryIds;
+    categories = [...resolved.categories, ...resolved.unresolved];
+    legacyCategories = resolved.unresolved;
+  }
   const workMode = text(value.workMode, `${path}.workMode`, errors, { required: true, max: 20 });
   if (workMode && !workModes.has(workMode)) errors.push(`${path}.workMode: online, offline или both`);
 
@@ -149,7 +166,10 @@ function validateSpecialist(value, index) {
       fullName: text(value.fullName, `${path}.fullName`, errors, { required: true, max: 160 }),
       photo,
       specialization: text(value.specialization, `${path}.specialization`, errors, { required: true, max: 180 }),
+      taxonomyVersion,
+      categoryIds,
       categories,
+      legacyCategories,
       country: text(value.country, `${path}.country`, errors, { required: true, max: 100 }),
       city: text(value.city, `${path}.city`, errors, { required: true, max: 100 }),
       workMode,

@@ -9,6 +9,7 @@ import {
   validateAlaminSubmissionPackage,
 } from "@/lib/alamin-submission-file.mjs";
 import { catalogSubmissionConsent, catalogSubmissionContractVersion, catalogSubmissionLimits } from "@/lib/catalog-submission-contract.mjs";
+import { categoryTaxonomyVersion, getCategoryLabels } from "@/lib/category-registry.mjs";
 import {
   catalogSubmissionDraftStorageKey,
   createEmptyCatalogSubmissionDraft,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/catalog-submission-draft.mjs";
 import type { CatalogSubmissionDraft, CatalogSubmissionDraftFields } from "@/lib/catalog-submission-draft.mjs";
 import { PhotoCropSurface } from "./PhotoCropSurface";
+import { CategorySelectorDialog } from "./CategorySelectorDialog";
 import styles from "./catalog-submission-form.module.css";
 
 type WorkMode = "online" | "offline" | "both";
@@ -69,8 +71,9 @@ function RepeaterHeader({ title, onRemove }: { title: string; onRemove: () => vo
 export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerContacts }) {
   const emptyDraft = useMemo(() => createEmptyCatalogSubmissionDraft(), []);
   const [fields, setFields] = useState<CatalogSubmissionDraftFields>(emptyDraft.fields);
-  const [categories, setCategories] = useState<string[]>(emptyDraft.categories);
-  const [categoryDraft, setCategoryDraft] = useState(emptyDraft.categoryDraft);
+  const [categoryIds, setCategoryIds] = useState<string[]>(emptyDraft.categoryIds);
+  const [legacyCategories, setLegacyCategories] = useState<string[]>(emptyDraft.legacyCategories);
+  const [missingCategoryRequest, setMissingCategoryRequest] = useState(emptyDraft.missingCategoryRequest);
   const [helpTopics, setHelpTopics] = useState<HelpTopic[]>(emptyDraft.helpTopics);
   const [workOffers, setWorkOffers] = useState<WorkOffer[]>(emptyDraft.workOffers);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(emptyDraft.portfolio);
@@ -103,32 +106,36 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     }
     if (restored && hasMeaningfulCatalogSubmissionDraft(restored)) {
       setFields(restored.fields);
-      setCategories(restored.categories);
-      setCategoryDraft(restored.categoryDraft);
+      setCategoryIds(restored.categoryIds);
+      setLegacyCategories(restored.legacyCategories);
+      setMissingCategoryRequest(restored.missingCategoryRequest);
       setHelpTopics(restored.helpTopics);
       setWorkOffers(restored.workOffers);
       setPortfolio(restored.portfolio);
       setProfileCrop(restored.profileCrop);
       setAvatar(restored.avatar);
       setPhotoWasSelected(restored.photoWasSelected);
-      setDraftNotice(restored.photoWasSelected
+      const legacyNotice = restored.legacyCategories.length ? " Старые категории сохранены для уточнения — выберите подходящие пункты из нового справочника." : "";
+      setDraftNotice((restored.photoWasSelected
         ? "Черновик восстановлен. Текст и настройки сохранены, фотографию выберите заново."
-        : "Черновик восстановлен. Можно продолжить заполнение.");
+        : "Черновик восстановлен. Можно продолжить заполнение.") + legacyNotice);
     }
     setDraftReady(true);
   }, []);
 
   const draftValue = useMemo<CatalogSubmissionDraft>(() => ({
     fields,
-    categoryDraft,
-    categories,
+    taxonomyVersion: categoryTaxonomyVersion,
+    categoryIds,
+    legacyCategories,
+    missingCategoryRequest,
     helpTopics,
     workOffers,
     portfolio,
     profileCrop,
     avatar,
     photoWasSelected: Boolean(photo) || photoWasSelected,
-  }), [avatar, categories, categoryDraft, fields, helpTopics, photo, photoWasSelected, portfolio, profileCrop, workOffers]);
+  }), [avatar, categoryIds, fields, helpTopics, legacyCategories, missingCategoryRequest, photo, photoWasSelected, portfolio, profileCrop, workOffers]);
 
   const draftRevision = useMemo(() => JSON.stringify({
     draft: draftValue,
@@ -169,8 +176,9 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     if (!window.confirm("Очистить заполненную форму и начать новую заявку?")) return;
     const next = createEmptyCatalogSubmissionDraft();
     setFields(next.fields);
-    setCategories(next.categories);
-    setCategoryDraft(next.categoryDraft);
+    setCategoryIds(next.categoryIds);
+    setLegacyCategories(next.legacyCategories);
+    setMissingCategoryRequest(next.missingCategoryRequest);
     setHelpTopics(next.helpTopics);
     setWorkOffers(next.workOffers);
     setPortfolio(next.portfolio);
@@ -187,13 +195,6 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function addCategory() {
-    const value = categoryDraft.normalize("NFC").trim();
-    if (!value || categories.some((item) => item.toLocaleLowerCase("ru") === value.toLocaleLowerCase("ru")) || categories.length >= catalogSubmissionLimits.categories) return;
-    setCategories((items) => [...items, value]);
-    setCategoryDraft("");
-  }
-
   function updateItem<T>(setter: React.Dispatch<React.SetStateAction<T[]>>, index: number, patch: Partial<T>) {
     setter((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   }
@@ -206,8 +207,8 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       setStatus({ kind: "error", message: photoError || "Добавьте фотографию." });
       return;
     }
-    if (!categories.length) {
-      setStatus({ kind: "error", message: "Добавьте хотя бы одну категорию." });
+    if (!categoryIds.length && !missingCategoryRequest.trim()) {
+      setStatus({ kind: "error", message: "Выберите хотя бы одну категорию или опишите, чего не хватает." });
       return;
     }
     const payload = {
@@ -220,7 +221,10 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       experienceYears: fields.experienceYears || null,
       profileSummary: fields.profileSummary,
       about: fields.about,
-      categories,
+      taxonomyVersion: categoryTaxonomyVersion,
+      categoryIds,
+      categories: getCategoryLabels(categoryIds),
+      missingCategoryRequest: missingCategoryRequest.trim(),
       helpTopics: helpTopics.filter((item) => item.title.trim()).map((item) => ({ title: item.title, description: item.description || undefined })),
       workOffers: workOffers.filter((item) => item.title.trim()).map((item) => ({ title: item.title, mode: item.mode, durationMinutes: item.durationMinutes || null, price: item.price || null, currency: item.price ? item.currency : null })),
       contacts: {
@@ -302,9 +306,11 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
         </div> : <div className={styles.photoPlaceholder}><ImagePlus aria-hidden="true" size={34} /><span>Выберите фотографию, чтобы настроить два кадра.</span></div>}
       </section>
 
-      <section className={styles.panel}><div className={styles.sectionTitle}><span>03</span><div><h2>Категории и направления</h2><p>Добавьте понятные слова, по которым вас смогут найти.</p></div></div>
-        <div className={styles.chips}>{categories.map((item) => <span key={item}>{item}<button type="button" aria-label={`Удалить ${item}`} onClick={() => setCategories((values) => values.filter((value) => value !== item))}>×</button></span>)}</div>
-        <div className={styles.addRow}><input value={categoryDraft} maxLength={120} placeholder="Например, семейные отношения" onChange={(event) => setCategoryDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCategory(); } }} /><button type="button" onClick={addCategory}><Plus aria-hidden="true" size={17} />Добавить категорию</button></div>
+      <section className={styles.panel}><div className={styles.sectionTitle}><span>03</span><div><h2>Категории</h2><p>Выберите до {catalogSubmissionLimits.categories} направлений, по которым вас смогут найти.</p></div></div>
+        <div className={styles.chips}>{getCategoryLabels(categoryIds).map((item, index) => <span key={categoryIds[index]}>{item}<button type="button" aria-label={`Удалить ${item}`} onClick={() => setCategoryIds((values) => values.filter((value) => value !== categoryIds[index]))}>×</button></span>)}</div>
+        <div className={styles.categoryActions}><CategorySelectorDialog selectedIds={categoryIds} onApply={(ids) => { setCategoryIds(ids); if (ids.length) setLegacyCategories([]); }} /><span>{categoryIds.length ? `Выбрано: ${categoryIds.length} из ${catalogSubmissionLimits.categories}` : "Пока ничего не выбрано"}</span></div>
+        {legacyCategories.length ? <div className={styles.legacyCategories} role="status"><strong>Нужно уточнить старые категории</strong><p>{legacyCategories.join(", ")}</p><small>Они сохранены в черновике, но не будут опубликованы как новые рубрики. Выберите соответствия из справочника.</small></div> : null}
+        <details className={styles.missingCategory}><summary>Не нашли подходящую категорию?</summary><label>Пояснение владельцу<textarea maxLength={500} rows={3} value={missingCategoryRequest} onChange={(event) => setMissingCategoryRequest(event.target.value)} placeholder="Коротко опишите нужное направление. Владелец рассмотрит запрос вручную." /></label><small>Этот текст сохранится только в заявке и не станет публичной категорией автоматически.</small></details>
       </section>
 
       <section className={styles.panel}><div className={styles.sectionTitle}><span>04</span><div><h2>С чем вы помогаете</h2><p>Каждое направление — отдельным понятным пунктом.</p></div></div><div className={styles.repeater}>{helpTopics.map((item, index) => <article key={index}><RepeaterHeader title={`Направление №${index + 1}`} onRemove={() => setHelpTopics((items) => items.filter((_, i) => i !== index))} /><div className={styles.grid}><label>Название<input maxLength={140} value={item.title} onChange={(event) => updateItem(setHelpTopics, index, { title: event.target.value })} /></label><label className={styles.wide}>Описание<textarea maxLength={300} value={item.description} onChange={(event) => updateItem(setHelpTopics, index, { description: event.target.value })} /></label></div></article>)}</div><button className={styles.addButton} type="button" onClick={() => setHelpTopics((items) => [...items, { title: "", description: "" }])}><Plus aria-hidden="true" size={18} />Добавить направление</button></section>

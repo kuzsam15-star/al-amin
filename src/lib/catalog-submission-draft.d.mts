@@ -17,8 +17,10 @@ export type CatalogSubmissionDraftFields = {
 
 export type CatalogSubmissionDraft = {
   fields: CatalogSubmissionDraftFields;
-  categoryDraft: string;
-  categories: string[];
+  taxonomyVersion: string;
+  categoryIds: string[];
+  legacyCategories: string[];
+  missingCategoryRequest: string;
   helpTopics: Array<{ title: string; description: string }>;
   workOffers: Array<{ title: string; mode: "online" | "offline" | "both"; durationMinutes: string; price: string; currency: string }>;
   portfolio: Array<{ title: string; description: string; url: string }>;
@@ -28,7 +30,7 @@ export type CatalogSubmissionDraft = {
 };
 
 export const catalogSubmissionDraftStorageKey: string;
-export const catalogSubmissionDraftVersion: number;
+export const catalogSubmissionDraftVersion: 2;
 export function createEmptyCatalogSubmissionDraft(): CatalogSubmissionDraft;
 export function normalizeCatalogSubmissionDraft(value: unknown): CatalogSubmissionDraft | null;
 export function serializeCatalogSubmissionDraft(draft: CatalogSubmissionDraft, savedAt?: string): string;

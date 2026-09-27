@@ -7,7 +7,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { catalogSubmissionConsent } from "../src/lib/catalog-submission-contract.mjs";
+import { catalogSubmissionConsent, catalogSubmissionContractVersion } from "../src/lib/catalog-submission-contract.mjs";
+import { categoryTaxonomyVersion, getCategoryLabels } from "../src/lib/category-registry.mjs";
 import { createAlaminSubmissionPackage, safeAlaminFileName } from "../src/lib/alamin-submission-file.mjs";
 
 const root = process.cwd();
@@ -35,7 +36,7 @@ async function waitFor(url) {
 
 function payload(photo) {
   return {
-    contractVersion: 1,
+    contractVersion: catalogSubmissionContractVersion,
     fullName: "Лейла Тестова",
     specialization: "Консультант по профессиональному развитию",
     country: "Россия",
@@ -44,7 +45,10 @@ function payload(photo) {
     experienceYears: 6,
     profileSummary: "Помогает выбрать следующий профессиональный шаг без спешки.",
     about: "Разбирает профессиональные переходы и помогает составить реалистичный план действий.",
-    categories: ["Карьера", "Развитие"],
+    taxonomyVersion: categoryTaxonomyVersion,
+    categoryIds: ["career-hr-007", "career-hr-010"],
+    categories: getCategoryLabels(["career-hr-007", "career-hr-010"]),
+    missingCategoryRequest: "",
     helpTopics: [{ title: "Смена профессии", description: "Оценка вариантов и рисков." }, { title: "План развития", description: "Понятная последовательность шагов." }],
     workOffers: [
       { title: "Индивидуальная консультация", mode: "online", durationMinutes: 60, price: 5000, currency: "RUB" },
@@ -120,7 +124,10 @@ function approvalDraft(packageValue) {
     experienceYears: source.experienceYears,
     profileSummary: "Отредактированное владельцем короткое описание.",
     about: source.about,
+    taxonomyVersion: source.taxonomyVersion,
+    categoryIds: source.categoryIds,
     categories: source.categories,
+    missingCategoryRequest: source.missingCategoryRequest,
     helpTopics: source.helpTopics,
     workOffers: source.workOffers,
     contacts: source.contacts,
@@ -158,6 +165,8 @@ try {
   assert.equal(inbox.submissions.length, 1);
   assert.deepEqual(inbox.submissions[0].payload.helpTopics, fixture.value.payload.helpTopics);
   assert.deepEqual(inbox.submissions[0].payload.workOffers, fixture.value.payload.workOffers);
+  assert.equal(inbox.submissions[0].payload.taxonomyVersion, categoryTaxonomyVersion);
+  assert.deepEqual(inbox.submissions[0].payload.categoryIds, fixture.value.payload.categoryIds);
   assert.equal(inbox.submissions[0].mediaBytes, photo.length);
 
   const invalidCases = [
@@ -186,6 +195,9 @@ try {
   assert.equal(specialist.id, fixture.id);
   assert.equal(specialist.fullName, "Лейла Тестова Проверена");
   assert.equal(specialist.profileSummary, "Отредактированное владельцем короткое описание.");
+  assert.equal(specialist.taxonomyVersion, categoryTaxonomyVersion);
+  assert.deepEqual(specialist.categoryIds, fixture.value.payload.categoryIds);
+  assert.deepEqual(specialist.categories, fixture.value.payload.categories);
   assert.equal(specialist.trust.recommendedByAlAmin, false);
   assert.deepEqual(specialist.trust.verifiedFacts, []);
   assert.match(specialist.photo.avatarSrc, /\/avatar\.webp$/u);

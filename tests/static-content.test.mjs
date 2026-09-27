@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { validateContent, validateSpecialistsDocument } from "../src/lib/static-content-contract.mjs";
+import { categoryTaxonomyVersion } from "../src/lib/category-registry.mjs";
 
 const site = JSON.parse(await readFile(new URL("../content/site.json", import.meta.url), "utf8"));
 const catalog = JSON.parse(await readFile(new URL("../content/specialists.json", import.meta.url), "utf8"));
@@ -9,6 +10,21 @@ const catalog = JSON.parse(await readFile(new URL("../content/specialists.json",
 test("repository content satisfies the static contract", () => {
   const result = validateContent(site, catalog);
   assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.catalog.specialists[0].categoryIds, ["creator-001"]);
+  assert.deepEqual(result.catalog.specialists[0].categories, ["YouTube и видеоблогинг"]);
+  assert.deepEqual(catalog.specialists[0].categories, ["YouTube"], "Victor source content remains unchanged");
+});
+
+test("new static content only accepts current registry IDs", () => {
+  const specialist = {
+    id: "one", slug: "test", fullName: "Тестовый Специалист", photo: { src: "/images/specialists/test/profile.webp", alt: "Фото" },
+    specialization: "Специалист", taxonomyVersion: categoryTaxonomyVersion, categoryIds: ["creator-001"], country: "Россия", city: "Москва", workMode: "online",
+    profileSummary: "Краткое описание специалиста.", about: "Подробное описание специалиста.", helpTopics: [], workOffers: [],
+    experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0,
+  };
+  assert.deepEqual(validateSpecialistsDocument({ version: 1, specialists: [specialist] }).errors, []);
+  specialist.categoryIds = ["candidate-created-category"];
+  assert.ok(validateSpecialistsDocument({ version: 1, specialists: [specialist] }).errors.some((message) => message.includes("неизвестная категория")));
 });
 
 test("duplicate slugs are rejected", () => {

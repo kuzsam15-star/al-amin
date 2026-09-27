@@ -45,6 +45,15 @@
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips span { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 0 7px 0 13px; border: 1px solid #cbd7d1; border-radius: 999px; background: #f4f8f6; color: var(--civic-text); font-size: 13px; font-weight: 650; }
 .chips button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--civic-muted); font-size: 18px; cursor: pointer; }
+.categoryActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.categoryActions > span { color: var(--civic-muted); font-size: 13px; }
+.legacyCategories { display: grid; gap: 5px; margin-top: 14px; padding: 14px 16px; border: 1px solid #d9b98f; border-radius: 12px; background: #fffaf1; color: #493d2e; }
+.legacyCategories p, .legacyCategories small { margin: 0; }
+.legacyCategories small { color: #74644f; line-height: 1.45; }
+.missingCategory { margin-top: 16px; border-top: 1px solid var(--civic-line); padding-top: 14px; }
+.missingCategory summary { width: fit-content; min-height: 44px; align-content: center; color: var(--civic-green); font-weight: 750; cursor: pointer; }
+.missingCategory label { margin-top: 10px; }
+.missingCategory small { display: block; margin-top: 8px; color: var(--civic-muted); line-height: 1.45; }
 .addRow { display: grid; margin-top: 14px; grid-template-columns: minmax(220px,1fr) auto; gap: 10px; }
 .addRow button, .addButton { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 1px solid var(--civic-line-strong); border-radius: 11px; background: #fff; color: var(--civic-green); font-weight: 700; cursor: pointer; }
 .addButton { width: 100%; border-style: dashed; background: var(--civic-surface); }

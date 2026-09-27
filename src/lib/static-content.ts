@@ -1,5 +1,6 @@
 import siteSource from "../../content/site.json";
 import specialistsSource from "../../content/specialists.json";
+import { categoryRegistry, categoryTaxonomyVersion, getCategoryLabels } from "./category-registry.mjs";
 import { validateContent } from "./static-content-contract.mjs";
 
 export type WorkMode = "online" | "offline" | "both";
@@ -15,7 +16,10 @@ export type StaticSpecialist = {
   fullName: string;
   photo: { src: string; avatarSrc?: string; alt: string; avatar: AvatarCrop };
   specialization: string;
+  taxonomyVersion: string;
+  categoryIds: string[];
   categories: string[];
+  legacyCategories: string[];
   country: string;
   city: string;
   workMode: WorkMode;
@@ -56,5 +60,10 @@ export function getSpecialistBySlug(slug: string) {
 }
 
 export function getCategories() {
-  return [...new Set(getPublishedSpecialists().flatMap((item) => item.categories))].sort((a, b) => a.localeCompare(b, "ru"));
+  const used = new Set(getPublishedSpecialists().flatMap((item) => item.categoryIds));
+  return categoryRegistry.categories
+    .filter((item) => used.has(item.id))
+    .map((item) => ({ id: item.id, label: item.label, groupId: item.groupId }));
 }
+
+export { categoryTaxonomyVersion, getCategoryLabels };

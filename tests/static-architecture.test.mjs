@@ -65,6 +65,9 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /type="button"[^>]*onClick=\{startNewApplication\}/u);
   assert.match(source, /value=\{fields\.profileSummary\}/u);
   assert.match(source, /value=\{fields\.about\}/u);
+  assert.match(source, /CategorySelectorDialog/u);
+  assert.match(source, /Не нашли подходящую категорию\?/u);
+  assert.doesNotMatch(source, /categoryDraft|Добавить категорию/u);
   assert.match(source, /label="Фото профиля"/u);
   assert.match(source, /label="Аватар"/u);
   assert.match(source, /profileCrop/u);
