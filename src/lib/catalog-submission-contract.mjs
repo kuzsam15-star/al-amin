@@ -1,3 +1,5 @@
+import { cropZoomRange } from "./photo-crop.mjs";
+
 export const catalogSubmissionContractVersion = 1;
 
 export const catalogSubmissionConsent = "Я подтверждаю, что имею право передать эти данные и фотографию, и соглашаюсь на их обработку для рассмотрения заявки и возможную публикацию в каталоге AL-AMIN после проверки владельцем проекта.";
@@ -124,12 +126,12 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
   const profileCrop = {
     positionX: numberOrNull(profileCropValue.positionX ?? 50, "profileCrop.positionX", errors, 0, 100) ?? 50,
     positionY: numberOrNull(profileCropValue.positionY ?? 50, "profileCrop.positionY", errors, 0, 100) ?? 50,
-    zoom: numberOrNull(profileCropValue.zoom ?? 1, "profileCrop.zoom", errors, 1, 1.8) ?? 1,
+    zoom: numberOrNull(profileCropValue.zoom ?? 1, "profileCrop.zoom", errors, cropZoomRange.min, cropZoomRange.max) ?? 1,
   };
   const avatar = {
     positionX: numberOrNull(avatarValue.positionX ?? 50, "avatar.positionX", errors, 0, 100) ?? 50,
     positionY: numberOrNull(avatarValue.positionY ?? 24, "avatar.positionY", errors, 0, 100) ?? 24,
-    zoom: numberOrNull(avatarValue.zoom ?? 1, "avatar.zoom", errors, 1, 1.8) ?? 1,
+    zoom: numberOrNull(avatarValue.zoom ?? 1, "avatar.zoom", errors, cropZoomRange.min, cropZoomRange.max) ?? 1,
   };
 
   const photoValue = record(value.photo) ? value.photo : null;

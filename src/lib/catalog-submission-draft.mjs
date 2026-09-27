@@ -1,3 +1,5 @@
+import { cropZoomRange } from "./photo-crop.mjs";
+
 export const catalogSubmissionDraftStorageKey = "alamin.catalog-submission-draft.v1";
 export const catalogSubmissionDraftVersion = 1;
 
@@ -112,12 +114,12 @@ export function normalizeCatalogSubmissionDraft(value) {
     profileCrop: {
       positionX: boundedNumber(sourceProfileCrop.positionX, 50, 0, 100),
       positionY: boundedNumber(sourceProfileCrop.positionY, 50, 0, 100),
-      zoom: boundedNumber(sourceProfileCrop.zoom, 1, 1, 1.8),
+      zoom: boundedNumber(sourceProfileCrop.zoom, 1, cropZoomRange.min, cropZoomRange.max),
     },
     avatar: {
       positionX: boundedNumber(sourceAvatar.positionX, 50, 0, 100),
       positionY: boundedNumber(sourceAvatar.positionY, 24, 0, 100),
-      zoom: boundedNumber(sourceAvatar.zoom, 1, 1, 1.8),
+      zoom: boundedNumber(sourceAvatar.zoom, 1, cropZoomRange.min, cropZoomRange.max),
     },
     photoWasSelected: value.photoWasSelected === true,
   };

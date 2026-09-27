@@ -70,8 +70,16 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /profileCrop/u);
   assert.match(cropSource, /onPointerDown/u);
   assert.match(cropSource, /kind: "pinch"/u);
+  assert.match(cropSource, /onLostPointerCapture/u);
   assert.match(cropSource, /addEventListener\("wheel"[\s\S]*passive:\s*false/u);
+  assert.match(cropSource, /addEventListener\("touchstart"[\s\S]*passive:\s*false/u);
+  assert.match(cropSource, /addEventListener\("touchmove"[\s\S]*passive:\s*false/u);
   assert.match(cropStyles, /touch-action:\s*none/u);
+  assert.match(cropStyles, /overscroll-behavior:\s*contain/u);
+  assert.match(cropStyles, /\.photoPicker\s*>\s*p\s*\{[^}]*flex:\s*0\s+0\s+auto/su);
+  assert.doesNotMatch(cropStyles, /\.submitBar\s*\{[^}]*position:\s*(?:sticky|fixed)/su);
+  assert.ok(source.lastIndexOf("styles.submitBar") > source.lastIndexOf("styles.consentPanel"), "Download CTA stays once at the end of the form.");
+  assert.equal(source.match(/styles\.submitBar/gu)?.length, 1);
   assert.doesNotMatch(source + cropSource, /type="range"|Ось X|Ось Y|Масштаб/u);
   assert.doesNotMatch(source, /fetch\(|Turnstile|turnstile|NEXT_PUBLIC_CATALOG_SUBMISSION_ENDPOINT/iu);
 });

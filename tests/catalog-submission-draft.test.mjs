@@ -62,8 +62,8 @@ test("restored draft is bounded and never contains a photo payload", () => {
   const restored = parseCatalogSubmissionDraft(JSON.stringify(value));
   assert.equal(Array.from(restored.fields.about).length, 3000);
   assert.equal(restored.categories.length, 8);
-  assert.deepEqual(restored.profileCrop, { positionX: 100, positionY: 0, zoom: 1.8 });
-  assert.deepEqual(restored.avatar, { positionX: 0, positionY: 100, zoom: 1.8 });
+  assert.deepEqual(restored.profileCrop, { positionX: 100, positionY: 0, zoom: 8 });
+  assert.deepEqual(restored.avatar, { positionX: 0, positionY: 100, zoom: 8 });
   assert.equal("photo" in restored, false);
 });
 

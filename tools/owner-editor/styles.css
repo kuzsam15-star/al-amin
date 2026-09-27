@@ -133,7 +133,7 @@ textarea.large { min-height: 150px; }
 .photo-previews figcaption { display: grid; width: 100%; gap: 3px; color: #34423c; font-size: 11px; line-height: 1.45; text-align: left; }
 .photo-previews figcaption strong { font-size: 14px; }
 .photo-previews figcaption span { color: #75817b; }
-.crop-frame { position: relative; display: grid; width: min(100%,360px); place-items: center; overflow: hidden; border: 1px solid #cad8d1; border-radius: 18px; background: linear-gradient(145deg, #f2f6f4, #e5ede9); color: #82908a; font-size: 12px; font-weight: 700; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 8px 20px rgba(15,45,33,.08); }
+.crop-frame { position: relative; display: grid; width: min(100%,360px); place-items: center; overflow: hidden; border: 1px solid #cad8d1; border-radius: 18px; background: linear-gradient(145deg, #f2f6f4, #e5ede9); color: #82908a; font-size: 12px; font-weight: 700; cursor: grab; touch-action: none; overscroll-behavior: contain; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 8px 20px rgba(15,45,33,.08); }
 .crop-frame.dragging { cursor: grabbing; }
 .crop-frame:focus-visible { outline: 4px solid rgba(21,81,60,.18); outline-offset: 3px; }
 .crop-frame img { position: absolute; display: block; max-width: none; object-fit: fill; pointer-events: none; user-select: none; -webkit-user-drag: none; }

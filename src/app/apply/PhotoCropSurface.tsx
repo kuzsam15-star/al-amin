@@ -76,6 +76,26 @@ export function PhotoCropSurface({
     surface.addEventListener("wheel", handleWheel, { passive: false });
     return () => surface.removeEventListener("wheel", handleWheel);
   }, [aspect, defaultValue, naturalSize.height, naturalSize.width, onChange]);
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    // iOS Safari may still start document scrolling while Pointer Events own
+    // the crop. A local non-passive touch guard makes the crop surface the
+    // gesture owner without changing normal page scrolling anywhere else.
+    const preventNativeGesture = (event: globalThis.Event) => {
+      if (event.cancelable) event.preventDefault();
+    };
+    surface.addEventListener("touchstart", preventNativeGesture, { passive: false });
+    surface.addEventListener("touchmove", preventNativeGesture, { passive: false });
+    surface.addEventListener("gesturestart", preventNativeGesture, { passive: false });
+    surface.addEventListener("gesturechange", preventNativeGesture, { passive: false });
+    return () => {
+      surface.removeEventListener("touchstart", preventNativeGesture);
+      surface.removeEventListener("touchmove", preventNativeGesture);
+      surface.removeEventListener("gesturestart", preventNativeGesture);
+      surface.removeEventListener("gesturechange", preventNativeGesture);
+    };
+  }, []);
 
   function emit(next: PhotoCrop) {
     const normalized = normalizePhotoCrop(next, defaultValue);
@@ -150,6 +170,12 @@ export function PhotoCropSurface({
     beginGesture();
   }
 
+  function lostPointerCapture(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    pointersRef.current.delete(event.pointerId);
+    beginGesture();
+  }
+
   function zoomAtCenter(nextZoom: number) {
     if (!naturalSize.width || !naturalSize.height) return;
     emit(zoomPhotoCropAt(valueRef.current, naturalSize.width, naturalSize.height, aspect, nextZoom, 0.5, 0.5));
@@ -166,10 +192,10 @@ export function PhotoCropSurface({
       emit(panPhotoCrop(valueRef.current, naturalSize.width, naturalSize.height, aspect, deltas[event.key].x, deltas[event.key].y, bounds.width, bounds.height));
     } else if (event.key === "+" || event.key === "=") {
       event.preventDefault();
-      zoomAtCenter(valueRef.current.zoom + 0.1);
+      zoomAtCenter(valueRef.current.zoom * 1.25);
     } else if (event.key === "-") {
       event.preventDefault();
-      zoomAtCenter(valueRef.current.zoom - 0.1);
+      zoomAtCenter(valueRef.current.zoom / 1.25);
     }
   }
 
@@ -191,6 +217,7 @@ export function PhotoCropSurface({
       onPointerMove={pointerMove}
       onPointerUp={finishPointer}
       onPointerCancel={finishPointer}
+      onLostPointerCapture={lostPointerCapture}
       onKeyDown={keyDown}
       onDragStart={(event) => event.preventDefault()}
     >
@@ -205,9 +232,9 @@ export function PhotoCropSurface({
       <span className={styles.cropMoveHint} aria-hidden="true"><Move size={17} />Перемещайте фото</span>
     </div>
     <div className={styles.cropActions} aria-label={`Управление кадрированием: ${label}`}>
-      <button type="button" onClick={() => zoomAtCenter(value.zoom - 0.1)} disabled={value.zoom <= cropZoomRange.min} aria-label={`Уменьшить: ${label}`}><Minus size={18} aria-hidden="true" /><span>Уменьшить</span></button>
+      <button type="button" onClick={() => zoomAtCenter(value.zoom / 1.25)} disabled={value.zoom <= cropZoomRange.min} aria-label={`Уменьшить: ${label}`}><Minus size={18} aria-hidden="true" /><span>Уменьшить</span></button>
       <button type="button" onClick={() => emit(defaultValue)}>По центру</button>
-      <button type="button" onClick={() => zoomAtCenter(value.zoom + 0.1)} disabled={value.zoom >= cropZoomRange.max} aria-label={`Увеличить: ${label}`}><Plus size={18} aria-hidden="true" /><span>Увеличить</span></button>
+      <button type="button" onClick={() => zoomAtCenter(value.zoom * 1.25)} disabled={value.zoom >= cropZoomRange.max} aria-label={`Увеличить: ${label}`}><Plus size={18} aria-hidden="true" /><span>Увеличить</span></button>
     </div>
   </article>;
 }

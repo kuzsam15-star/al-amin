@@ -1,4 +1,7 @@
-export const cropZoomRange = Object.freeze({ min: 1, max: 1.8 });
+// Zoom is a user multiplier on top of the aspect-cover scale. A value of 1
+// always covers the frame without empty edges; 8 allows a distant subject to
+// occupy the final crop without making the range dependent on source aspect.
+export const cropZoomRange = Object.freeze({ min: 1, max: 8 });
 export const defaultProfileCrop = Object.freeze({ positionX: 50, positionY: 50, zoom: 1 });
 export const defaultAvatarCrop = Object.freeze({ positionX: 50, positionY: 24, zoom: 1 });
 

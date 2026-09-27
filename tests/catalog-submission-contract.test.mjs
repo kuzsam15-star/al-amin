@@ -52,6 +52,20 @@ test("candidate payload maps only to the candidate-facing contract", () => {
   for (const forbidden of ["slug", "trust", "published", "featured", "status"]) assert.equal(forbidden in result.data, false);
 });
 
+test("candidate contract preserves high independent crops and rejects values beyond the safe range", () => {
+  const payload = validPayload();
+  payload.profileCrop = { positionX: 22, positionY: 71, zoom: 6.5 };
+  payload.avatar = { positionX: 67, positionY: 18, zoom: 8 };
+  const valid = validateCatalogSubmissionPayload(payload);
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.data.profileCrop, payload.profileCrop);
+  assert.deepEqual(valid.data.avatar, payload.avatar);
+
+  payload.avatar.zoom = 8.01;
+  const invalid = validateCatalogSubmissionPayload(payload);
+  assert.ok(invalid.errors.some((message) => message.includes("avatar.zoom")));
+});
+
 test("legacy v1 packages without profileCrop remain valid and receive a centered profile crop", () => {
   const packageValue = validPackage();
   delete packageValue.payload.profileCrop;

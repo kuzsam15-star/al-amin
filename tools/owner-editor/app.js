@@ -12,6 +12,7 @@ const homeErrors = $("#home-errors");
 const currencies = ["RUB", "USD", "EUR", "KZT", "AED", "TRY", "UZS"];
 const defaultProfileCrop = { positionX: 50, positionY: 50, zoom: 1 };
 const defaultAvatarCrop = { positionX: 50, positionY: 24, zoom: 1 };
+const cropZoomRange = { min: 1, max: 8 };
 const selectedSpecialistStorageKey = "al-amin-owner-editor:selected-specialist";
 let catalog = { version: 1, specialists: [] };
 let siteContent = {};
@@ -191,7 +192,7 @@ function normalizeCrop(value = {}, fallback = defaultProfileCrop) {
   return {
     positionX: clamp(value.positionX ?? fallback.positionX, 0, 100),
     positionY: clamp(value.positionY ?? fallback.positionY, 0, 100),
-    zoom: clamp(value.zoom ?? fallback.zoom, 1, 1.8),
+    zoom: clamp(value.zoom ?? fallback.zoom, cropZoomRange.min, cropZoomRange.max),
   };
 }
 
@@ -237,7 +238,7 @@ function cropFromOrigin(geometry, left, top, zoom = geometry.crop.zoom) {
   return {
     positionX: geometry.availableX > 0 ? clamp(left / geometry.availableX * 100, 0, 100) : 50,
     positionY: geometry.availableY > 0 ? clamp(top / geometry.availableY * 100, 0, 100) : 50,
-    zoom: clamp(zoom, 1, 1.8),
+    zoom: clamp(zoom, cropZoomRange.min, cropZoomRange.max),
   };
 }
 
@@ -864,6 +865,11 @@ function setupCropSurface(kind) {
   frame.addEventListener("pointerup", finishPointer);
   frame.addEventListener("pointercancel", finishPointer);
   frame.addEventListener("lostpointercapture", (event) => { if (pointers.has(event.pointerId)) { pointers.delete(event.pointerId); beginGesture(); } });
+  const preventNativeTouchGesture = (event) => { if (event.cancelable) event.preventDefault(); };
+  frame.addEventListener("touchstart", preventNativeTouchGesture, { passive: false });
+  frame.addEventListener("touchmove", preventNativeTouchGesture, { passive: false });
+  frame.addEventListener("gesturestart", preventNativeTouchGesture, { passive: false });
+  frame.addEventListener("gesturechange", preventNativeTouchGesture, { passive: false });
   frame.addEventListener("wheel", (event) => {
     if (image.hidden) return;
     event.preventDefault();
@@ -894,7 +900,7 @@ function setupCropSurface(kind) {
       const bounds = frame.getBoundingClientRect();
       const focal = { x: bounds.width / 2, y: bounds.height / 2 };
       const crop = cropFromFields(kind);
-      writeCrop(kind, zoomCropAt(kind, crop, crop.zoom + (action === "in" ? 0.1 : -0.1), focal));
+      writeCrop(kind, zoomCropAt(kind, crop, action === "in" ? crop.zoom * 1.25 : crop.zoom / 1.25, focal));
     });
   });
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cropZoomRange,
   defaultAvatarCrop,
   defaultProfileCrop,
   panPhotoCrop,
@@ -9,6 +10,20 @@ import {
   photoCropImageStyle,
   zoomPhotoCropAt,
 } from "../src/lib/photo-crop.mjs";
+
+test("zoom is an aspect-independent user multiplier with enough range for a distant subject", () => {
+  assert.deepEqual(cropZoomRange, { min: 1, max: 8 });
+  const profile = photoCropGeometry(1200, 2000, 5 / 6, { positionX: 50, positionY: 35, zoom: 5 });
+  const avatar = photoCropGeometry(1200, 2000, 1, { positionX: 50, positionY: 35, zoom: 5 });
+  assert.ok(profile.cropHeight <= 400, "A subject occupying 20% of image height can fill the profile crop.");
+  assert.ok(avatar.cropHeight <= 400, "A subject occupying 20% of image height can fill the avatar crop.");
+  for (const geometry of [profile, avatar]) {
+    assert.ok(geometry.left >= 0 && geometry.top >= 0);
+    assert.ok(geometry.left + geometry.cropWidth <= geometry.width + 0.001);
+    assert.ok(geometry.top + geometry.cropHeight <= geometry.height + 0.001);
+  }
+  assert.equal(zoomPhotoCropAt(defaultProfileCrop, 1200, 2000, 5 / 6, 100, 0.5, 0.5).zoom, cropZoomRange.max);
+});
 
 test("profile and avatar crops remain independent and never expose empty space", () => {
   const profile = panPhotoCrop(defaultProfileCrop, 1600, 1200, 5 / 6, -160, 0, 400, 480);

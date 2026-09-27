@@ -317,7 +317,7 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
 
       <section className={`${styles.panel} ${styles.consentPanel}`}><p className={styles.fileNotice}>Заявка будет сохранена файлом на вашем устройстве. Чтобы передать её владельцу каталога, отправьте этот файл по указанному контакту. Сам сайт заявку автоматически не отправляет.</p><label className={styles.consent}><span>{catalogSubmissionConsent}</span><input name="consent" type="checkbox" required checked={fields.consent} onChange={(event) => updateField("consent", event.target.checked)} /></label></section>
 
-      <div className={styles.submitBar}><div><p className={styles.limitNote}>JPEG, PNG или WebP до 8 МиБ · файл заявки до 24 МиБ</p><div className={`${styles.status} ${status.kind === "error" ? styles.error : status.kind === "working" ? styles.working : ""}`} role="status" aria-live="polite">{status.kind !== "success" ? status.message : ""}</div></div><button type="submit" disabled={status.kind === "working"}><Download aria-hidden="true" size={19} />Скачать заявку</button></div>
+      <div className={styles.submitBar}><div><p className={styles.limitNote}>Фото до 8 МиБ · файл заявки до 24 МиБ</p><div className={`${styles.status} ${status.kind === "error" ? styles.error : status.kind === "working" ? styles.working : ""}`} role="status" aria-live="polite">{status.kind !== "success" ? status.message : ""}</div></div><button type="submit" disabled={status.kind === "working"}><Download aria-hidden="true" size={19} />Скачать заявку</button></div>
     </form>
   </main>;
 }

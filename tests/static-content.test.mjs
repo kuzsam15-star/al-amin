@@ -35,16 +35,16 @@ test("insecure website URLs are rejected", () => {
 
 test("avatar crop settings are normalized and bounded", () => {
   const specialist = {
-    id: "one", slug: "test", fullName: "Тестовый Специалист", photo: { src: "/images/specialists/test/profile.webp", alt: "Фото", avatar: { positionX: 64, positionY: 33, zoom: 1.25 } },
+    id: "one", slug: "test", fullName: "Тестовый Специалист", photo: { src: "/images/specialists/test/profile.webp", alt: "Фото", avatar: { positionX: 64, positionY: 33, zoom: 6 } },
     specialization: "Специалист", categories: ["Консультации"], country: "Россия", city: "Москва", workMode: "online",
     profileSummary: "Краткое описание специалиста.", about: "Подробное описание специалиста.", helpTopics: [], workOffers: [],
     experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: true, featured: false, sortOrder: 0
   };
   const valid = validateSpecialistsDocument({ version: 1, specialists: [specialist] });
   assert.deepEqual(valid.errors, []);
-  assert.deepEqual(valid.data.specialists[0].photo.avatar, { positionX: 64, positionY: 33, zoom: 1.25 });
+  assert.deepEqual(valid.data.specialists[0].photo.avatar, { positionX: 64, positionY: 33, zoom: 6 });
 
-  specialist.photo.avatar.zoom = 3;
+  specialist.photo.avatar.zoom = 9;
   const invalid = validateSpecialistsDocument({ version: 1, specialists: [specialist] });
   assert.ok(invalid.errors.some((message) => message.includes("photo.avatar.zoom")));
 });

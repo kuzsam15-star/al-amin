@@ -1,3 +1,5 @@
+import { cropZoomRange } from "./photo-crop.mjs";
+
 const workModes = new Set(["online", "offline", "both"]);
 const currencies = new Set(["RUB", "USD", "EUR", "KZT", "AED", "TRY", "UZS"]);
 const allowedProtocols = new Set(["https:"]);
@@ -84,7 +86,7 @@ function validateSpecialist(value, index) {
     avatar: {
       positionX: boundedNumber(avatarValue.positionX, `${path}.photo.avatar.positionX`, errors, { min: 0, max: 100, fallback: 50 }),
       positionY: boundedNumber(avatarValue.positionY, `${path}.photo.avatar.positionY`, errors, { min: 0, max: 100, fallback: 24 }),
-      zoom: boundedNumber(avatarValue.zoom, `${path}.photo.avatar.zoom`, errors, { min: 1, max: 1.8, fallback: 1 }),
+      zoom: boundedNumber(avatarValue.zoom, `${path}.photo.avatar.zoom`, errors, { min: cropZoomRange.min, max: cropZoomRange.max, fallback: 1 }),
     },
   } : null;
   if (!photo) errors.push(`${path}.photo: обязательный объект`);
