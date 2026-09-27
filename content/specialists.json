@@ -1,4 +1,67 @@
 {
   "version": 1,
-  "specialists": []
+  "specialists": [
+    {
+      "id": "945bf8e8-0584-4d22-9ab9-86bd25e1201a",
+      "slug": "viktor-kuznetsov",
+      "fullName": "Виктор Кузнецов",
+      "photo": {
+        "src": "/images/specialists/viktor-kuznetsov/profile.webp",
+        "alt": "Фото: Виктор Кузнецов",
+        "avatar": {
+          "positionX": 50,
+          "positionY": 24,
+          "zoom": 1
+        }
+      },
+      "specialization": "Ютуб блоггер",
+      "categories": [
+        "YouTube"
+      ],
+      "country": "Россия",
+      "city": "Великие Луки",
+      "workMode": "both",
+      "profileSummary": "Занимаюсь ведением блога на YouTube",
+      "about": "Помогаю начать и вести свой блог на YouTube. В работе опираюсь на свой опыт + добавляю возможности самых сильных и современных нейросетей.",
+      "helpTopics": [
+        {
+          "title": "Создание YouTube канала с нуля",
+          "description": "Какое оборудование купить максимально дешёво и качественно"
+        },
+        {
+          "title": "Сопровождение и ответы на вопросы",
+          "description": "В любое время можно задать вопрос и посоветоваться о дальнейших целях"
+        }
+      ],
+      "workOffers": [
+        {
+          "title": "Индивидуальная консультация",
+          "durationMinutes": 60,
+          "mode": "online",
+          "price": 5000,
+          "currency": "RUB"
+        }
+      ],
+      "experienceYears": 15,
+      "trust": {
+        "recommendedByAlAmin": false,
+        "verifiedFacts": []
+      },
+      "contacts": {
+        "phone": "+79118983623",
+        "email": "Ailvi@yandex.ru",
+        "telegram": "@ailvi_islam",
+        "website": "https://ailvi.ru/"
+      },
+      "portfolio": [
+        {
+          "title": "YouTube канал \"Живой Ислам\"",
+          "url": "https://www.youtube.com/@AILVI"
+        }
+      ],
+      "published": true,
+      "featured": true,
+      "sortOrder": 0
+    }
+  ]
 }

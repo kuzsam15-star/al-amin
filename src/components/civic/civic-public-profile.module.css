@@ -486,14 +486,36 @@
   border-bottom: 1px solid var(--civic-line);
 }
 
-.serviceList strong {
+.serviceList > div > strong {
+  color: var(--civic-ink);
   font-size: 15px;
+  font-weight: 700;
 }
 
-.serviceList span {
-  color: var(--civic-muted);
+.offerDetails {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0 6px;
+  color: var(--civic-green);
   font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
   text-align: right;
+}
+
+.offerParameter {
+  font-weight: 650;
+}
+
+.offerPrice {
+  font-weight: 800;
+}
+
+.offerSeparator {
+  color: #6f8c80;
+  font-weight: 600;
 }
 
 .evidenceGrid,
@@ -649,7 +671,7 @@
 }
 
 .contactCard {
-  padding: 24px;
+  padding: 24px 22px;
   border: 1px solid var(--civic-line);
   border-radius: 20px;
   background: #fff;
@@ -974,7 +996,8 @@
     gap: 5px;
   }
 
-  .serviceList span {
+  .offerDetails {
+    justify-content: flex-start;
     text-align: left;
   }
 

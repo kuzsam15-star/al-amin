@@ -20,6 +20,7 @@ test("duplicate slugs are rejected", () => {
   };
   const result = validateSpecialistsDocument({ version: 1, specialists: [template, { ...template, id: "two" }] });
   assert.ok(result.errors.some((message) => message.includes("slug: дубликат")));
+  assert.deepEqual(result.data.specialists[0].photo.avatar, { positionX: 50, positionY: 24, zoom: 1 });
 });
 
 test("insecure website URLs are rejected", () => {
@@ -30,4 +31,20 @@ test("insecure website URLs are rejected", () => {
     experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: { website: "http://example.com" }, portfolio: [], published: false, featured: false, sortOrder: 0
   }] });
   assert.ok(result.errors.some((message) => message.includes("разрешён только https")));
+});
+
+test("avatar crop settings are normalized and bounded", () => {
+  const specialist = {
+    id: "one", slug: "test", fullName: "Тестовый Специалист", photo: { src: "/images/specialists/test/profile.webp", alt: "Фото", avatar: { positionX: 64, positionY: 33, zoom: 1.25 } },
+    specialization: "Специалист", categories: ["Консультации"], country: "Россия", city: "Москва", workMode: "online",
+    profileSummary: "Краткое описание специалиста.", about: "Подробное описание специалиста.", helpTopics: [], workOffers: [],
+    experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: true, featured: false, sortOrder: 0
+  };
+  const valid = validateSpecialistsDocument({ version: 1, specialists: [specialist] });
+  assert.deepEqual(valid.errors, []);
+  assert.deepEqual(valid.data.specialists[0].photo.avatar, { positionX: 64, positionY: 33, zoom: 1.25 });
+
+  specialist.photo.avatar.zoom = 3;
+  const invalid = validateSpecialistsDocument({ version: 1, specialists: [specialist] });
+  assert.ok(invalid.errors.some((message) => message.includes("photo.avatar.zoom")));
 });

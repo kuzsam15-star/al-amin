@@ -31,6 +31,16 @@ function stringList(value, path, errors, maxItems = 12) {
   return value.map((item, index) => text(item, `${path}.${index}`, errors, { required: true, max: 120 })).filter(Boolean);
 }
 
+function boundedNumber(value, path, errors, { min, max, fallback }) {
+  if (value == null || value === "") return fallback;
+  const result = Number(value);
+  if (!Number.isFinite(result) || result < min || result > max) {
+    errors.push(`${path}: значение должно быть от ${min} до ${max}`);
+    return fallback;
+  }
+  return result;
+}
+
 function safeUrl(value, path, errors) {
   const normalized = text(value, path, errors, { max: 500 });
   if (!normalized) return "";
@@ -46,11 +56,18 @@ function safeUrl(value, path, errors) {
 function validateSite(value) {
   const errors = [];
   if (!isRecord(value)) return { errors: ["site: ожидается объект"], data: null };
-  const fields = ["brandName", "tagline", "heroTitle", "heroText", "contactEmail", "seoTitle", "seoDescription", "aboutText", "verificationIntro", "rulesIntro", "privacyText"];
+  const fields = ["brandName", "tagline", "heroTitle", "heroText", "heroCtaText", "heroAssurance", "contactEmail", "seoTitle", "seoDescription", "aboutText", "verificationIntro", "rulesIntro", "privacyText"];
   const data = {};
   for (const field of fields) data[field] = text(value[field], `site.${field}`, errors, { required: true, max: field.endsWith("Text") || field.endsWith("Intro") ? 5000 : 360 });
+  data.contactTelegram = text(value.contactTelegram, "site.contactTelegram", errors, { max: 120 });
+  data.contactPhone = text(value.contactPhone, "site.contactPhone", errors, { max: 80 });
+  data.contactWebsite = value.contactWebsite ? safeUrl(value.contactWebsite, "site.contactWebsite", errors) : "";
   if (data.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(data.contactEmail)) errors.push("site.contactEmail: некорректный email");
   return { errors, data };
+}
+
+export function validateSiteDocument(value) {
+  return validateSite(value);
 }
 
 function validateSpecialist(value, index) {
@@ -59,12 +76,20 @@ function validateSpecialist(value, index) {
   if (!isRecord(value)) return { errors: [`${path}: ожидается объект`], data: null };
   const slug = text(value.slug, `${path}.slug`, errors, { required: true, max: 80 });
   if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(slug)) errors.push(`${path}.slug: используйте строчные латинские буквы, цифры и дефисы`);
+  const avatarValue = isRecord(value.photo) && isRecord(value.photo.avatar) ? value.photo.avatar : {};
   const photo = isRecord(value.photo) ? {
     src: text(value.photo.src, `${path}.photo.src`, errors, { required: true, max: 300 }),
+    avatarSrc: text(value.photo.avatarSrc, `${path}.photo.avatarSrc`, errors, { max: 300 }) || undefined,
     alt: text(value.photo.alt, `${path}.photo.alt`, errors, { required: true, max: 180 }),
+    avatar: {
+      positionX: boundedNumber(avatarValue.positionX, `${path}.photo.avatar.positionX`, errors, { min: 0, max: 100, fallback: 50 }),
+      positionY: boundedNumber(avatarValue.positionY, `${path}.photo.avatar.positionY`, errors, { min: 0, max: 100, fallback: 24 }),
+      zoom: boundedNumber(avatarValue.zoom, `${path}.photo.avatar.zoom`, errors, { min: 1, max: 1.8, fallback: 1 }),
+    },
   } : null;
   if (!photo) errors.push(`${path}.photo: обязательный объект`);
   else if (!photo.src.startsWith("/images/specialists/")) errors.push(`${path}.photo.src: файл должен находиться в /public/images/specialists/`);
+  else if (photo.avatarSrc && !photo.avatarSrc.startsWith("/images/specialists/")) errors.push(`${path}.photo.avatarSrc: файл должен находиться в /public/images/specialists/`);
 
   const categories = stringList(value.categories, `${path}.categories`, errors, 8);
   if (!categories.length) errors.push(`${path}.categories: нужна хотя бы одна категория`);

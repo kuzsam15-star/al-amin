@@ -1,14 +1,29 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const form = $("#form");
+const homeForm = $("#home-form");
+const appShell = $(".app-shell");
+const specialistsSidebar = $("#specialists-sidebar");
+const submissionsSidebar = $("#submissions-sidebar");
 const list = $("#list");
 const listEmpty = $("#list-empty");
 const errors = $("#errors");
-const previewDialog = $("#preview-dialog");
+const homeErrors = $("#home-errors");
 const currencies = ["RUB", "USD", "EUR", "KZT", "AED", "TRY", "UZS"];
+const defaultAvatarCrop = { positionX: 50, positionY: 24, zoom: 1 };
+const selectedSpecialistStorageKey = "al-amin-owner-editor:selected-specialist";
 let catalog = { version: 1, specialists: [] };
+let siteContent = {};
 let selectedId = null;
+let submissions = [];
+let selectedSubmissionId = null;
+let reviewSpecialist = null;
+let reviewPhotoToken = "";
+let approvedProfileUrl = "";
 let persistedIds = new Set();
+let activeMode = "specialists";
+const homeFields = ["tagline", "heroTitle", "heroText", "heroCtaText", "heroAssurance", "contactEmail", "contactTelegram", "contactPhone", "contactWebsite"];
+const maxSubmissionFileBytes = 24 * 1024 * 1024;
 
 const transliteration = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y",
@@ -16,9 +31,120 @@ const transliteration = {
   х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
 };
 
-function current() { return catalog.specialists.find((item) => item.id === selectedId); }
+function current() { return activeMode === "submissions" ? reviewSpecialist : catalog.specialists.find((item) => item.id === selectedId); }
 function field(name) { return form.elements.namedItem(name); }
 function value(name) { return String(field(name)?.value || "").trim(); }
+function homeField(name) { return homeForm.elements.namedItem(name); }
+function homeValue(name) { return String(homeField(name)?.value || "").trim(); }
+
+function setMode(mode) {
+  activeMode = ["home", "submissions"].includes(mode) ? mode : "specialists";
+  const editingHome = activeMode === "home";
+  const reviewingSubmissions = activeMode === "submissions";
+  $("#mode-specialists").classList.toggle("selected", activeMode === "specialists");
+  $("#mode-submissions").classList.toggle("selected", reviewingSubmissions);
+  $("#mode-home").classList.toggle("selected", editingHome);
+  $("#mode-specialists").setAttribute("aria-selected", String(activeMode === "specialists"));
+  $("#mode-submissions").setAttribute("aria-selected", String(reviewingSubmissions));
+  $("#mode-home").setAttribute("aria-selected", String(editingHome));
+  specialistsSidebar.hidden = activeMode !== "specialists";
+  submissionsSidebar.hidden = !reviewingSubmissions;
+  form.hidden = editingHome || !current();
+  homeForm.hidden = !editingHome;
+  appShell.classList.toggle("home-mode", editingHome);
+  appShell.classList.toggle("submissions-mode", reviewingSubmissions);
+  if (reviewingSubmissions && selectedSubmissionId) selectSubmission(selectedSubmissionId);
+  if (activeMode === "specialists" && selectedId) select(selectedId);
+}
+
+function renderHomePreview() {
+  $("#home-preview-tagline").textContent = homeValue("tagline") || "Короткая строка над заголовком";
+  $("#home-preview-title").textContent = homeValue("heroTitle") || "Главный заголовок";
+  $("#home-preview-text").textContent = homeValue("heroText") || "Описание ценности главной страницы.";
+  $("#home-preview-cta").textContent = homeValue("heroCtaText") || "Найти специалиста";
+  $("#home-preview-assurance").textContent = homeValue("heroAssurance") || "Без регистрации · Прямые контакты";
+}
+
+function loadHomeEditor(site) {
+  siteContent = site;
+  for (const name of homeFields) homeField(name).value = site[name] || "";
+  renderHomePreview();
+}
+
+function friendlySiteErrors(messages = []) {
+  const labels = { tagline: "надзаголовок", heroTitle: "главный заголовок", heroText: "описание", heroCtaText: "текст основной кнопки", heroAssurance: "короткую строку под кнопкой", contactEmail: "email владельца", contactTelegram: "Telegram владельца", contactPhone: "телефон владельца", contactWebsite: "сайт владельца" };
+  return [...new Set(messages.map((message) => {
+    const fieldName = Object.keys(labels).find((name) => message.includes(`site.${name}`));
+    return fieldName ? `Проверьте ${labels[fieldName]}.` : "Не удалось сохранить главную страницу.";
+  }))].join("\n");
+}
+
+async function persistHome() {
+  homeErrors.className = "";
+  homeErrors.textContent = "";
+  if (!homeForm.reportValidity()) return false;
+  const candidate = {
+    ...siteContent,
+    tagline: homeValue("tagline"),
+    heroTitle: homeValue("heroTitle"),
+    heroText: homeValue("heroText"),
+    heroCtaText: homeValue("heroCtaText"),
+    heroAssurance: homeValue("heroAssurance"),
+    contactEmail: homeValue("contactEmail"),
+    contactTelegram: normalizeTelegram(homeValue("contactTelegram")),
+    contactPhone: homeValue("contactPhone"),
+    contactWebsite: normalizeWebsite(homeValue("contactWebsite")),
+  };
+  try {
+    const response = await fetch("/api/site", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(candidate) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(friendlySiteErrors(result.errors));
+    siteContent = candidate;
+    homeField("contactTelegram").value = candidate.contactTelegram;
+    homeField("contactWebsite").value = candidate.contactWebsite;
+    homeErrors.className = "success";
+    homeErrors.textContent = "Главная страница сохранена. Предпросмотр уже обновлён.";
+    return true;
+  } catch (error) {
+    homeErrors.className = "error";
+    homeErrors.textContent = error instanceof Error ? error.message : "Не удалось сохранить главную страницу.";
+    return false;
+  }
+}
+
+async function saveHome(event) {
+  event.preventDefault();
+  await persistHome();
+}
+
+async function previewHome() {
+  const previewWindow = window.open("", "al-amin-home-preview");
+  if (!previewWindow) {
+    homeErrors.className = "error";
+    homeErrors.textContent = "Разрешите открытие новой вкладки для предпросмотра.";
+    return;
+  }
+  previewWindow.document.title = "Готовим предпросмотр AL-AMIN";
+  previewWindow.document.body.textContent = "Готовим актуальную главную страницу…";
+  if (!await persistHome()) {
+    previewWindow.close();
+    return;
+  }
+  homeErrors.className = "working";
+  homeErrors.textContent = "Обновляем локальный сайт…";
+  try {
+    const response = await fetch("/api/preview-build", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.errors?.[0] || "Не удалось обновить локальный сайт.");
+    homeErrors.className = "success";
+    homeErrors.textContent = "Сайт обновлён. Предпросмотр открыт в новой вкладке.";
+    previewWindow.location.replace(result.url);
+  } catch (error) {
+    previewWindow.close();
+    homeErrors.className = "error";
+    homeErrors.textContent = error instanceof Error ? error.message : "Не удалось открыть предпросмотр.";
+  }
+}
 
 function slugify(input) {
   const transliterated = [...String(input).toLocaleLowerCase("ru")].map((letter) => transliteration[letter] ?? letter).join("");
@@ -56,6 +182,33 @@ function normalizeTelegram(input) {
   return /^[A-Za-z0-9_]{5,32}$/u.test(username) ? `@${username}` : input;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value)));
+}
+
+function normalizeAvatarCrop(value = {}) {
+  return {
+    positionX: clamp(value.positionX ?? defaultAvatarCrop.positionX, 0, 100),
+    positionY: clamp(value.positionY ?? defaultAvatarCrop.positionY, 0, 100),
+    zoom: clamp(value.zoom ?? defaultAvatarCrop.zoom, 1, 1.8),
+  };
+}
+
+function avatarCropFromFields() {
+  return normalizeAvatarCrop({
+    positionX: field("avatarPositionX").value,
+    positionY: field("avatarPositionY").value,
+    zoom: field("avatarZoom").value,
+  });
+}
+
+function applyAvatarCrop(image, cropValue) {
+  const crop = normalizeAvatarCrop(cropValue);
+  image.style.objectPosition = `${crop.positionX}% ${crop.positionY}%`;
+  image.style.transform = `scale(${crop.zoom})`;
+  image.style.transformOrigin = `${crop.positionX}% ${crop.positionY}%`;
+}
+
 function textElement(tag, className, text) {
   const element = document.createElement(tag);
   if (className) element.className = className;
@@ -63,20 +216,34 @@ function textElement(tag, className, text) {
   return element;
 }
 
-function updatePhotoPreview(src, alt = "") {
+function updatePhotoPreview(src, alt = "", cropValue = defaultAvatarCrop) {
   const image = $("#photo-preview");
   const placeholder = $("#photo-placeholder");
+  const avatar = $("#avatar-preview");
+  const avatarPlaceholder = $("#avatar-placeholder");
+  const enabled = Boolean(src);
   if (src) {
     image.src = `${src}?v=${Date.now()}`;
     image.alt = alt;
     image.hidden = false;
     placeholder.hidden = true;
+    avatar.src = `${src}?v=${Date.now()}`;
+    avatar.alt = alt ? `Круглый аватар: ${alt}` : "";
+    applyAvatarCrop(avatar, cropValue);
+    avatar.hidden = false;
+    avatarPlaceholder.hidden = true;
   } else {
     image.removeAttribute("src");
     image.alt = "";
     image.hidden = true;
     placeholder.hidden = false;
+    avatar.removeAttribute("src");
+    avatar.alt = "";
+    avatar.hidden = true;
+    avatarPlaceholder.hidden = false;
   }
+  for (const name of ["avatarPositionX", "avatarPositionY", "avatarZoom"]) field(name).disabled = !enabled;
+  $("#reset-avatar").disabled = !enabled;
 }
 
 function renderList() {
@@ -86,10 +253,14 @@ function renderList() {
     button.type = "button";
     button.className = `specialist-row${item.id === selectedId ? " selected" : ""}`;
     if (item.photo?.src) {
+      const visual = document.createElement("span");
+      visual.className = "list-photo";
       const image = document.createElement("img");
-      image.src = item.photo.src;
+      image.src = item.photo.avatarSrc || item.photo.src;
       image.alt = "";
-      button.append(image);
+      if (!item.photo.avatarSrc) applyAvatarCrop(image, item.photo.avatar);
+      visual.append(image);
+      button.append(visual);
     } else {
       button.append(textElement("span", "list-avatar", (item.fullName || "Н").trim().slice(0, 1).toLocaleUpperCase("ru")));
     }
@@ -103,6 +274,62 @@ function renderList() {
   }));
   listEmpty.hidden = sorted.length > 0;
   $("#list-count").textContent = String(sorted.length);
+}
+
+const submissionLabels = { new: "Новая", added: "Добавлена в каталог", rejected: "Отклонена" };
+
+function renderSubmissions() {
+  const container = $("#submissions-list");
+  container.replaceChildren(...submissions.map((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `specialist-row submission-row${item.id === selectedSubmissionId ? " selected" : ""}`;
+    const visual = document.createElement("span");
+    visual.className = "list-photo";
+    const image = document.createElement("img");
+    image.src = item.photoPreviewUrl;
+    image.alt = "";
+    applyAvatarCrop(image, item.payload?.avatar || defaultAvatarCrop);
+    visual.append(image);
+    const copy = document.createElement("span");
+    copy.className = "list-copy";
+    copy.append(textElement("strong", "", item.payload?.fullName || "Без имени"));
+    copy.append(textElement("small", `submission-status status-${item.status}`, submissionLabels[item.status] || item.status));
+    button.append(visual, copy);
+    button.onclick = () => selectSubmission(item.id);
+    return button;
+  }));
+  $("#submissions-empty").hidden = submissions.length > 0;
+  $("#submissions-count").textContent = String(submissions.length);
+  const newCount = submissions.filter((item) => item.status === "new").length;
+  $("#new-submissions-count").hidden = newCount === 0;
+  $("#new-submissions-count").textContent = String(newCount);
+}
+
+function submissionDraft(item) {
+  const payload = item.payload || {};
+  return {
+    id: item.id,
+    slug: catalog.specialists.find((entry) => entry.id === item.id)?.slug || "",
+    fullName: payload.fullName || "",
+    photo: { src: item.photoPreviewUrl, alt: `Фото: ${payload.fullName || "специалист"}`, avatar: payload.avatar || { ...defaultAvatarCrop } },
+    specialization: payload.specialization || "",
+    categories: payload.categories || [],
+    country: payload.country || "",
+    city: payload.city || "",
+    workMode: payload.workMode || "both",
+    profileSummary: payload.profileSummary || "",
+    about: payload.about || "",
+    helpTopics: payload.helpTopics || [],
+    workOffers: payload.workOffers || [],
+    experienceYears: payload.experienceYears ?? null,
+    trust: { recommendedByAlAmin: false, verifiedFacts: [] },
+    contacts: payload.contacts || {},
+    portfolio: payload.portfolio || [],
+    published: true,
+    featured: false,
+    sortOrder: 0,
+  };
 }
 
 function renderCategorySuggestions() {
@@ -185,9 +412,7 @@ function renderRepeaters(item) {
   (item.portfolio || []).forEach(addPortfolioItem);
 }
 
-function select(id) {
-  selectedId = id;
-  const item = current();
+function populateForm(item) {
   if (!item) return;
   form.hidden = false;
   $("#title").textContent = item.fullName || "Новый специалист";
@@ -195,7 +420,11 @@ function select(id) {
   field("experienceYears").value = item.experienceYears ?? "";
   field("photoSrc").value = item.photo?.src || "";
   field("photoAlt").value = item.photo?.alt || "";
-  updatePhotoPreview(item.photo?.src || "", item.photo?.alt || "");
+  const avatar = normalizeAvatarCrop(item.photo?.avatar);
+  field("avatarPositionX").value = String(avatar.positionX);
+  field("avatarPositionY").value = String(avatar.positionY);
+  field("avatarZoom").value = String(avatar.zoom);
+  updatePhotoPreview(item.photo?.src || "", item.photo?.alt || "", avatar);
   for (const name of ["phone", "email", "telegram", "whatsapp", "website"]) field(name).value = item.contacts?.[name] || "";
   field("featured").checked = item.featured === true;
   field("publishConsent").checked = item.published === true;
@@ -204,7 +433,47 @@ function select(id) {
   renderCategorySuggestions();
   errors.className = "";
   errors.textContent = "";
+}
+
+function configureFormContext(kind, submission = null) {
+  const reviewing = kind === "submission";
+  $("#form-eyebrow").textContent = reviewing ? "Проверка заявки" : "Профиль специалиста";
+  $("#submission-meta").hidden = !reviewing;
+  $("#preview").hidden = reviewing;
+  $("#remove").hidden = reviewing;
+  $("#reject-submission").hidden = !reviewing || submission?.status !== "new";
+  $("#approve-submission").hidden = !reviewing || submission?.status !== "new";
+  $("#open-approved").hidden = !reviewing || submission?.status !== "added";
+  $("#save-specialist").hidden = reviewing;
+  $$('.actions button[type="submit"]', form).forEach((button) => { button.hidden = reviewing; });
+  if (reviewing && submission) {
+    const created = submission.createdAt ? new Date(submission.createdAt).toLocaleString("ru-RU") : "—";
+    $("#submission-meta").textContent = `${submissionLabels[submission.status] || submission.status} · Получена ${created}`;
+    approvedProfileUrl = catalog.specialists.find((item) => item.id === submission.id)?.slug
+      ? new URL(`specialists/${catalog.specialists.find((item) => item.id === submission.id).slug}/`, window.location.origin.replace(/:4173$/u, ":3000")).href
+      : "";
+  }
+}
+
+function select(id) {
+  selectedId = id;
+  const item = catalog.specialists.find((entry) => entry.id === selectedId);
+  if (!item) return;
+  try { localStorage.setItem(selectedSpecialistStorageKey, id); } catch {}
+  configureFormContext("specialist");
+  populateForm(item);
   renderList();
+}
+
+function selectSubmission(id) {
+  selectedSubmissionId = id;
+  const submission = submissions.find((item) => item.id === id);
+  if (!submission) return;
+  reviewSpecialist = submissionDraft(submission);
+  reviewPhotoToken = "";
+  configureFormContext("submission", submission);
+  populateForm(reviewSpecialist);
+  renderSubmissions();
 }
 
 function collectHelpTopics() {
@@ -246,7 +515,7 @@ function readForm() {
     about: value("about"),
     experienceYears: value("experienceYears") ? Number(value("experienceYears")) : null,
     sortOrder: 0,
-    photo: { src: value("photoSrc"), alt: photoAlt },
+    photo: { ...(previous.photo || {}), src: value("photoSrc"), alt: photoAlt, avatar: avatarCropFromFields() },
     helpTopics: collectHelpTopics(),
     workOffers: collectWorkOffers(),
     portfolio: collectPortfolio(),
@@ -280,11 +549,17 @@ async function persistCatalog() {
   if (!response.ok) throw new Error(friendlyErrors(result.errors));
 }
 
-async function save(event) {
-  event.preventDefault();
+async function rebuildStaticPreview() {
+  const response = await fetch("/api/preview-build", { method: "POST" });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.errors?.[0] || "Не удалось обновить локальный сайт.");
+  return result.url;
+}
+
+async function persistSpecialist() {
   errors.className = "";
   errors.textContent = "";
-  if (!form.reportValidity()) return;
+  if (!form.reportValidity()) return null;
   try {
     const item = readForm();
     if (!item.photo.src) throw new Error("Добавьте фотографию специалиста.");
@@ -299,16 +574,31 @@ async function save(event) {
     $("#title").textContent = item.fullName;
     renderList();
     renderCategorySuggestions();
+    errors.className = "working";
+    errors.textContent = "Специалист сохранён. Обновляем локальный сайт…";
+    const previewUrl = await rebuildStaticPreview();
     errors.className = "success";
-    errors.textContent = "Специалист сохранён и добавлен в каталог.";
+    errors.textContent = "Специалист сохранён. Локальный сайт обновлён.";
+    return { item, previewUrl };
   } catch (error) {
     errors.className = "error";
     errors.textContent = error instanceof Error ? error.message : "Не удалось сохранить специалиста.";
+    return null;
   }
 }
 
+async function save(event) {
+  event.preventDefault();
+  if (activeMode === "submissions") {
+    errors.className = "error";
+    errors.textContent = "Используйте кнопку «Одобрить и добавить в каталог», чтобы завершить проверку заявки.";
+    return;
+  }
+  await persistSpecialist();
+}
+
 function newItem() {
-  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "" }, specialization: "", categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
+  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "", avatar: { ...defaultAvatarCrop } }, specialization: "", categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
 }
 
 $("#add").onclick = () => {
@@ -333,7 +623,12 @@ $("#remove").onclick = async () => {
     persistedIds.delete(selectedId);
     selectedId = catalog.specialists[0]?.id || null;
     if (selectedId) select(selectedId);
-    else { form.hidden = true; errors.textContent = ""; renderList(); }
+    else {
+      try { localStorage.removeItem(selectedSpecialistStorageKey); } catch {}
+      form.hidden = true;
+      errors.textContent = "";
+      renderList();
+    }
   } catch (error) {
     errors.className = "error";
     errors.textContent = error instanceof Error ? error.message : "Не удалось удалить специалиста.";
@@ -344,6 +639,21 @@ $("#photo-file").onchange = async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
   try {
+    if (file.size > 8 * 1024 * 1024) throw new Error("Фотография должна быть не больше 8 МБ.");
+    if (activeMode === "submissions") {
+      errors.className = "working";
+      errors.textContent = "Готовим фотографию для проверки…";
+      const response = await fetch(`/api/submissions/${encodeURIComponent(selectedSubmissionId)}/replacement-photo`, { method: "POST", body: file });
+      const result = await response.json();
+      if (!response.ok) throw new Error(friendlyErrors(result.errors));
+      reviewPhotoToken = result.token;
+      field("photoSrc").value = result.previewUrl;
+      if (!value("photoAlt")) field("photoAlt").value = `Фото: ${value("fullName")}`;
+      updatePhotoPreview(result.previewUrl, value("photoAlt"), avatarCropFromFields());
+      errors.className = "success";
+      errors.textContent = "Новая фотография готова. Она попадёт в каталог только после одобрения.";
+      return;
+    }
     const slug = ensureSlug();
     errors.className = "working";
     errors.textContent = "Оптимизируем фотографию…";
@@ -352,7 +662,7 @@ $("#photo-file").onchange = async (event) => {
     if (!response.ok) throw new Error(friendlyErrors(result.errors));
     field("photoSrc").value = result.src;
     if (!value("photoAlt")) field("photoAlt").value = `Фото: ${value("fullName")}`;
-    updatePhotoPreview(result.src, value("photoAlt"));
+    updatePhotoPreview(result.src, value("photoAlt"), avatarCropFromFields());
     errors.className = "success";
     errors.textContent = "Фотография готова. Теперь сохраните специалиста.";
   } catch (error) {
@@ -361,85 +671,135 @@ $("#photo-file").onchange = async (event) => {
   } finally { event.target.value = ""; }
 };
 
-function previewSection(title, items) {
-  if (!items.length) return null;
-  const section = document.createElement("section");
-  section.className = "preview-section";
-  section.append(textElement("h3", "", title));
-  const grid = document.createElement("div");
-  grid.className = "preview-grid";
-  items.forEach((item) => {
-    const card = document.createElement("article");
-    card.append(textElement("strong", "", item.title));
-    if (item.description) card.append(textElement("p", "", item.description));
-    grid.append(card);
-  });
-  section.append(grid);
-  return section;
+async function refreshSubmissionData() {
+  const [catalogResult, submissionResult] = await Promise.all([
+    fetch("/api/catalog").then((response) => response.json()),
+    fetch("/api/submissions").then((response) => response.json()),
+  ]);
+  catalog = catalogResult;
+  persistedIds = new Set(catalog.specialists.map((item) => item.id));
+  submissions = submissionResult.submissions || [];
+  renderList();
+  renderSubmissions();
 }
 
-function showPreview() {
+$("#approve-submission").onclick = async () => {
+  const submission = submissions.find((item) => item.id === selectedSubmissionId);
+  if (!submission || submission.status !== "new") return;
+  errors.className = "";
+  errors.textContent = "";
+  if (!form.reportValidity()) return;
   try {
-    const item = readForm();
-    const content = $("#preview-content");
-    content.replaceChildren();
-    const hero = document.createElement("section");
-    hero.className = "preview-hero";
-    const visual = document.createElement("div");
-    visual.className = "preview-portrait";
-    if (item.photo.src) {
-      const image = document.createElement("img");
-      image.src = `${item.photo.src}?v=${Date.now()}`;
-      image.alt = item.photo.alt;
-      visual.append(image);
-    } else visual.append(textElement("span", "", "Фото"));
-    const copy = document.createElement("div");
-    copy.append(textElement("p", "preview-label", "Профиль каталога AL-AMIN"));
-    copy.append(textElement("h2", "", item.fullName || "Имя специалиста"));
-    copy.append(textElement("strong", "preview-specialization", item.specialization || "Специализация"));
-    copy.append(textElement("span", "preview-location", [item.city, item.country].filter(Boolean).join(" · ") || "Город · Страна"));
-    copy.append(textElement("p", "preview-summary", item.profileSummary || "Короткое описание появится здесь."));
-    if (item.categories.length) {
-      const categories = document.createElement("div");
-      categories.className = "preview-categories";
-      item.categories.forEach((category) => categories.append(textElement("span", "", category)));
-      copy.append(categories);
-    }
-    hero.append(visual, copy);
-    content.append(hero);
-    if (item.about) {
-      const about = document.createElement("section");
-      about.className = "preview-section";
-      about.append(textElement("h3", "", "О специалисте"), textElement("p", "preview-prose", item.about));
-      content.append(about);
-    }
-    const help = previewSection("С чем помогает", item.helpTopics);
-    if (help) content.append(help);
-    const offers = previewSection("Форматы работы", item.workOffers.map((offer) => ({ title: offer.title, description: [offer.mode === "online" ? "Онлайн" : offer.mode === "offline" ? "Очно" : "Онлайн и очно", offer.durationMinutes ? `${offer.durationMinutes} мин.` : "", offer.price != null ? `${offer.price} ${offer.currency}` : ""].filter(Boolean).join(" · ") })));
-    if (offers) content.append(offers);
-    const portfolio = previewSection("Кейсы и портфолио", item.portfolio);
-    if (portfolio) content.append(portfolio);
-    const contactValues = Object.values(item.contacts);
-    if (contactValues.length) {
-      const contacts = document.createElement("section");
-      contacts.className = "preview-section";
-      contacts.append(textElement("h3", "", "Прямые контакты"));
-      const contactList = document.createElement("div");
-      contactList.className = "preview-contacts";
-      contactValues.forEach((contact) => contactList.append(textElement("span", "", contact)));
-      contacts.append(contactList);
-      content.append(contacts);
-    }
-    previewDialog.showModal();
+    const specialist = { ...readForm(), reviewPhotoToken };
+    if (!specialist.categories.length) throw new Error("Добавьте хотя бы одну категорию.");
+    errors.className = "working";
+    errors.textContent = "Проверяем данные, создаём WebP и обновляем локальный каталог…";
+    const response = await fetch(`/api/submissions/${encodeURIComponent(submission.id)}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(specialist) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(friendlyErrors(result.errors));
+    approvedProfileUrl = result.profileUrl;
+    await refreshSubmissionData();
+    selectSubmission(submission.id);
+    errors.className = "success";
+    errors.textContent = "Специалист добавлен в локальный каталог. Профиль и локальная сборка готовы.";
+    if (result.imageOutput?.warning) errors.textContent += ` ${result.imageOutput.warning}`;
   } catch (error) {
     errors.className = "error";
-    errors.textContent = error instanceof Error ? error.message : "Не удалось открыть предпросмотр.";
+    errors.textContent = error instanceof Error ? error.message : "Не удалось добавить заявку в каталог.";
   }
+};
+
+$("#reject-submission").onclick = async () => {
+  const submission = submissions.find((item) => item.id === selectedSubmissionId);
+  if (!submission || submission.status !== "new" || !confirm(`Отклонить заявку «${submission.payload?.fullName || "Без имени"}»?`)) return;
+  try {
+    const response = await fetch(`/api/submissions/${encodeURIComponent(submission.id)}/reject`, { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.errors?.[0] || "Не удалось отклонить заявку.");
+    await refreshSubmissionData();
+    selectSubmission(submission.id);
+    errors.className = "success";
+    errors.textContent = "Заявка отклонена. Данные не публиковались.";
+  } catch (error) {
+    errors.className = "error";
+    errors.textContent = error instanceof Error ? error.message : "Не удалось отклонить заявку.";
+  }
+};
+
+$("#open-approved").onclick = () => {
+  if (!approvedProfileUrl) {
+    const item = catalog.specialists.find((entry) => entry.id === selectedSubmissionId);
+    if (item) approvedProfileUrl = `${window.location.origin.replace(/:4173$/u, ":3000")}/specialists/${encodeURIComponent(item.slug)}/`;
+  }
+  if (approvedProfileUrl) window.open(approvedProfileUrl, "_blank", "noopener");
+};
+
+function refreshAvatarPreview() {
+  const image = $("#avatar-preview");
+  if (!image.hidden) applyAvatarCrop(image, avatarCropFromFields());
+}
+
+for (const name of ["avatarPositionX", "avatarPositionY", "avatarZoom"]) {
+  field(name).addEventListener("input", refreshAvatarPreview);
+}
+
+$("#reset-avatar").onclick = () => {
+  field("avatarPositionX").value = String(defaultAvatarCrop.positionX);
+  field("avatarPositionY").value = String(defaultAvatarCrop.positionY);
+  field("avatarZoom").value = String(defaultAvatarCrop.zoom);
+  refreshAvatarPreview();
+};
+
+let avatarDrag = null;
+$("#avatar-frame").addEventListener("pointerdown", (event) => {
+  if ($("#avatar-preview").hidden) return;
+  event.preventDefault();
+  const crop = avatarCropFromFields();
+  avatarDrag = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, positionX: crop.positionX, positionY: crop.positionY, zoom: crop.zoom };
+  event.currentTarget.setPointerCapture(event.pointerId);
+  event.currentTarget.classList.add("dragging");
+});
+
+$("#avatar-frame").addEventListener("pointermove", (event) => {
+  if (!avatarDrag || avatarDrag.pointerId !== event.pointerId) return;
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const scale = 100 / Math.max(bounds.width, 1) / avatarDrag.zoom;
+  field("avatarPositionX").value = String(Math.round(clamp(avatarDrag.positionX - (event.clientX - avatarDrag.clientX) * scale, 0, 100)));
+  field("avatarPositionY").value = String(Math.round(clamp(avatarDrag.positionY - (event.clientY - avatarDrag.clientY) * scale, 0, 100)));
+  refreshAvatarPreview();
+});
+
+function finishAvatarDrag(event) {
+  if (!avatarDrag || avatarDrag.pointerId !== event.pointerId) return;
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  avatarDrag = null;
+  event.currentTarget.classList.remove("dragging");
+}
+
+$("#avatar-frame").addEventListener("pointerup", finishAvatarDrag);
+$("#avatar-frame").addEventListener("pointercancel", finishAvatarDrag);
+
+async function showPreview() {
+  const previewWindow = window.open("", "al-amin-specialist-preview");
+  if (!previewWindow) {
+    errors.className = "error";
+    errors.textContent = "Разрешите открытие новой вкладки для предпросмотра.";
+    return;
+  }
+  previewWindow.document.title = "Готовим профиль AL-AMIN";
+  previewWindow.document.body.textContent = "Сохраняем специалиста и обновляем публичный профиль…";
+  const result = await persistSpecialist();
+  if (!result) {
+    previewWindow.close();
+    return;
+  }
+  const profileUrl = new URL("specialists/" + encodeURIComponent(result.item.slug) + "/", result.previewUrl).href;
+  errors.className = "success";
+  errors.textContent = "Публичный профиль обновлён и открыт в новой вкладке.";
+  previewWindow.location.replace(profileUrl);
 }
 
 $("#preview").onclick = showPreview;
-$("#close-preview").onclick = () => previewDialog.close();
-previewDialog.addEventListener("click", (event) => { if (event.target === previewDialog) previewDialog.close(); });
 $("#add-category").onclick = () => { addCategory($("#category-input").value); $("#category-input").value = ""; $("#category-input").focus(); };
 $("#category-input").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); $("#add-category").click(); } });
 $("#add-help-topic").onclick = () => addHelpTopic();
@@ -447,14 +807,79 @@ $("#add-work-offer").onclick = () => addWorkOffer();
 $("#add-portfolio-item").onclick = () => addPortfolioItem();
 field("fullName").addEventListener("input", () => { $("#title").textContent = value("fullName") || "Новый специалист"; });
 form.addEventListener("submit", save);
+homeForm.addEventListener("submit", saveHome);
+for (const name of ["tagline", "heroTitle", "heroText", "heroCtaText", "heroAssurance"]) homeField(name).addEventListener("input", renderHomePreview);
+$("#home-preview-open").onclick = previewHome;
+$("#mode-specialists").onclick = () => setMode("specialists");
+$("#mode-submissions").onclick = () => setMode("submissions");
+$("#mode-home").onclick = () => setMode("home");
 
-fetch("/api/catalog").then((response) => response.json()).then((result) => {
-  catalog = result;
+async function importSubmissionFile(file) {
+  const status = $("#import-status");
+  status.className = "import-status";
+  status.textContent = "";
+  if (!file) return;
+  if (!/\.(?:alamin|alamin\.json)$/iu.test(file.name)) {
+    status.className = "import-status error";
+    status.textContent = "Выберите файл .alamin или .alamin.json.";
+    return;
+  }
+  if (file.size > maxSubmissionFileBytes) {
+    status.className = "import-status error";
+    status.textContent = "Файл заявки должен быть не больше 24 МиБ.";
+    return;
+  }
+  status.textContent = "Проверяем файл и фотографию…";
+  try {
+    const response = await fetch("/api/submissions/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: await file.arrayBuffer() });
+    const result = await response.json();
+    if (!response.ok) throw new Error(friendlyErrors(result.errors));
+    await refreshSubmissionData();
+    selectedSubmissionId = result.id;
+    setMode("submissions");
+    selectSubmission(result.id);
+    status.className = "import-status success";
+    status.textContent = result.message || (result.duplicate ? "Заявка уже была импортирована." : "Заявка импортирована локально.");
+  } catch (error) {
+    status.className = "import-status error";
+    status.textContent = error instanceof Error ? error.message : "Не удалось импортировать заявку.";
+  } finally {
+    $("#submission-file").value = "";
+  }
+}
+
+$("#submission-file").addEventListener("change", (event) => importSubmissionFile(event.target.files?.[0]));
+const submissionDropzone = $("#submission-dropzone");
+submissionDropzone.addEventListener("click", () => $("#submission-file").click());
+submissionDropzone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); $("#submission-file").click(); } });
+for (const eventName of ["dragenter", "dragover"]) submissionDropzone.addEventListener(eventName, (event) => { event.preventDefault(); submissionDropzone.classList.add("dragging"); });
+for (const eventName of ["dragleave", "drop"]) submissionDropzone.addEventListener(eventName, (event) => { event.preventDefault(); submissionDropzone.classList.remove("dragging"); });
+submissionDropzone.addEventListener("drop", (event) => importSubmissionFile(event.dataTransfer?.files?.[0]));
+
+Promise.all([fetch("/api/catalog").then((response) => response.json()), fetch("/api/site").then((response) => response.json()), fetch("/api/submissions").then((response) => response.json())]).then(([catalogResult, siteResult, submissionResult]) => {
+  catalog = catalogResult;
+  submissions = submissionResult.submissions || [];
+  loadHomeEditor(siteResult);
   persistedIds = new Set(catalog.specialists.map((item) => item.id));
   renderList();
+  renderSubmissions();
   renderCategorySuggestions();
-  if (catalog.specialists[0]) select(catalog.specialists[0].id);
+  let rememberedId = null;
+  try { rememberedId = localStorage.getItem(selectedSpecialistStorageKey); } catch {}
+  const initialId = catalog.specialists.some((item) => item.id === rememberedId) ? rememberedId : catalog.specialists[0]?.id;
+  if (initialId) select(initialId);
+  const initialParameters = new URLSearchParams(window.location.search);
+  const requestedMode = initialParameters.get("mode");
+  const requestedSubmission = initialParameters.get("submission");
+  if (requestedMode === "submissions") {
+    const initialSubmission = submissions.some((item) => item.id === requestedSubmission) ? requestedSubmission : submissions[0]?.id;
+    if (initialSubmission) selectSubmission(initialSubmission);
+    setMode("submissions");
+  } else if (requestedMode === "home") setMode("home");
+  else setMode("specialists");
 }).catch(() => {
   listEmpty.hidden = false;
   listEmpty.textContent = "Не удалось загрузить список. Обновите страницу.";
+  homeErrors.className = "error";
+  homeErrors.textContent = "Не удалось загрузить главную страницу. Обновите страницу.";
 });

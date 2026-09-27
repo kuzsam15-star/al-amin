@@ -74,6 +74,8 @@ uploads/
 user-uploads/
 user-exports/
 .local-editor/
+*.alamin
+*.alamin.json
 
 # Supabase CLI state
 supabase/.temp/

@@ -8,11 +8,12 @@ export type WorkOffer = { title: string; durationMinutes: number | null; mode: W
 export type SpecialistContact = { phone?: string; email?: string; telegram?: string; whatsapp?: string; website?: string };
 export type SpecialistTrust = { recommendedByAlAmin: boolean; verificationDate?: string; verificationSummary?: string; verifiedFacts: string[] };
 export type PortfolioItem = { title: string; description?: string; url?: string };
+export type AvatarCrop = { positionX: number; positionY: number; zoom: number };
 export type StaticSpecialist = {
   id: string;
   slug: string;
   fullName: string;
-  photo: { src: string; alt: string };
+  photo: { src: string; avatarSrc?: string; alt: string; avatar: AvatarCrop };
   specialization: string;
   categories: string[];
   country: string;

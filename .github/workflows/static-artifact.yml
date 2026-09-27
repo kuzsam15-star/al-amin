@@ -1,19 +1,36 @@
-name: Validate static artifact
+name: Deploy AL-AMIN to GitHub Pages
 
 on:
   pull_request:
   push:
-    branches: ["main", "static-directory"]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  validate:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Configure project-site URL
+        shell: bash
+        run: |
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          if [[ "$repository_name" == "${GITHUB_REPOSITORY_OWNER}.github.io" ]]; then
+            echo "STATIC_BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            echo "STATIC_BASE_PATH=/$repository_name" >> "$GITHUB_ENV"
+          fi
+          echo "SITE_URL=https://${GITHUB_REPOSITORY_OWNER}.github.io" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.19.0
@@ -21,17 +38,35 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
-      - uses: actions/upload-artifact@v4
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate content
+        run: pnpm validate:content
+      - name: Run tests
+        run: pnpm test
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Build production static export
+        run: pnpm build
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
         with:
-          name: al-amin-static-out
+          enablement: true
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
           path: out/
-          if-no-files-found: error
-          retention-days: 14
 
-      # Production deployment is intentionally absent.
-      # Enable a hosting adapter only after a separate owner decision.
+  deploy:
+    if: github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

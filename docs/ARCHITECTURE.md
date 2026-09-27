@@ -1,41 +1,66 @@
 # Архитектура AL-AMIN
 
-## Действующая модель
+## Публичный контур
 
 AL-AMIN — hosting-agnostic статический каталог:
 
-Browser → static HTML/CSS/JS → local content JSON → direct specialist contacts.
+`Browser → static HTML/CSS/JS → local content JSON → direct specialist contacts`.
 
-Production не использует Node server, API routes, server actions, Auth, Supabase runtime, Storage runtime, SMTP, cookies, analytics или пользовательские формы.
+Production не использует Node server, API routes, server actions, Auth, Supabase runtime, Storage runtime, SMTP, cookies, analytics или рекламные трекеры.
 
-## Публичные маршруты
+Публичные маршруты: `/`, `/specialists/`, `/specialists/<slug>/`, `/apply/`, `/about/`, `/verification/`, `/privacy/`, `/rules/`, `/contacts/`.
 
-- /
-- /specialists/
-- /specialists/<slug>/
-- /about/
-- /verification/
-- /privacy/
-- /rules/
+## Передача заявки
 
-Каждый опубликованный профиль генерируется во время build через generateStaticParams. Каталог целиком присутствует в исходном HTML, а поиск и фильтры уточняют его client-side.
+Форма `/apply` выполняет только локальные операции браузера:
+
+1. проверяет поля и размер фотографии;
+2. формирует AL-AMIN package v1;
+3. помещает фотографию в JSON-контейнер как base64;
+4. сохраняет `.alamin` на устройстве кандидата;
+5. по возможности предлагает системное меню Web Share.
+
+Форма не выполняет `fetch` для передачи анкеты, не использует Supabase/Turnstile и не очищается после скачивания. Сам факт скачивания не считается доставкой владельцу.
+
+## Локальный Owner Editor
+
+Редактор слушает только `127.0.0.1`, проверяет Host и Origin для операций записи и не включается в `out/`.
+
+Импорт недоверенного файла выполняет:
+
+- лимит 24 МиБ до JSON parse;
+- строгую схему, marker/version и allow-list полей;
+- проверку base64, фактического MIME, декодирования, анимации и числа пикселей;
+- самостоятельно назначенные локальные пути;
+- checksum только для обнаружения повтора, не как доказательство личности;
+- конфликт при одинаковом package ID и различном содержимом.
+
+Приватные данные хранятся в `.local-editor/submissions/<package-id>/`, резервные копии — в `.local-editor/backups/`. Эти каталоги и файлы `.alamin*` исключены из Git.
+
+## Одобрение
+
+Владелец может исправить анкету и avatar crop. После одобрения Sharp:
+
+- исправляет ориентацию и декодирует исходник с лимитом пикселей;
+- создаёт `profile.webp` до 1200×1440;
+- отдельно запекает avatar crop в `avatar.webp` до 480×480;
+- не переносит EXIF/GPS;
+- кладёт в публичный каталог только эти два оптимизированных файла.
+
+`photo.avatarSrc` опционален: новые профили используют отдельный аватар без повторного CSS-crop, старые записи продолжают использовать `photo.src + photo.avatar`.
+
+Каталог валидируется и записывается атомарно. После этого выполняется статическая сборка; при ошибке каталог и новая публичная папка откатываются, а локальная заявка остаётся новой. Повторное одобрение не создаёт дубликат.
 
 ## Источники истины
 
-- content/site.json — публичные тексты.
-- content/specialists.json — валидируемый каталог.
-- public/images/specialists/ — статические изображения.
-- src/lib/static-content-contract.mjs — общий контракт build и owner editor.
-- out/ — полностью переносимый deployment artifact.
+- `content/site.json` — публичные тексты и контакты владельца;
+- `content/specialists.json` — одобренный публичный каталог;
+- `public/images/specialists/` — только оптимизированные публичные изображения;
+- `src/lib/static-content-contract.mjs` — контракт публичного контента;
+- `src/lib/alamin-submission-file.mjs` — контракт файла заявки;
+- `.local-editor/` — приватные локальные заявки, оригиналы и backups;
+- `out/` — переносимый deployment artifact.
 
-## Owner workflow
+## Облачные границы
 
-Локальный editor работает только на 127.0.0.1. Он не является route приложения, не публикуется в out/ и не имеет Git credentials. Сохранение создаёт локальную резервную копию, затем владелец просматривает diff и самостоятельно делает commit/push.
-
-## Hosting adapters
-
-STATIC_BASE_PATH задаётся только при build и не содержит имени репозитория по умолчанию. SITE_URL опционально задаёт canonical origin. out/ можно разместить на Cloudflare Pages, Netlify, GitHub Pages или другом static host. GitHub Pages deployment не включён.
-
-## Прежняя платформа
-
-Исходная Auth/Supabase/Admin/Cabinet архитектура восстановима из branch/tag archive/platform-before-static-2026-09-09. Облачный Supabase-проект и данные этой миграцией не изменяются.
+Существующий Supabase-проект и его данные не изменены. Для файлового потока заявок нельзя автоматически применять миграции, разворачивать Edge Functions или подключать SMTP/Turnstile. Отклонённый прототип документирован в `docs/archive/cloud-inbox-prototype/README.md`.
