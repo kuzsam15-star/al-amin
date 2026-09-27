@@ -208,6 +208,8 @@ export function PhotoCropSurface({
     <div
       ref={surfaceRef}
       className={`${styles.cropSurface} ${round ? styles.cropSurfaceRound : ""}`}
+      data-crop-surface="photo-only"
+      data-crop-gesture="pointer-pinch-v1"
       style={{ aspectRatio: String(aspect) }}
       role="group"
       tabIndex={0}

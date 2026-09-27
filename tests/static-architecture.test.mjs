@@ -70,6 +70,8 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /profileCrop/u);
   assert.match(cropSource, /onPointerDown/u);
   assert.match(cropSource, /kind: "pinch"/u);
+  assert.match(cropSource, /data-crop-surface="photo-only"/u);
+  assert.match(cropSource, /data-crop-gesture="pointer-pinch-v1"/u);
   assert.match(cropSource, /onLostPointerCapture/u);
   assert.match(cropSource, /addEventListener\("wheel"[\s\S]*passive:\s*false/u);
   assert.match(cropSource, /addEventListener\("touchstart"[\s\S]*passive:\s*false/u);
@@ -77,6 +79,10 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(cropStyles, /touch-action:\s*none/u);
   assert.match(cropStyles, /overscroll-behavior:\s*contain/u);
   assert.doesNotMatch(cropSource + cropStyles, /cropMoveHint|<Move\b|Перемещайте фото<\/span>/u);
+  const photoOnlySurface = cropSource.slice(cropSource.indexOf('data-crop-surface="photo-only"'));
+  const photoOnlyImageEnd = photoOnlySurface.indexOf("/>", photoOnlySurface.indexOf("<img")) + 2;
+  const photoOnlySurfaceEnd = photoOnlySurface.indexOf("</div>", photoOnlyImageEnd);
+  assert.equal(photoOnlySurface.slice(photoOnlyImageEnd, photoOnlySurfaceEnd).trim(), "", "Crop surface contains only its image.");
   assert.equal(source.match(/description="Перемещайте фото пальцем\. Используйте два пальца, чтобы изменить масштаб\."/gu)?.length, 2);
   assert.match(cropStyles, /\.photoPicker\s*>\s*p\s*\{[^}]*flex:\s*0\s+0\s+auto/su);
   assert.doesNotMatch(cropStyles, /\.submitBar\s*\{[^}]*position:\s*(?:sticky|fixed)/su);
