@@ -53,6 +53,8 @@ test("retired public platform routes are absent", async () => {
 
 test("candidate form remains static and has no Auth or Supabase browser runtime", async () => {
   const source = await readFile(new URL("../src/app/apply/CatalogSubmissionForm.tsx", import.meta.url), "utf8");
+  const cropSource = await readFile(new URL("../src/app/apply/PhotoCropSurface.tsx", import.meta.url), "utf8");
+  const cropStyles = await readFile(new URL("../src/app/apply/catalog-submission-form.module.css", import.meta.url), "utf8");
   assert.doesNotMatch(source, /createClient|signUp|signIn|service_role|SUPABASE_SERVICE_ROLE/iu);
   assert.match(source, /catalogSubmissionConsent/u);
   assert.match(source, /createAlaminSubmissionPackage/u);
@@ -63,5 +65,13 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /type="button"[^>]*onClick=\{startNewApplication\}/u);
   assert.match(source, /value=\{fields\.profileSummary\}/u);
   assert.match(source, /value=\{fields\.about\}/u);
+  assert.match(source, /label="Фото профиля"/u);
+  assert.match(source, /label="Аватар"/u);
+  assert.match(source, /profileCrop/u);
+  assert.match(cropSource, /onPointerDown/u);
+  assert.match(cropSource, /kind: "pinch"/u);
+  assert.match(cropSource, /addEventListener\("wheel"[\s\S]*passive:\s*false/u);
+  assert.match(cropStyles, /touch-action:\s*none/u);
+  assert.doesNotMatch(source + cropSource, /type="range"|Ось X|Ось Y|Масштаб/u);
   assert.doesNotMatch(source, /fetch\(|Turnstile|turnstile|NEXT_PUBLIC_CATALOG_SUBMISSION_ENDPOINT/iu);
 });

@@ -22,6 +22,7 @@ export type CatalogSubmissionDraft = {
   helpTopics: Array<{ title: string; description: string }>;
   workOffers: Array<{ title: string; mode: "online" | "offline" | "both"; durationMinutes: string; price: string; currency: string }>;
   portfolio: Array<{ title: string; description: string; url: string }>;
+  profileCrop: { positionX: number; positionY: number; zoom: number };
   avatar: { positionX: number; positionY: number; zoom: number };
   photoWasSelected: boolean;
 };

@@ -35,6 +35,7 @@ test("candidate draft preserves Russian multiline text and all serializable form
   draft.helpTopics = [{ title: "Сложный разговор", description: "Подготовка к разговору" }];
   draft.workOffers = [{ title: "Консультация", mode: "online", durationMinutes: "60", price: "", currency: "RUB" }];
   draft.portfolio = [{ title: "Материал", description: "Описание", url: "https://example.com" }];
+  draft.profileCrop = { positionX: 29, positionY: 72, zoom: 1.16 };
   draft.avatar = { positionX: 61, positionY: 37, zoom: 1.24 };
   draft.photoWasSelected = true;
 
@@ -56,10 +57,12 @@ test("restored draft is bounded and never contains a photo payload", () => {
   value.fields.about = "я".repeat(4000);
   value.categories = Array.from({ length: 20 }, (_, index) => `Категория ${index}`);
   value.photo = { data: "base64-is-not-allowed-in-draft" };
+  value.profileCrop = { positionX: 900, positionY: -10, zoom: 50 };
   value.avatar = { positionX: -10, positionY: 900, zoom: 50 };
   const restored = parseCatalogSubmissionDraft(JSON.stringify(value));
   assert.equal(Array.from(restored.fields.about).length, 3000);
   assert.equal(restored.categories.length, 8);
+  assert.deepEqual(restored.profileCrop, { positionX: 100, positionY: 0, zoom: 1.8 });
   assert.deepEqual(restored.avatar, { positionX: 0, positionY: 100, zoom: 1.8 });
   assert.equal("photo" in restored, false);
 });
@@ -108,6 +111,7 @@ test("restored draft can be edited and the exported package uses the latest valu
       website: restored.fields.website,
     },
     portfolio: restored.portfolio,
+    profileCrop: restored.profileCrop,
     avatar: restored.avatar,
     photo: { originalName: "qa.png", contentType: "image/png", size: 3 },
     consent: restored.fields.consent,

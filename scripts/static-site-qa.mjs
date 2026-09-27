@@ -13,7 +13,7 @@ const browser = process.env.BROWSER_PATH || browserCandidates.find(existsSync);
 if (!browser) throw new Error("Headless Chromium browser not found.");
 const configuredBasePath = process.env.STATIC_BASE_PATH ?? "";
 const basePath = configuredBasePath === "/" ? "" : configuredBasePath.replace(/\/$/u, "");
-const previewOrigin = "http://127.0.0.1:4174";
+const previewOrigin = process.env.STATIC_PREVIEW_ORIGIN || "http://127.0.0.1:4174";
 const previewUrl = (pathname) => `${previewOrigin}${basePath}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
 const specialistPathPrefix = `${basePath}/specialists/`;
 

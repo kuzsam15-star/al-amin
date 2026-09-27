@@ -10,6 +10,7 @@ const listEmpty = $("#list-empty");
 const errors = $("#errors");
 const homeErrors = $("#home-errors");
 const currencies = ["RUB", "USD", "EUR", "KZT", "AED", "TRY", "UZS"];
+const defaultProfileCrop = { positionX: 50, positionY: 50, zoom: 1 };
 const defaultAvatarCrop = { positionX: 50, positionY: 24, zoom: 1 };
 const selectedSpecialistStorageKey = "al-amin-owner-editor:selected-specialist";
 let catalog = { version: 1, specialists: [] };
@@ -186,27 +187,67 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number(value)));
 }
 
-function normalizeAvatarCrop(value = {}) {
+function normalizeCrop(value = {}, fallback = defaultProfileCrop) {
   return {
-    positionX: clamp(value.positionX ?? defaultAvatarCrop.positionX, 0, 100),
-    positionY: clamp(value.positionY ?? defaultAvatarCrop.positionY, 0, 100),
-    zoom: clamp(value.zoom ?? defaultAvatarCrop.zoom, 1, 1.8),
+    positionX: clamp(value.positionX ?? fallback.positionX, 0, 100),
+    positionY: clamp(value.positionY ?? fallback.positionY, 0, 100),
+    zoom: clamp(value.zoom ?? fallback.zoom, 1, 1.8),
   };
 }
 
-function avatarCropFromFields() {
-  return normalizeAvatarCrop({
-    positionX: field("avatarPositionX").value,
-    positionY: field("avatarPositionY").value,
-    zoom: field("avatarZoom").value,
-  });
+function cropDefaults(kind) { return kind === "avatar" ? defaultAvatarCrop : defaultProfileCrop; }
+function cropAspect(kind) { return kind === "avatar" ? 1 : 5 / 6; }
+function cropPrefix(kind) { return kind === "avatar" ? "avatar" : "profile"; }
+
+function cropFromFields(kind) {
+  const prefix = cropPrefix(kind);
+  return normalizeCrop({
+    positionX: field(`${prefix}PositionX`).value,
+    positionY: field(`${prefix}PositionY`).value,
+    zoom: field(`${prefix}Zoom`).value,
+  }, cropDefaults(kind));
 }
 
-function applyAvatarCrop(image, cropValue) {
-  const crop = normalizeAvatarCrop(cropValue);
-  image.style.objectPosition = `${crop.positionX}% ${crop.positionY}%`;
-  image.style.transform = `scale(${crop.zoom})`;
-  image.style.transformOrigin = `${crop.positionX}% ${crop.positionY}%`;
+function setCropFields(kind, cropValue) {
+  const crop = normalizeCrop(cropValue, cropDefaults(kind));
+  const prefix = cropPrefix(kind);
+  field(`${prefix}PositionX`).value = String(crop.positionX);
+  field(`${prefix}PositionY`).value = String(crop.positionY);
+  field(`${prefix}Zoom`).value = String(crop.zoom);
+  return crop;
+}
+
+function cropGeometry(image, kind, cropValue) {
+  const width = Math.max(1, image.naturalWidth || 1);
+  const height = Math.max(1, image.naturalHeight || 1);
+  const aspect = cropAspect(kind);
+  const crop = normalizeCrop(cropValue, cropDefaults(kind));
+  let baseWidth;
+  let baseHeight;
+  if (width / height > aspect) { baseHeight = height; baseWidth = height * aspect; }
+  else { baseWidth = width; baseHeight = width / aspect; }
+  const cropWidth = baseWidth / crop.zoom;
+  const cropHeight = baseHeight / crop.zoom;
+  const availableX = Math.max(0, width - cropWidth);
+  const availableY = Math.max(0, height - cropHeight);
+  return { width, height, crop, cropWidth, cropHeight, availableX, availableY, left: availableX * crop.positionX / 100, top: availableY * crop.positionY / 100 };
+}
+
+function cropFromOrigin(geometry, left, top, zoom = geometry.crop.zoom) {
+  return {
+    positionX: geometry.availableX > 0 ? clamp(left / geometry.availableX * 100, 0, 100) : 50,
+    positionY: geometry.availableY > 0 ? clamp(top / geometry.availableY * 100, 0, 100) : 50,
+    zoom: clamp(zoom, 1, 1.8),
+  };
+}
+
+function applyCrop(image, kind, cropValue) {
+  if (!image.naturalWidth || !image.naturalHeight) return;
+  const geometry = cropGeometry(image, kind, cropValue);
+  image.style.width = `${geometry.width / geometry.cropWidth * 100}%`;
+  image.style.height = `${geometry.height / geometry.cropHeight * 100}%`;
+  image.style.left = `${-geometry.left / geometry.cropWidth * 100}%`;
+  image.style.top = `${-geometry.top / geometry.cropHeight * 100}%`;
 }
 
 function textElement(tag, className, text) {
@@ -216,20 +257,21 @@ function textElement(tag, className, text) {
   return element;
 }
 
-function updatePhotoPreview(src, alt = "", cropValue = defaultAvatarCrop) {
+function updatePhotoPreview(src, alt = "", profileCropValue = defaultProfileCrop, avatarCropValue = defaultAvatarCrop) {
   const image = $("#photo-preview");
   const placeholder = $("#photo-placeholder");
   const avatar = $("#avatar-preview");
   const avatarPlaceholder = $("#avatar-placeholder");
   const enabled = Boolean(src);
   if (src) {
+    image.onload = () => applyCrop(image, "profile", profileCropValue);
     image.src = `${src}?v=${Date.now()}`;
     image.alt = alt;
     image.hidden = false;
     placeholder.hidden = true;
+    avatar.onload = () => applyCrop(avatar, "avatar", avatarCropValue);
     avatar.src = `${src}?v=${Date.now()}`;
     avatar.alt = alt ? `Круглый аватар: ${alt}` : "";
-    applyAvatarCrop(avatar, cropValue);
     avatar.hidden = false;
     avatarPlaceholder.hidden = true;
   } else {
@@ -242,8 +284,7 @@ function updatePhotoPreview(src, alt = "", cropValue = defaultAvatarCrop) {
     avatar.hidden = true;
     avatarPlaceholder.hidden = false;
   }
-  for (const name of ["avatarPositionX", "avatarPositionY", "avatarZoom"]) field(name).disabled = !enabled;
-  $("#reset-avatar").disabled = !enabled;
+  $$('[data-crop-action]').forEach((button) => { button.disabled = !enabled; });
 }
 
 function renderList() {
@@ -258,7 +299,7 @@ function renderList() {
       const image = document.createElement("img");
       image.src = item.photo.avatarSrc || item.photo.src;
       image.alt = "";
-      if (!item.photo.avatarSrc) applyAvatarCrop(image, item.photo.avatar);
+      if (!item.photo.avatarSrc) image.onload = () => applyCrop(image, "avatar", item.photo.avatar);
       visual.append(image);
       button.append(visual);
     } else {
@@ -289,7 +330,7 @@ function renderSubmissions() {
     const image = document.createElement("img");
     image.src = item.photoPreviewUrl;
     image.alt = "";
-    applyAvatarCrop(image, item.payload?.avatar || defaultAvatarCrop);
+    image.onload = () => applyCrop(image, "avatar", item.payload?.avatar || defaultAvatarCrop);
     visual.append(image);
     const copy = document.createElement("span");
     copy.className = "list-copy";
@@ -312,7 +353,12 @@ function submissionDraft(item) {
     id: item.id,
     slug: catalog.specialists.find((entry) => entry.id === item.id)?.slug || "",
     fullName: payload.fullName || "",
-    photo: { src: item.photoPreviewUrl, alt: `Фото: ${payload.fullName || "специалист"}`, avatar: payload.avatar || { ...defaultAvatarCrop } },
+    photo: {
+      src: item.photoPreviewUrl,
+      alt: `Фото: ${payload.fullName || "специалист"}`,
+      profileCrop: payload.profileCrop || { ...defaultProfileCrop },
+      avatar: payload.avatar || { ...defaultAvatarCrop },
+    },
     specialization: payload.specialization || "",
     categories: payload.categories || [],
     country: payload.country || "",
@@ -420,11 +466,9 @@ function populateForm(item) {
   field("experienceYears").value = item.experienceYears ?? "";
   field("photoSrc").value = item.photo?.src || "";
   field("photoAlt").value = item.photo?.alt || "";
-  const avatar = normalizeAvatarCrop(item.photo?.avatar);
-  field("avatarPositionX").value = String(avatar.positionX);
-  field("avatarPositionY").value = String(avatar.positionY);
-  field("avatarZoom").value = String(avatar.zoom);
-  updatePhotoPreview(item.photo?.src || "", item.photo?.alt || "", avatar);
+  const profileCrop = setCropFields("profile", item.photo?.profileCrop || defaultProfileCrop);
+  const avatar = setCropFields("avatar", item.photo?.avatar || defaultAvatarCrop);
+  updatePhotoPreview(item.photo?.src || "", item.photo?.alt || "", profileCrop, avatar);
   for (const name of ["phone", "email", "telegram", "whatsapp", "website"]) field(name).value = item.contacts?.[name] || "";
   field("featured").checked = item.featured === true;
   field("publishConsent").checked = item.published === true;
@@ -515,7 +559,7 @@ function readForm() {
     about: value("about"),
     experienceYears: value("experienceYears") ? Number(value("experienceYears")) : null,
     sortOrder: 0,
-    photo: { ...(previous.photo || {}), src: value("photoSrc"), alt: photoAlt, avatar: avatarCropFromFields() },
+    photo: { ...(previous.photo || {}), src: value("photoSrc"), alt: photoAlt, profileCrop: cropFromFields("profile"), avatar: cropFromFields("avatar") },
     helpTopics: collectHelpTopics(),
     workOffers: collectWorkOffers(),
     portfolio: collectPortfolio(),
@@ -598,7 +642,7 @@ async function save(event) {
 }
 
 function newItem() {
-  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "", avatar: { ...defaultAvatarCrop } }, specialization: "", categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
+  return { id: crypto.randomUUID(), slug: "", fullName: "", photo: { src: "", alt: "", profileCrop: { ...defaultProfileCrop }, avatar: { ...defaultAvatarCrop } }, specialization: "", categories: [], country: "", city: "", workMode: "both", profileSummary: "", about: "", helpTopics: [], workOffers: [], experienceYears: null, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, contacts: {}, portfolio: [], published: false, featured: false, sortOrder: 0 };
 }
 
 $("#add").onclick = () => {
@@ -649,7 +693,7 @@ $("#photo-file").onchange = async (event) => {
       reviewPhotoToken = result.token;
       field("photoSrc").value = result.previewUrl;
       if (!value("photoAlt")) field("photoAlt").value = `Фото: ${value("fullName")}`;
-      updatePhotoPreview(result.previewUrl, value("photoAlt"), avatarCropFromFields());
+      updatePhotoPreview(result.previewUrl, value("photoAlt"), cropFromFields("profile"), cropFromFields("avatar"));
       errors.className = "success";
       errors.textContent = "Новая фотография готова. Она попадёт в каталог только после одобрения.";
       return;
@@ -662,7 +706,7 @@ $("#photo-file").onchange = async (event) => {
     if (!response.ok) throw new Error(friendlyErrors(result.errors));
     field("photoSrc").value = result.src;
     if (!value("photoAlt")) field("photoAlt").value = `Фото: ${value("fullName")}`;
-    updatePhotoPreview(result.src, value("photoAlt"), avatarCropFromFields());
+    updatePhotoPreview(result.src, value("photoAlt"), cropFromFields("profile"), cropFromFields("avatar"));
     errors.className = "success";
     errors.textContent = "Фотография готова. Теперь сохраните специалиста.";
   } catch (error) {
@@ -734,50 +778,129 @@ $("#open-approved").onclick = () => {
   if (approvedProfileUrl) window.open(approvedProfileUrl, "_blank", "noopener");
 };
 
-function refreshAvatarPreview() {
-  const image = $("#avatar-preview");
-  if (!image.hidden) applyAvatarCrop(image, avatarCropFromFields());
+function cropImage(kind) { return kind === "avatar" ? $("#avatar-preview") : $("#photo-preview"); }
+function cropFrame(kind) { return kind === "avatar" ? $("#avatar-frame") : $("#profile-frame"); }
+
+function refreshCropPreview(kind) {
+  const image = cropImage(kind);
+  if (!image.hidden) applyCrop(image, kind, cropFromFields(kind));
 }
 
-for (const name of ["avatarPositionX", "avatarPositionY", "avatarZoom"]) {
-  field(name).addEventListener("input", refreshAvatarPreview);
+function writeCrop(kind, value) {
+  setCropFields(kind, value);
+  refreshCropPreview(kind);
 }
 
-$("#reset-avatar").onclick = () => {
-  field("avatarPositionX").value = String(defaultAvatarCrop.positionX);
-  field("avatarPositionY").value = String(defaultAvatarCrop.positionY);
-  field("avatarZoom").value = String(defaultAvatarCrop.zoom);
-  refreshAvatarPreview();
-};
-
-let avatarDrag = null;
-$("#avatar-frame").addEventListener("pointerdown", (event) => {
-  if ($("#avatar-preview").hidden) return;
-  event.preventDefault();
-  const crop = avatarCropFromFields();
-  avatarDrag = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, positionX: crop.positionX, positionY: crop.positionY, zoom: crop.zoom };
-  event.currentTarget.setPointerCapture(event.pointerId);
-  event.currentTarget.classList.add("dragging");
-});
-
-$("#avatar-frame").addEventListener("pointermove", (event) => {
-  if (!avatarDrag || avatarDrag.pointerId !== event.pointerId) return;
-  const bounds = event.currentTarget.getBoundingClientRect();
-  const scale = 100 / Math.max(bounds.width, 1) / avatarDrag.zoom;
-  field("avatarPositionX").value = String(Math.round(clamp(avatarDrag.positionX - (event.clientX - avatarDrag.clientX) * scale, 0, 100)));
-  field("avatarPositionY").value = String(Math.round(clamp(avatarDrag.positionY - (event.clientY - avatarDrag.clientY) * scale, 0, 100)));
-  refreshAvatarPreview();
-});
-
-function finishAvatarDrag(event) {
-  if (!avatarDrag || avatarDrag.pointerId !== event.pointerId) return;
-  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  avatarDrag = null;
-  event.currentTarget.classList.remove("dragging");
+function panCrop(kind, original, dx, dy) {
+  const image = cropImage(kind);
+  const frame = cropFrame(kind);
+  const bounds = frame.getBoundingClientRect();
+  const geometry = cropGeometry(image, kind, original);
+  const left = geometry.left - dx * geometry.cropWidth / Math.max(1, bounds.width);
+  const top = geometry.top - dy * geometry.cropHeight / Math.max(1, bounds.height);
+  return cropFromOrigin(geometry, clamp(left, 0, geometry.availableX), clamp(top, 0, geometry.availableY));
 }
 
-$("#avatar-frame").addEventListener("pointerup", finishAvatarDrag);
-$("#avatar-frame").addEventListener("pointercancel", finishAvatarDrag);
+function zoomCropAt(kind, original, nextZoom, startFocal, nextFocal = startFocal) {
+  const image = cropImage(kind);
+  const frame = cropFrame(kind);
+  const bounds = frame.getBoundingClientRect();
+  const before = cropGeometry(image, kind, original);
+  const sourceX = before.left + startFocal.x / Math.max(1, bounds.width) * before.cropWidth;
+  const sourceY = before.top + startFocal.y / Math.max(1, bounds.height) * before.cropHeight;
+  const next = cropGeometry(image, kind, { ...original, zoom: nextZoom });
+  const left = sourceX - nextFocal.x / Math.max(1, bounds.width) * next.cropWidth;
+  const top = sourceY - nextFocal.y / Math.max(1, bounds.height) * next.cropHeight;
+  return cropFromOrigin(next, clamp(left, 0, next.availableX), clamp(top, 0, next.availableY), next.crop.zoom);
+}
+
+function setupCropSurface(kind) {
+  const frame = cropFrame(kind);
+  const image = cropImage(kind);
+  const pointers = new Map();
+  let gesture = null;
+  const localPoint = (event) => {
+    const bounds = frame.getBoundingClientRect();
+    return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  };
+  const midpoint = (first, second) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
+  const distance = (first, second) => Math.hypot(second.x - first.x, second.y - first.y);
+  const beginGesture = () => {
+    const points = [...pointers.values()];
+    if (!points.length) { gesture = null; frame.classList.remove("dragging"); return; }
+    frame.classList.add("dragging");
+    if (points.length >= 2) {
+      const center = midpoint(points[0], points[1]);
+      gesture = { mode: "pinch", crop: cropFromFields(kind), center, distance: Math.max(1, distance(points[0], points[1])) };
+    } else {
+      gesture = { mode: "pan", crop: cropFromFields(kind), point: points[0] };
+    }
+  };
+  frame.addEventListener("pointerdown", (event) => {
+    if (image.hidden) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, localPoint(event));
+    try { frame.setPointerCapture(event.pointerId); } catch {}
+    beginGesture();
+  });
+  frame.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId) || !gesture) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, localPoint(event));
+    const points = [...pointers.values()];
+    if (gesture.mode === "pinch" && points.length >= 2) {
+      const center = midpoint(points[0], points[1]);
+      const nextZoom = gesture.crop.zoom * distance(points[0], points[1]) / gesture.distance;
+      writeCrop(kind, zoomCropAt(kind, gesture.crop, nextZoom, gesture.center, center));
+    } else if (gesture.mode === "pan" && points.length === 1) {
+      writeCrop(kind, panCrop(kind, gesture.crop, points[0].x - gesture.point.x, points[0].y - gesture.point.y));
+    }
+  });
+  const finishPointer = (event) => {
+    pointers.delete(event.pointerId);
+    try { if (frame.hasPointerCapture(event.pointerId)) frame.releasePointerCapture(event.pointerId); } catch {}
+    beginGesture();
+  };
+  frame.addEventListener("pointerup", finishPointer);
+  frame.addEventListener("pointercancel", finishPointer);
+  frame.addEventListener("lostpointercapture", (event) => { if (pointers.has(event.pointerId)) { pointers.delete(event.pointerId); beginGesture(); } });
+  frame.addEventListener("wheel", (event) => {
+    if (image.hidden) return;
+    event.preventDefault();
+    const crop = cropFromFields(kind);
+    writeCrop(kind, zoomCropAt(kind, crop, crop.zoom * Math.exp(-event.deltaY * 0.0015), localPoint(event)));
+  }, { passive: false });
+  frame.addEventListener("keydown", (event) => {
+    if (image.hidden) return;
+    const step = event.shiftKey ? 18 : 7;
+    const crop = cropFromFields(kind);
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+      const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+      writeCrop(kind, panCrop(kind, crop, dx, dy));
+    }
+    if (["+", "=", "-", "_"].includes(event.key)) {
+      event.preventDefault();
+      const bounds = frame.getBoundingClientRect();
+      const focal = { x: bounds.width / 2, y: bounds.height / 2 };
+      writeCrop(kind, zoomCropAt(kind, crop, crop.zoom + (["+", "="].includes(event.key) ? 0.1 : -0.1), focal));
+    }
+  });
+  $$(`[data-crop-kind="${kind}"] [data-crop-action]`).forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.cropAction;
+      if (action === "center") { writeCrop(kind, cropDefaults(kind)); return; }
+      const bounds = frame.getBoundingClientRect();
+      const focal = { x: bounds.width / 2, y: bounds.height / 2 };
+      const crop = cropFromFields(kind);
+      writeCrop(kind, zoomCropAt(kind, crop, crop.zoom + (action === "in" ? 0.1 : -0.1), focal));
+    });
+  });
+}
+
+setupCropSurface("profile");
+setupCropSurface("avatar");
 
 async function showPreview() {
   const previewWindow = window.open("", "al-amin-specialist-preview");

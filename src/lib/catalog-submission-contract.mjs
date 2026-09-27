@@ -120,6 +120,12 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
   if (!Object.values(contacts).some(Boolean)) errors.push("contacts: укажите хотя бы один способ связи");
 
   const avatarValue = record(value.avatar) ? value.avatar : {};
+  const profileCropValue = record(value.profileCrop) ? value.profileCrop : {};
+  const profileCrop = {
+    positionX: numberOrNull(profileCropValue.positionX ?? 50, "profileCrop.positionX", errors, 0, 100) ?? 50,
+    positionY: numberOrNull(profileCropValue.positionY ?? 50, "profileCrop.positionY", errors, 0, 100) ?? 50,
+    zoom: numberOrNull(profileCropValue.zoom ?? 1, "profileCrop.zoom", errors, 1, 1.8) ?? 1,
+  };
   const avatar = {
     positionX: numberOrNull(avatarValue.positionX ?? 50, "avatar.positionX", errors, 0, 100) ?? 50,
     positionY: numberOrNull(avatarValue.positionY ?? 24, "avatar.positionY", errors, 0, 100) ?? 24,
@@ -153,6 +159,7 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
     workOffers,
     contacts,
     portfolio,
+    profileCrop,
     avatar,
     photo,
     consent: true,
@@ -167,7 +174,7 @@ export function catalogSubmissionToSpecialistDraft(submission) {
     id: submission.id,
     slug: "",
     fullName: payload.fullName,
-    photo: { src: submission.photoPreviewUrl || "", alt: `Фото: ${payload.fullName}`, avatar: payload.avatar },
+    photo: { src: submission.photoPreviewUrl || "", alt: `Фото: ${payload.fullName}`, profileCrop: payload.profileCrop, avatar: payload.avatar },
     specialization: payload.specialization,
     categories: payload.categories,
     country: payload.country,

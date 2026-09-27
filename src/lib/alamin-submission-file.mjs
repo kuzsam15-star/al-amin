@@ -18,12 +18,13 @@ export const alaminSubmissionFileLimits = Object.freeze({
 const allowedTopLevel = new Set(["marker", "version", "packageId", "createdAt", "payload", "consent", "attachments"]);
 const allowedPayload = new Set([
   "contractVersion", "fullName", "specialization", "country", "city", "workMode", "experienceYears",
-  "profileSummary", "about", "categories", "helpTopics", "workOffers", "contacts", "portfolio", "avatar", "photo",
+  "profileSummary", "about", "categories", "helpTopics", "workOffers", "contacts", "portfolio", "profileCrop", "avatar", "photo",
 ]);
 const allowedConsent = new Set(["accepted", "version", "text"]);
 const allowedAttachment = new Set(["id", "role", "filename", "mediaType", "encoding", "data"]);
 const allowedPhoto = new Set(["originalName", "contentType", "size"]);
 const allowedAvatar = new Set(["positionX", "positionY", "zoom"]);
+const allowedProfileCrop = new Set(["positionX", "positionY", "zoom"]);
 const allowedHelpTopic = new Set(["title", "description"]);
 const allowedWorkOffer = new Set(["title", "mode", "durationMinutes", "price", "currency"]);
 const allowedPortfolio = new Set(["title", "description", "url"]);
@@ -115,6 +116,7 @@ export function validateAlaminSubmissionPackage(value) {
     rejectForbiddenKeys(value.payload, "payload", errors);
     rejectUnknown(value.payload.photo, allowedPhoto, "payload.photo", errors);
     rejectUnknown(value.payload.avatar, allowedAvatar, "payload.avatar", errors);
+    rejectUnknown(value.payload.profileCrop, allowedProfileCrop, "payload.profileCrop", errors);
     rejectUnknown(value.payload.contacts, allowedContacts, "payload.contacts", errors);
     for (const [field, allowed] of [["helpTopics", allowedHelpTopic], ["workOffers", allowedWorkOffer], ["portfolio", allowedPortfolio]]) {
       if (Array.isArray(value.payload[field])) value.payload[field].forEach((entry, index) => rejectUnknown(entry, allowed, `payload.${field}.${index}`, errors));

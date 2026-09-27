@@ -53,6 +53,7 @@ export function createEmptyCatalogSubmissionDraft() {
     helpTopics: [{ title: "", description: "" }],
     workOffers: [{ title: "", mode: "online", durationMinutes: "", price: "", currency: "RUB" }],
     portfolio: [],
+    profileCrop: { positionX: 50, positionY: 50, zoom: 1 },
     avatar: { positionX: 50, positionY: 24, zoom: 1 },
     photoWasSelected: false,
   };
@@ -99,6 +100,7 @@ export function normalizeCatalogSubmissionDraft(value) {
     ? value.portfolio.slice(0, limits.portfolio).filter(record).map((entry) => ({ title: text(entry.title, 160), description: text(entry.description, 500), url: text(entry.url, 500) }))
     : [];
   const sourceAvatar = record(value.avatar) ? value.avatar : {};
+  const sourceProfileCrop = record(value.profileCrop) ? value.profileCrop : {};
 
   return {
     fields,
@@ -107,6 +109,11 @@ export function normalizeCatalogSubmissionDraft(value) {
     helpTopics: helpTopics.length ? helpTopics : empty.helpTopics,
     workOffers: workOffers.length ? workOffers : empty.workOffers,
     portfolio,
+    profileCrop: {
+      positionX: boundedNumber(sourceProfileCrop.positionX, 50, 0, 100),
+      positionY: boundedNumber(sourceProfileCrop.positionY, 50, 0, 100),
+      zoom: boundedNumber(sourceProfileCrop.zoom, 1, 1, 1.8),
+    },
     avatar: {
       positionX: boundedNumber(sourceAvatar.positionX, 50, 0, 100),
       positionY: boundedNumber(sourceAvatar.positionY, 24, 0, 100),
@@ -145,6 +152,9 @@ export function hasMeaningfulCatalogSubmissionDraft(draft) {
     || draft.helpTopics.some((entry) => entry.title || entry.description)
     || draft.workOffers.some((entry) => entry.title || entry.durationMinutes || entry.price || entry.mode !== "online")
     || draft.portfolio.some((entry) => entry.title || entry.description || entry.url)
+    || draft.profileCrop.positionX !== 50
+    || draft.profileCrop.positionY !== 50
+    || draft.profileCrop.zoom !== 1
     || draft.avatar.positionX !== 50
     || draft.avatar.positionY !== 24
     || draft.avatar.zoom !== 1

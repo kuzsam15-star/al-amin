@@ -1,5 +1,4 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 
 import { Check, Download, ImagePlus, Mail, Plus, Share2, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +17,7 @@ import {
   serializeCatalogSubmissionDraft,
 } from "@/lib/catalog-submission-draft.mjs";
 import type { CatalogSubmissionDraft, CatalogSubmissionDraftFields } from "@/lib/catalog-submission-draft.mjs";
+import { PhotoCropSurface } from "./PhotoCropSurface";
 import styles from "./catalog-submission-form.module.css";
 
 type WorkMode = "online" | "offline" | "both";
@@ -76,7 +76,9 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(emptyDraft.portfolio);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+  const [profileCrop, setProfileCrop] = useState(emptyDraft.profileCrop);
   const [avatar, setAvatar] = useState(emptyDraft.avatar);
+  const [cropConfirmed, setCropConfirmed] = useState(false);
   const [photoWasSelected, setPhotoWasSelected] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
@@ -106,6 +108,7 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       setHelpTopics(restored.helpTopics);
       setWorkOffers(restored.workOffers);
       setPortfolio(restored.portfolio);
+      setProfileCrop(restored.profileCrop);
       setAvatar(restored.avatar);
       setPhotoWasSelected(restored.photoWasSelected);
       setDraftNotice(restored.photoWasSelected
@@ -122,9 +125,10 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     helpTopics,
     workOffers,
     portfolio,
+    profileCrop,
     avatar,
     photoWasSelected: Boolean(photo) || photoWasSelected,
-  }), [avatar, categories, categoryDraft, fields, helpTopics, photo, photoWasSelected, portfolio, workOffers]);
+  }), [avatar, categories, categoryDraft, fields, helpTopics, photo, photoWasSelected, portfolio, profileCrop, workOffers]);
 
   const draftRevision = useMemo(() => JSON.stringify({
     draft: draftValue,
@@ -170,7 +174,9 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     setHelpTopics(next.helpTopics);
     setWorkOffers(next.workOffers);
     setPortfolio(next.portfolio);
+    setProfileCrop(next.profileCrop);
     setAvatar(next.avatar);
+    setCropConfirmed(false);
     setPhoto(null);
     setPhotoWasSelected(false);
     setGenerated(null);
@@ -225,6 +231,7 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
         website: normalizeWebsite(fields.website) || undefined,
       },
       portfolio: portfolio.filter((item) => item.title.trim()).map((item) => ({ title: item.title, description: item.description || undefined, url: normalizeWebsite(item.url) || undefined })),
+      profileCrop,
       avatar,
       photo: { originalName: photo.name, contentType: photo.type, size: photo.size },
       consent: fields.consent,
@@ -286,17 +293,14 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
         <label className={styles.wide}>О себе и подходе к работе<textarea name="about" required maxLength={3000} rows={7} value={fields.about} onChange={(event) => updateField("about", event.target.value)} /></label>
       </div></section>
 
-      <section className={styles.panel}><div className={styles.sectionTitle}><span>02</span><div><h2>Фотография</h2><p>Исходник хранится приватно. Финальная WebP‑версия создаётся только после одобрения.</p></div></div><div className={styles.photoLayout}>
-        <div className={styles.previews}>
-          <div className={styles.profilePreview}>{preview ? <img src={preview} alt="Предпросмотр фотографии" /> : <ImagePlus aria-hidden="true" size={34} />}</div>
-          <div className={styles.avatarPreview}>{preview ? <img src={preview} alt="Предпросмотр аватара" style={{ objectPosition: `${avatar.positionX}% ${avatar.positionY}%`, transform: `scale(${avatar.zoom})`, transformOrigin: `${avatar.positionX}% ${avatar.positionY}%` }} /> : <span>Аватар</span>}</div>
-        </div>
-        <div className={styles.photoControls}><label className={styles.fileButton}>Выбрать фотографию<input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" required onChange={(event) => { const nextPhoto = event.target.files?.[0] ?? null; setPhoto(nextPhoto); setPhotoWasSelected(Boolean(nextPhoto)); if (nextPhoto) setDraftNotice(""); }} /></label><p>JPEG, PNG или WebP, не более 8 МБ. После восстановления черновика фотографию нужно выбрать заново.</p>{photoError ? <p className={styles.fieldError}>{photoError}</p> : null}
-          <label>По горизонтали<input type="range" min="0" max="100" value={avatar.positionX} onChange={(event) => setAvatar((value) => ({ ...value, positionX: Number(event.target.value) }))} disabled={!preview} /></label>
-          <label>По вертикали<input type="range" min="0" max="100" value={avatar.positionY} onChange={(event) => setAvatar((value) => ({ ...value, positionY: Number(event.target.value) }))} disabled={!preview} /></label>
-          <label>Масштаб<input type="range" min="1" max="1.8" step="0.01" value={avatar.zoom} onChange={(event) => setAvatar((value) => ({ ...value, zoom: Number(event.target.value) }))} disabled={!preview} /></label>
-        </div>
-      </div></section>
+      <section className={styles.panel}><div className={styles.sectionTitle}><span>02</span><div><h2>Фотография</h2><p>Исходник хранится только в файле заявки. Финальные WebP‑версии создаются после одобрения владельцем.</p></div></div>
+        <div className={styles.photoPicker}><label className={styles.fileButton}>Выбрать фотографию<input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" required onChange={(event) => { const nextPhoto = event.target.files?.[0] ?? null; setPhoto(nextPhoto); setPhotoWasSelected(Boolean(nextPhoto)); setCropConfirmed(false); if (nextPhoto) setDraftNotice(""); }} /></label><p>JPEG, PNG или WebP, не более 8 МБ. После восстановления черновика фотографию нужно выбрать заново.</p>{photoError ? <p className={styles.fieldError}>{photoError}</p> : null}</div>
+        {preview ? <div className={styles.cropEditor}>
+          <PhotoCropSurface label="Фото профиля" description="Перемещайте фото пальцем. Используйте два пальца, чтобы изменить масштаб." src={preview} alt="Предпросмотр фото профиля" aspect={5 / 6} value={profileCrop} defaultValue={emptyDraft.profileCrop} onChange={(value) => { setProfileCrop(value); setCropConfirmed(false); }} />
+          <PhotoCropSurface label="Аватар" description="Настройте круглый кадр для главной, каталога и компактных карточек." src={preview} alt="Предпросмотр аватара" aspect={1} round value={avatar} defaultValue={emptyDraft.avatar} onChange={(value) => { setAvatar(value); setCropConfirmed(false); }} />
+          <div className={styles.cropDone}><button type="button" onClick={() => setCropConfirmed(true)}><Check size={18} aria-hidden="true" />Готово</button>{cropConfirmed ? <span role="status">Оба кадра сохранены в черновике.</span> : null}</div>
+        </div> : <div className={styles.photoPlaceholder}><ImagePlus aria-hidden="true" size={34} /><span>Выберите фотографию, чтобы настроить два кадра.</span></div>}
+      </section>
 
       <section className={styles.panel}><div className={styles.sectionTitle}><span>03</span><div><h2>Категории и направления</h2><p>Добавьте понятные слова, по которым вас смогут найти.</p></div></div>
         <div className={styles.chips}>{categories.map((item) => <span key={item}>{item}<button type="button" aria-label={`Удалить ${item}`} onClick={() => setCategories((values) => values.filter((value) => value !== item))}>×</button></span>)}</div>

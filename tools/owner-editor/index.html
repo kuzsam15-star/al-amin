@@ -69,28 +69,25 @@
       <section class="panel">
         <div class="section-heading"><div><p class="section-number">02</p><h2>Фотография</h2></div><p>Изображение автоматически оптимизируется для сайта.</p></div>
         <div class="photo-editor">
-          <div class="photo-previews">
-            <figure>
-              <div class="photo-frame"><img id="photo-preview" alt=""><span id="photo-placeholder">Фото</span></div>
-              <figcaption><strong>Фото профиля</strong><span>Большое изображение в публичном профиле.</span></figcaption>
-            </figure>
-            <figure>
-              <div id="avatar-frame" class="avatar-frame" aria-label="Перетащите фотографию, чтобы настроить круглый аватар"><img id="avatar-preview" alt=""><span id="avatar-placeholder">Аватар</span></div>
-              <figcaption><strong>Аватар карточки</strong><span>Каталог, главная и список слева.</span></figcaption>
-            </figure>
-          </div>
           <div class="photo-controls">
             <label class="file-button">Выбрать фотографию<input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
-            <p>JPG, PNG или WebP до 8 МиБ. Большое фото и круглый аватар создаются отдельно.</p>
+            <p>JPG, PNG или WebP до 8 МиБ. Каждый кадр настраивается независимо и применяется только один раз.</p>
             <input name="photoSrc" type="hidden">
-            <div id="avatar-controls" class="avatar-controls">
-              <p><strong>Настройка круглого аватара</strong><span>Перетаскивайте фотографию внутри круга или используйте ползунки.</span></p>
-              <label>По горизонтали<input name="avatarPositionX" type="range" min="0" max="100" step="1" value="50"></label>
-              <label>По вертикали<input name="avatarPositionY" type="range" min="0" max="100" step="1" value="24"></label>
-              <label>Масштаб<input name="avatarZoom" type="range" min="1" max="1.8" step="0.01" value="1"></label>
-              <button id="reset-avatar" class="button button-secondary" type="button">Сбросить кадрирование</button>
-            </div>
+            <input name="profilePositionX" type="hidden" value="50"><input name="profilePositionY" type="hidden" value="50"><input name="profileZoom" type="hidden" value="1">
+            <input name="avatarPositionX" type="hidden" value="50"><input name="avatarPositionY" type="hidden" value="24"><input name="avatarZoom" type="hidden" value="1">
             <details class="image-description"><summary>Изменить описание изображения</summary><label>Описание для доступности<input name="photoAlt" maxlength="180" placeholder="Заполнится автоматически по имени"></label></details>
+          </div>
+          <div class="photo-previews">
+            <figure>
+              <figcaption><strong>Фото профиля</strong><span>Перемещайте фото. Колесо или два пальца меняют масштаб.</span></figcaption>
+              <div id="profile-frame" class="crop-frame profile-frame" tabindex="0" role="group" aria-label="Кадрирование фото профиля"><img id="photo-preview" alt=""><span id="photo-placeholder">Фото</span></div>
+              <div class="crop-buttons" data-crop-kind="profile"><button type="button" data-crop-action="out" aria-label="Уменьшить фото профиля">−</button><button type="button" data-crop-action="center">По центру</button><button type="button" data-crop-action="in" aria-label="Увеличить фото профиля">+</button></div>
+            </figure>
+            <figure>
+              <figcaption><strong>Аватар</strong><span>Итоговый круглый кадр для главной и каталога.</span></figcaption>
+              <div id="avatar-frame" class="crop-frame avatar-frame" tabindex="0" role="group" aria-label="Кадрирование аватара"><img id="avatar-preview" alt=""><span id="avatar-placeholder">Аватар</span></div>
+              <div class="crop-buttons" data-crop-kind="avatar"><button type="button" data-crop-action="out" aria-label="Уменьшить аватар">−</button><button type="button" data-crop-action="center">По центру</button><button type="button" data-crop-action="in" aria-label="Увеличить аватар">+</button></div>
+            </figure>
           </div>
         </div>
       </section>

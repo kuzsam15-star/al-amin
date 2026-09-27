@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { validateContent, validateSiteDocument, validateSpecialistsDocument } from "../src/lib/static-content-contract.mjs";
 import { catalogSubmissionToSpecialistDraft } from "../src/lib/catalog-submission-contract.mjs";
 import { alaminSubmissionFileLimits, validateAlaminSubmissionPackage } from "../src/lib/alamin-submission-file.mjs";
+import { defaultAvatarCrop, defaultProfileCrop, photoCropExtractRect } from "../src/lib/photo-crop.mjs";
 
 const root = process.cwd();
 const host = "127.0.0.1";
@@ -222,17 +223,16 @@ async function optimizedWebp(input, { width, height, fit, position, qualities, t
   return { buffer: output, quality: qualityUsed, overBudget: output.length > targetBytes };
 }
 
-async function createPublicImages(source, avatarCrop) {
+async function createPublicImages(source, profileCrop, avatarCrop) {
   await validateImage(source);
   const normalized = await sharp(source, { failOn: "error", limitInputPixels: alaminSubmissionFileLimits.imagePixels }).rotate().toBuffer({ resolveWithObject: true });
-  const profile = await optimizedWebp(normalized.data, { width: 1200, height: 1440, fit: "cover", position: "attention", qualities: [82, 78, 74], targetBytes: 350 * 1024 });
   const width = normalized.info.width;
   const height = normalized.info.height;
-  const zoom = Math.min(1.8, Math.max(1, Number(avatarCrop?.zoom ?? 1)));
-  const side = Math.max(1, Math.floor(Math.min(width, height) / zoom));
-  const left = Math.round((width - side) * Math.min(100, Math.max(0, Number(avatarCrop?.positionX ?? 50))) / 100);
-  const top = Math.round((height - side) * Math.min(100, Math.max(0, Number(avatarCrop?.positionY ?? 24))) / 100);
-  const avatarSource = await sharp(normalized.data).extract({ left, top, width: side, height: side }).toBuffer();
+  const profileRect = photoCropExtractRect(width, height, 5 / 6, profileCrop || defaultProfileCrop);
+  const avatarRect = photoCropExtractRect(width, height, 1, avatarCrop || defaultAvatarCrop);
+  const profileSource = await sharp(normalized.data).extract(profileRect).toBuffer();
+  const avatarSource = await sharp(normalized.data).extract(avatarRect).toBuffer();
+  const profile = await optimizedWebp(profileSource, { width: 1200, height: 1440, fit: "fill", position: "centre", qualities: [82, 78, 74], targetBytes: 350 * 1024 });
   const avatar = await optimizedWebp(avatarSource, { width: 480, height: 480, fit: "fill", position: "centre", qualities: [80, 76, 72], targetBytes: 100 * 1024 });
   return { profile, avatar };
 }
@@ -264,7 +264,8 @@ async function approveSubmission(id, request) {
   const directory = path.join(assetRoot, slug);
   try { await access(directory); throw Object.assign(new Error("Папка для нового профиля уже существует. Каталог не изменён."), { statusCode: 409 }); }
   catch (error) { if (error?.code !== "ENOENT") throw error; }
-  const avatarCrop = draft.photo?.avatar || submission.payload.avatar;
+  const profileCrop = draft.photo?.profileCrop || submission.payload.profileCrop || defaultProfileCrop;
+  const avatarCrop = draft.photo?.avatar || submission.payload.avatar || defaultAvatarCrop;
   const specialist = { ...draft, id, slug, photo: { src: `/images/specialists/${slug}/profile.webp`, avatarSrc: `/images/specialists/${slug}/avatar.webp`, alt: draft.photo?.alt || `Фото: ${draft.fullName}`, avatar: avatarCrop }, trust: { recommendedByAlAmin: false, verifiedFacts: [] }, published: true, featured: draft.featured === true, sortOrder: 0 };
   const candidateCatalog = { ...catalog, specialists: [...catalog.specialists, specialist] };
   candidateCatalog.specialists.sort((a, b) => a.fullName.localeCompare(b.fullName, "ru"));
@@ -277,7 +278,7 @@ async function approveSubmission(id, request) {
   let source = await readSubmissionMedia(submission);
   const replacement = await reviewPhotoBuffer(ownerDraft.reviewPhotoToken);
   if (replacement) source = replacement;
-  const images = await createPublicImages(source, avatarCrop);
+  const images = await createPublicImages(source, profileCrop, avatarCrop);
   const stageDirectory = path.join(stagingRoot, `${id}-${randomUUID()}`);
   await mkdir(stageDirectory, { recursive: true });
   await writeFile(path.join(stageDirectory, "profile.webp"), images.profile.buffer);

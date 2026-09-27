@@ -127,27 +127,24 @@ textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
 textarea.large { min-height: 150px; }
 .hint { color: #7d8983; font-size: 11px; font-weight: 500; text-align: right; }
 
-.photo-editor { display: grid; grid-template-columns: 310px minmax(0, 1fr); align-items: start; gap: 28px; }
-.photo-previews { display: grid; grid-template-columns: 160px 132px; align-items: start; gap: 18px; }
-.photo-previews figure { display: grid; justify-items: center; gap: 10px; margin: 0; }
-.photo-previews figcaption { display: grid; gap: 2px; color: #34423c; font-size: 11px; line-height: 1.45; text-align: center; }
-.photo-previews figcaption strong { font-size: 12px; }
+.photo-editor { display: grid; align-items: start; gap: 22px; }
+.photo-previews { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 22px; }
+.photo-previews figure { display: grid; min-width: 0; justify-items: center; gap: 12px; margin: 0; padding: 16px; border: 1px solid #dce4df; border-radius: 18px; background: #f7faf8; }
+.photo-previews figcaption { display: grid; width: 100%; gap: 3px; color: #34423c; font-size: 11px; line-height: 1.45; text-align: left; }
+.photo-previews figcaption strong { font-size: 14px; }
 .photo-previews figcaption span { color: #75817b; }
-.photo-frame { position: relative; display: grid; width: 160px; height: 192px; place-items: center; overflow: hidden; border: 1px solid #d7e0db; border-radius: 18px; background: linear-gradient(145deg, #f2f6f4, #e5ede9); color: #82908a; font-weight: 700; }
-.photo-frame img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-frame { position: relative; display: grid; width: 132px; height: 132px; place-items: center; overflow: hidden; border: 1px solid #cad8d1; border-radius: 50%; background: linear-gradient(145deg, #f2f6f4, #e5ede9); color: #82908a; font-size: 12px; font-weight: 700; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 8px 20px rgba(15, 45, 33, .08); }
-.avatar-frame.dragging { cursor: grabbing; }
-.avatar-frame img { display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; pointer-events: none; }
-.photo-controls { display: grid; justify-items: start; gap: 12px; }
+.crop-frame { position: relative; display: grid; width: min(100%,360px); place-items: center; overflow: hidden; border: 1px solid #cad8d1; border-radius: 18px; background: linear-gradient(145deg, #f2f6f4, #e5ede9); color: #82908a; font-size: 12px; font-weight: 700; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 8px 20px rgba(15,45,33,.08); }
+.crop-frame.dragging { cursor: grabbing; }
+.crop-frame:focus-visible { outline: 4px solid rgba(21,81,60,.18); outline-offset: 3px; }
+.crop-frame img { position: absolute; display: block; max-width: none; object-fit: fill; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.profile-frame { aspect-ratio: 5 / 6; }
+.avatar-frame { width: min(100%,340px); aspect-ratio: 1; border-radius: 50%; }
+.crop-buttons { display: grid; width: 100%; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.crop-buttons button { min-height: 44px; padding: 0 8px; border: 1px solid #cad8d1; border-radius: 10px; background: #fff; color: #15513c; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.crop-buttons button:disabled { cursor: not-allowed; opacity: .45; }
+.photo-controls { display: flex; align-items: center; justify-items: start; flex-wrap: wrap; gap: 12px 18px; }
 .photo-controls > p { max-width: 460px; margin: 0; color: #69756f; font-size: 12px; line-height: 1.55; }
 .file-button input { display: none; }
-.avatar-controls { display: grid; width: min(100%, 520px); grid-template-columns: 1fr 1fr; gap: 12px 16px; padding: 15px; border: 1px solid #dce4df; border-radius: 14px; background: #f7faf8; }
-.avatar-controls > p { display: grid; grid-column: 1 / -1; gap: 3px; margin: 0 0 2px; color: #34423c; font-size: 12px; line-height: 1.45; }
-.avatar-controls > p span { color: #75817b; font-weight: 500; }
-.avatar-controls label { gap: 5px; font-size: 11px; }
-.avatar-controls input[type="range"] { min-height: 28px; padding: 0; border: 0; border-radius: 0; background: transparent; accent-color: #15513c; cursor: pointer; }
-.avatar-controls .button { grid-column: 1 / -1; width: fit-content; min-height: 40px; }
-.avatar-controls :disabled { cursor: not-allowed; opacity: .48; }
 .image-description { width: min(100%, 520px); }
 .image-description summary { width: fit-content; padding: 7px 0; color: #15513c; font-size: 12px; font-weight: 700; cursor: pointer; }
 .image-description label { margin-top: 8px; }
@@ -204,10 +201,7 @@ textarea.large { min-height: 150px; }
   .grid { grid-template-columns: 1fr; }
   .wide { grid-column: auto; }
   .panel { padding: 20px; border-radius: 17px; }
-  .photo-editor { grid-template-columns: 1fr; gap: 22px; }
-  .photo-previews { grid-template-columns: 140px 116px; }
-  .photo-frame { width: 120px; height: 144px; }
-  .avatar-frame { width: 116px; height: 116px; }
+  .photo-previews { grid-template-columns: 1fr; }
   .add-row { grid-template-columns: 1fr; }
   .save-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
   .home-save-row { align-items: stretch; flex-direction: column; }
@@ -222,10 +216,8 @@ textarea.large { min-height: 150px; }
   .specialist-list { grid-template-columns: 1fr; }
   .actions { display: grid; width: 100%; grid-template-columns: 1fr 1fr; }
   .actions .button-primary { grid-column: 1 / -1; grid-row: 1; }
-  .photo-editor { grid-template-columns: 1fr; }
-  .photo-previews { width: 100%; grid-template-columns: minmax(0, 150px) minmax(0, 120px); justify-content: space-between; gap: 12px; }
-  .photo-frame { width: 150px; height: 180px; }
-  .avatar-frame { width: 120px; height: 120px; }
-  .avatar-controls { grid-template-columns: 1fr; }
-  .avatar-controls > p, .avatar-controls .button { grid-column: auto; }
+  .photo-previews { width: 100%; grid-template-columns: 1fr; gap: 16px; }
+  .photo-previews figure { padding: 13px; }
+  .crop-frame { width: min(100%,358px); }
+  .avatar-frame { width: min(100%,330px); }
 }

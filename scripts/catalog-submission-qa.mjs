@@ -52,6 +52,7 @@ function payload(photo) {
     ],
     contacts: { email: "qa@example.invalid", telegram: "@alamin_qa" },
     portfolio: [{ title: "Пример методики", description: "Синтетический QA-материал.", url: "https://example.com/qa" }],
+    profileCrop: { positionX: 0, positionY: 50, zoom: 1.8 },
     avatar: { positionX: 100, positionY: 50, zoom: 1.8 },
     photo: { originalName: "qa-portrait.png", contentType: "image/png", size: photo.length },
     consent: true,
@@ -124,7 +125,7 @@ function approvalDraft(packageValue) {
     workOffers: source.workOffers,
     contacts: source.contacts,
     portfolio: source.portfolio,
-    photo: { src: "", alt: "Фото: Лейла Тестова Проверена", avatar: { positionX: 100, positionY: 50, zoom: 1.8 } },
+    photo: { src: "", alt: "Фото: Лейла Тестова Проверена", profileCrop: { positionX: 0, positionY: 50, zoom: 1.8 }, avatar: { positionX: 100, positionY: 50, zoom: 1.8 } },
     featured: false,
     published: true,
   };
@@ -195,8 +196,12 @@ try {
   assert.ok(avatarMeta.width <= 480 && avatarMeta.height <= 480 && avatarMeta.width === avatarMeta.height);
   assert.equal(profileMeta.exif, undefined);
   assert.equal(avatarMeta.exif, undefined);
-  const pixel = await sharp(avatarPath).resize(1, 1).removeAlpha().raw().toBuffer();
-  assert.ok(pixel[2] > pixel[0], "The right/blue side selected by avatar crop must dominate the baked avatar.");
+  const [profilePixel, avatarPixel] = await Promise.all([
+    sharp(profilePath).resize(1, 1).removeAlpha().raw().toBuffer(),
+    sharp(avatarPath).resize(1, 1).removeAlpha().raw().toBuffer(),
+  ]);
+  assert.ok(profilePixel[0] > profilePixel[2], "The left/red side selected by profile crop must dominate the baked profile image.");
+  assert.ok(avatarPixel[2] > avatarPixel[0], "The right/blue side selected by avatar crop must dominate the baked avatar.");
   assert.ok((await stat(avatarPath)).size < (await stat(profilePath)).size);
   const publicFiles = await readdir(path.join(editor.assetRoot, specialist.slug));
   assert.deepEqual(publicFiles.sort(), ["avatar.webp", "profile.webp"]);

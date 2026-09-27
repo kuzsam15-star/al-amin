@@ -25,6 +25,7 @@ function validPayload(photoBytes = 4) {
     workOffers: [{ title: "Консультация", mode: "online", durationMinutes: 60, price: null, currency: null }],
     contacts: { email: "qa@example.com" },
     portfolio: [],
+    profileCrop: { positionX: 35, positionY: 70, zoom: 1.2 },
     avatar: { positionX: 50, positionY: 24, zoom: 1 },
     photo: { originalName: "qa.png", contentType: "image/png", size: photoBytes },
     consent: true,
@@ -47,7 +48,16 @@ test("candidate payload maps only to the candidate-facing contract", () => {
   assert.deepEqual(result.errors, []);
   assert.equal(result.data.contractVersion, 1);
   assert.deepEqual(result.data.workOffers[0], { title: "Консультация", mode: "online", durationMinutes: 60, price: null, currency: null });
+  assert.deepEqual(result.data.profileCrop, { positionX: 35, positionY: 70, zoom: 1.2 });
   for (const forbidden of ["slug", "trust", "published", "featured", "status"]) assert.equal(forbidden in result.data, false);
+});
+
+test("legacy v1 packages without profileCrop remain valid and receive a centered profile crop", () => {
+  const packageValue = validPackage();
+  delete packageValue.payload.profileCrop;
+  const result = validateAlaminSubmissionPackage(packageValue);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.data.payload.profileCrop, { positionX: 50, positionY: 50, zoom: 1 });
 });
 
 test("AL-AMIN v1 package is self-contained and normalized", () => {
