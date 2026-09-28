@@ -64,6 +64,34 @@ test("candidate payload maps only to the candidate-facing contract", () => {
   for (const forbidden of ["slug", "trust", "published", "featured", "status"]) assert.equal(forbidden in result.data, false);
 });
 
+test("new simplified candidate payload does not require summary or help topics", () => {
+  const payload = validV2Payload();
+  delete payload.profileSummary;
+  delete payload.helpTopics;
+  payload.workOffers = [
+    { title: "Первая консультация", mode: "online", durationMinutes: 60, price: 2500, currency: "RUB" },
+    { title: "Ознакомительная встреча", mode: "both", durationMinutes: null, price: null, currency: null },
+  ];
+  const result = validateCatalogSubmissionPayload(payload);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data.profileSummary, "");
+  assert.deepEqual(result.data.helpTopics, []);
+  assert.deepEqual(result.data.workOffers[1], {
+    title: "Ознакомительная встреча",
+    mode: "both",
+    durationMinutes: null,
+    price: null,
+    currency: null,
+  });
+});
+
+test("legacy candidate payload keeps summary and help topics unchanged", () => {
+  const result = validateCatalogSubmissionPayload(validPayload());
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.data.profileSummary, "Помогает спокойно разбирать сложные семейные ситуации.");
+  assert.deepEqual(result.data.helpTopics, [{ title: "Диалог в семье", description: "Помощь в восстановлении общения." }]);
+});
+
 test("candidate contract preserves high independent crops and rejects values beyond the safe range", () => {
   const payload = validPayload();
   payload.profileCrop = { positionX: 22, positionY: 71, zoom: 6.5 };

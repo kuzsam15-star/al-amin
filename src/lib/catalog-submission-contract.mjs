@@ -179,7 +179,7 @@ export function validateCatalogSubmissionPayload(value, { requirePhoto = true } 
     city: text(value.city, "city", errors, { required: true, max: 100 }),
     workMode,
     experienceYears: numberOrNull(value.experienceYears, "experienceYears", errors, 0, 80),
-    profileSummary: text(value.profileSummary, "profileSummary", errors, { required: true, max: 220 }),
+    profileSummary: text(value.profileSummary, "profileSummary", errors, { max: 220 }),
     about: text(value.about, "about", errors, { required: true, max: 3000 }),
     taxonomyVersion,
     categoryIds,

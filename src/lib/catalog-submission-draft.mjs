@@ -55,7 +55,7 @@ export function createEmptyCatalogSubmissionDraft() {
     categoryIds: [],
     legacyCategories: [],
     missingCategoryRequest: "",
-    helpTopics: [{ title: "", description: "" }],
+    helpTopics: [],
     workOffers: [{ title: "", mode: "online", durationMinutes: "", price: "", currency: "RUB" }],
     portfolio: [],
     profileCrop: { positionX: 50, positionY: 50, zoom: 1 },

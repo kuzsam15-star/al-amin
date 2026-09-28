@@ -48,7 +48,10 @@ test("candidate draft preserves Russian multiline text and all serializable form
 });
 
 test("empty, corrupt and unsupported drafts fail closed", () => {
-  assert.equal(hasMeaningfulCatalogSubmissionDraft(createEmptyCatalogSubmissionDraft()), false);
+  const empty = createEmptyCatalogSubmissionDraft();
+  assert.equal(hasMeaningfulCatalogSubmissionDraft(empty), false);
+  assert.equal(empty.fields.profileSummary, "");
+  assert.deepEqual(empty.helpTopics, []);
   assert.equal(parseCatalogSubmissionDraft("not json"), null);
   assert.equal(parseCatalogSubmissionDraft(JSON.stringify({ marker: "AL-AMIN-CATALOG-SUBMISSION-DRAFT", version: 99 })), null);
 });
@@ -136,13 +139,17 @@ test("restored draft can be edited and the exported package uses the latest valu
 });
 
 test("legacy v1 drafts preserve unknown text and only migrate the explicitly safe YouTube alias", () => {
+  const legacyFields = {
+    ...createEmptyCatalogSubmissionDraft().fields,
+    profileSummary: "Старое краткое описание остаётся в черновике.",
+  };
   const legacy = {
     marker: "AL-AMIN-CATALOG-SUBMISSION-DRAFT",
     version: 1,
-    fields: createEmptyCatalogSubmissionDraft().fields,
+    fields: legacyFields,
     categories: ["YouTube", "Семейный бюджет", "Любовь и ненависть"],
     categoryDraft: "Редкое направление",
-    helpTopics: [], workOffers: [], portfolio: [],
+    helpTopics: [{ title: "Старое направление", description: "Старое описание" }], workOffers: [], portfolio: [],
     profileCrop: { positionX: 50, positionY: 50, zoom: 1 },
     avatar: { positionX: 50, positionY: 24, zoom: 1 },
   };
@@ -150,4 +157,6 @@ test("legacy v1 drafts preserve unknown text and only migrate the explicitly saf
   assert.equal(restored.taxonomyVersion, categoryTaxonomyVersion);
   assert.deepEqual(restored.categoryIds, ["creator-001"]);
   assert.deepEqual(restored.legacyCategories, ["Семейный бюджет", "Любовь и ненависть", "Редкое направление"]);
+  assert.equal(restored.fields.profileSummary, "Старое краткое описание остаётся в черновике.");
+  assert.deepEqual(restored.helpTopics, [{ title: "Старое направление", description: "Старое описание" }]);
 });

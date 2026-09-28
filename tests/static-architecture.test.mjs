@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -63,8 +64,18 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /window\.localStorage\.setItem/u);
   assert.match(source, /Начать новую заявку/u);
   assert.match(source, /type="button"[^>]*onClick=\{startNewApplication\}/u);
-  assert.match(source, /value=\{fields\.profileSummary\}/u);
+  assert.doesNotMatch(source, /name="profileSummary"|Коротко о вас/u);
   assert.match(source, /value=\{fields\.about\}/u);
+  assert.doesNotMatch(source, /<h2>С чем вы помогаете<\/h2>|helpTopics\.map/u);
+  assert.doesNotMatch(source, /<h2>Портфолио<\/h2>|portfolio\.map/u);
+  assert.match(source, /<h2>Услуги<\/h2>/u);
+  assert.match(source, /Услуга №\$\{index \+ 1\}/u);
+  assert.match(source, /Добавить услугу/u);
+  assert.doesNotMatch(source, /<h2>Форматы работы<\/h2>|Добавить формат работы/u);
+  assert.match(source, /setWorkOffers\(\(items\) => items\.filter/u);
+  assert.match(source, /setWorkOffers\(\(items\) => \[\.\.\.items,/u);
+  assert.match(source, /<span>01<\/span>[\s\S]*<span>02<\/span>[\s\S]*<span>03<\/span>[\s\S]*<span>04<\/span>[\s\S]*<span>05<\/span>/u);
+  assert.doesNotMatch(source, /<span>06<\/span>|<span>07<\/span>/u);
   assert.match(source, /CategorySelectorDialog/u);
   assert.match(source, /Не нашли подходящую категорию\?/u);
   assert.doesNotMatch(source, /categoryDraft|Добавить категорию/u);
@@ -93,4 +104,19 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.equal(source.match(/styles\.submitBar/gu)?.length, 1);
   assert.doesNotMatch(source + cropSource, /type="range"|Ось X|Ось Y|Масштаб/u);
   assert.doesNotMatch(source, /fetch\(|Turnstile|turnstile|NEXT_PUBLIC_CATALOG_SUBMISSION_ENDPOINT/iu);
+});
+
+test("candidate form simplification does not modify cropper, Victor or category registry", async () => {
+  const baselines = new Map([
+    ["../src/app/apply/PhotoCropSurface.tsx", "9b061ec01504dda706f6819e7f06dda24f16ee08"],
+    ["../src/lib/photo-crop.mjs", "e06e4d3c202a804e4963ea0abc4ed4e27640b790"],
+    ["../src/lib/photo-crop.d.mts", "7fe1eddfb08c3cc71a39d26bc4fc3b0614c3c553"],
+    ["../content/specialists.json", "f4d70b9d62d3ad4f11df8f3dd48e5bc82570c9ce"],
+    ["../content/category-registry.json", "e422d00a9d688b65b500853582d09d3a3069308d"],
+  ]);
+  for (const [path, expected] of baselines) {
+    const bytes = await readFile(new URL(path, import.meta.url));
+    const gitBlobHash = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+    assert.equal(gitBlobHash, expected, `${path} changed unexpectedly`);
+  }
 });
