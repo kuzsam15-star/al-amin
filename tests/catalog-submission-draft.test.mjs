@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   catalogSubmissionDraftStorageKey,
+  clearCatalogSubmissionDraftStorage,
   createEmptyCatalogSubmissionDraft,
   hasMeaningfulCatalogSubmissionDraft,
   parseCatalogSubmissionDraft,
   serializeCatalogSubmissionDraft,
+  syncCatalogSubmissionDraftStorage,
 } from "../src/lib/catalog-submission-draft.mjs";
 import {
   createAlaminSubmissionPackage,
@@ -54,6 +56,53 @@ test("empty, corrupt and unsupported drafts fail closed", () => {
   assert.deepEqual(empty.helpTopics, []);
   assert.equal(parseCatalogSubmissionDraft("not json"), null);
   assert.equal(parseCatalogSubmissionDraft(JSON.stringify({ marker: "AL-AMIN-CATALOG-SUBMISSION-DRAFT", version: 99 })), null);
+});
+
+test("restored draft can be cancelled, cleared and replaced by a new autosaved application", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const oldDraft = createEmptyCatalogSubmissionDraft();
+  oldDraft.fields.fullName = "Старая заявка";
+  oldDraft.fields.profileSummary = "Скрытое legacy-описание";
+  oldDraft.categoryIds = ["psychology-002"];
+  oldDraft.helpTopics = [{ title: "Старое направление", description: "Старое описание" }];
+  oldDraft.workOffers = [{ title: "Старая услуга", mode: "online", durationMinutes: "60", price: "1000", currency: "RUB" }];
+  oldDraft.portfolio = [{ title: "Старый материал", description: "Описание", url: "https://example.com" }];
+  oldDraft.profileCrop = { positionX: 20, positionY: 80, zoom: 3 };
+  oldDraft.avatar = { positionX: 70, positionY: 30, zoom: 4 };
+  oldDraft.photoWasSelected = true;
+
+  assert.equal(syncCatalogSubmissionDraftStorage(storage, oldDraft), "saved");
+  assert.equal(parseCatalogSubmissionDraft(storage.getItem(catalogSubmissionDraftStorageKey)).fields.fullName, "Старая заявка");
+  assert.equal(parseCatalogSubmissionDraft(storage.getItem(catalogSubmissionDraftStorageKey)).fields.profileSummary, "Скрытое legacy-описание");
+
+  // Cancel leaves the stored draft untouched.
+  assert.equal(parseCatalogSubmissionDraft(storage.getItem(catalogSubmissionDraftStorageKey)).fields.fullName, "Старая заявка");
+
+  clearCatalogSubmissionDraftStorage(storage);
+  const reset = createEmptyCatalogSubmissionDraft();
+  assert.equal(syncCatalogSubmissionDraftStorage(storage, reset), "removed");
+  assert.equal(storage.getItem(catalogSubmissionDraftStorageKey), null);
+  assert.equal(reset.fields.profileSummary, "");
+  assert.deepEqual(reset.categoryIds, []);
+  assert.deepEqual(reset.helpTopics, []);
+  assert.deepEqual(reset.workOffers, [{ title: "", mode: "online", durationMinutes: "", price: "", currency: "RUB" }]);
+  assert.deepEqual(reset.portfolio, []);
+  assert.deepEqual(reset.profileCrop, { positionX: 50, positionY: 50, zoom: 1 });
+  assert.deepEqual(reset.avatar, { positionX: 50, positionY: 24, zoom: 1 });
+  assert.equal(reset.photoWasSelected, false);
+
+  reset.fields.fullName = "Новая заявка";
+  assert.equal(syncCatalogSubmissionDraftStorage(storage, reset), "saved");
+  const nextRestored = parseCatalogSubmissionDraft(storage.getItem(catalogSubmissionDraftStorageKey));
+  assert.equal(nextRestored.fields.fullName, "Новая заявка");
+  assert.equal(nextRestored.fields.profileSummary, "");
+  assert.deepEqual(nextRestored.helpTopics, []);
+  assert.deepEqual(nextRestored.portfolio, []);
 });
 
 test("restored draft is bounded and never contains a photo payload", () => {

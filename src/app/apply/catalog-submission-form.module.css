@@ -2,9 +2,11 @@
 .intro { width: min(100%, 780px); min-width: 0; margin: 0 auto 34px; text-align: center; }
 .intro h1 { margin: 12px 0 0; font: 600 clamp(38px, 5vw, 58px)/1.08 Onest, Manrope, sans-serif; letter-spacing: -.035em; }
 .intro > p:last-child { margin: 18px auto 0; color: var(--civic-text); font-size: 17px; line-height: 1.65; overflow-wrap: anywhere; }
-.draftNotice { width: min(100%,900px); margin: 0 auto 18px; padding: 15px 18px; border: 1px solid #cbdad3; border-radius: 14px; background: #f4f8f6; color: var(--civic-text); }
+.draftNotice { display: flex; width: min(100%,900px); margin: 0 auto 18px; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 18px; border: 1px solid #cbdad3; border-radius: 14px; background: #f4f8f6; color: var(--civic-text); }
+.draftNotice > div { min-width: 0; }
 .draftNotice strong { color: var(--civic-green); font-size: 13px; }
 .draftNotice p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; }
+.draftNotice > button { min-height: 44px; flex: 0 0 auto; padding: 0 14px; border: 1px solid var(--civic-green); border-radius: 10px; background: #fff; color: var(--civic-green); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
 .form { display: grid; width: min(100%, 900px); min-width: 0; margin: 0 auto; gap: 18px; }
 .panel { min-width: 0; padding: 28px; border: 1px solid var(--civic-line); border-radius: 20px; background: #fff; box-shadow: 0 12px 32px rgba(17,43,32,.035); }
 .sectionTitle { display: flex; margin-bottom: 24px; align-items: flex-start; gap: 13px; }
@@ -85,11 +87,21 @@
 .successActions button, .successActions a { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 1px solid var(--civic-green); border-radius: 10px; background: var(--civic-green); color: #fff; font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .successActions .secondaryAction, .successActions a { background: #fff; color: var(--civic-green); }
 .successActions button:focus-visible, .successActions a:focus-visible { outline: 3px solid rgba(21,81,60,.18); outline-offset: 2px; }
+.confirmBackdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10,28,21,.52); }
+.confirmDialog { width: min(100%,420px); padding: 24px; border: 1px solid #cbd8d2; border-radius: 18px; background: #fff; box-shadow: 0 24px 70px rgba(9,30,21,.24); }
+.confirmDialog h2 { margin: 0; font: 600 23px/1.25 Onest, Manrope, sans-serif; }
+.confirmDialog p { margin: 9px 0 0; color: var(--civic-text); line-height: 1.55; }
+.confirmDialog > div { display: grid; margin-top: 22px; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmDialog button { min-height: 48px; padding: 0 14px; border: 1px solid var(--civic-green); border-radius: 10px; background: #fff; color: var(--civic-green); font: inherit; font-weight: 750; cursor: pointer; }
+.confirmDialog button:last-child { background: var(--civic-green); color: #fff; }
+.confirmDialog button:focus-visible, .draftNotice > button:focus-visible { outline: 3px solid rgba(21,81,60,.18); outline-offset: 2px; }
 @media (max-width: 760px) {
   .page { padding: 44px 0 72px; }
   .intro { margin-bottom: 26px; text-align: left; }
   .intro h1 { font-size: 39px; }
   .intro > p:last-child { font-size: 15px; }
+  .draftNotice { align-items: stretch; flex-direction: column; }
+  .draftNotice > button { width: 100%; }
   .panel { padding: 20px; border-radius: 17px; }
   .grid { grid-template-columns: 1fr; }
   .wide { grid-column: auto; }
@@ -110,4 +122,6 @@
   .submitBar > button { width: 100%; }
   .successActions { display: grid; }
   .successActions > * { width: 100%; }
+  .confirmDialog { padding: 21px; }
+  .confirmDialog > div { grid-template-columns: 1fr; }
 }

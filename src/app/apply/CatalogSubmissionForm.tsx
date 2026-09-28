@@ -12,10 +12,11 @@ import { catalogSubmissionConsent, catalogSubmissionContractVersion, catalogSubm
 import { categoryTaxonomyVersion, getCategoryLabels } from "@/lib/category-registry.mjs";
 import {
   catalogSubmissionDraftStorageKey,
+  clearCatalogSubmissionDraftStorage,
   createEmptyCatalogSubmissionDraft,
   hasMeaningfulCatalogSubmissionDraft,
   parseCatalogSubmissionDraft,
-  serializeCatalogSubmissionDraft,
+  syncCatalogSubmissionDraftStorage,
 } from "@/lib/catalog-submission-draft.mjs";
 import type { CatalogSubmissionDraft, CatalogSubmissionDraftFields } from "@/lib/catalog-submission-draft.mjs";
 import { PhotoCropSurface } from "./PhotoCropSurface";
@@ -85,10 +86,14 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
   const [photoWasSelected, setPhotoWasSelected] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const [newApplicationPrompt, setNewApplicationPrompt] = useState(false);
   const [generated, setGenerated] = useState<GeneratedPackage | null>(null);
   const [status, setStatus] = useState<{ kind: "idle" | "working" | "success" | "error"; message: string }>({ kind: "idle", message: "" });
   const formRef = useRef<HTMLFormElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const resetAutosaveRef = useRef(false);
+  const cancelResetRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!photo) { setPreview(""); return; }
@@ -115,6 +120,7 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       setProfileCrop(restored.profileCrop);
       setAvatar(restored.avatar);
       setPhotoWasSelected(restored.photoWasSelected);
+      setRestoredDraft(true);
       const legacyNotice = restored.legacyCategories.length ? " Старые категории сохранены для уточнения — выберите подходящие пункты из нового справочника." : "";
       setDraftNotice((restored.photoWasSelected
         ? "Черновик восстановлен. Текст и настройки сохранены, фотографию выберите заново."
@@ -144,16 +150,25 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
 
   useEffect(() => {
     if (!draftReady) return;
-    try {
-      if (hasMeaningfulCatalogSubmissionDraft(draftValue)) {
-        window.localStorage.setItem(catalogSubmissionDraftStorageKey, serializeCatalogSubmissionDraft(draftValue));
-      } else {
-        window.localStorage.removeItem(catalogSubmissionDraftStorageKey);
+    if (resetAutosaveRef.current) {
+      try {
+        clearCatalogSubmissionDraftStorage(window.localStorage);
+      } catch {
+        setDraftNotice("Браузер не разрешил удалить локальный черновик. Проверьте настройки хранения данных.");
       }
+      if (!hasMeaningfulCatalogSubmissionDraft(draftValue)) resetAutosaveRef.current = false;
+      return;
+    }
+    try {
+      syncCatalogSubmissionDraftStorage(window.localStorage, draftValue);
     } catch {
       setDraftNotice("Браузер не разрешил сохранить локальный черновик. Не закрывайте страницу до скачивания заявки.");
     }
   }, [draftReady, draftValue]);
+
+  useEffect(() => {
+    if (newApplicationPrompt) cancelResetRef.current?.focus();
+  }, [newApplicationPrompt]);
 
   useEffect(() => {
     if (!generated || generated.revision === draftRevision) return;
@@ -172,9 +187,19 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     setFields((current) => ({ ...current, [key]: value }));
   }
 
-  function startNewApplication() {
-    if (!window.confirm("Очистить заполненную форму и начать новую заявку?")) return;
+  function requestNewApplication() {
+    setNewApplicationPrompt(true);
+  }
+
+  function confirmNewApplication() {
     const next = createEmptyCatalogSubmissionDraft();
+    resetAutosaveRef.current = true;
+    let removalError = "";
+    try {
+      clearCatalogSubmissionDraftStorage(window.localStorage);
+    } catch {
+      removalError = "Браузер не разрешил удалить локальный черновик. Проверьте настройки хранения данных.";
+    }
     setFields(next.fields);
     setCategoryIds(next.categoryIds);
     setLegacyCategories(next.legacyCategories);
@@ -186,12 +211,15 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
     setAvatar(next.avatar);
     setCropConfirmed(false);
     setPhoto(null);
+    setPreview("");
     setPhotoWasSelected(false);
     setGenerated(null);
     setStatus({ kind: "idle", message: "" });
-    setDraftNotice("");
-    window.localStorage.removeItem(catalogSubmissionDraftStorageKey);
+    setDraftNotice(removalError);
+    setRestoredDraft(false);
+    setNewApplicationPrompt(false);
     if (photoInputRef.current) photoInputRef.current.value = "";
+    formRef.current?.querySelectorAll("details[open]").forEach((item) => item.removeAttribute("open"));
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -285,8 +313,9 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       <h1>Расскажите о своей работе</h1>
       <p>Заполните понятную анкету. Профиль появится в каталоге только после ручной проверки владельцем AL-AMIN.</p>
     </header>
-    {draftNotice ? <section className={styles.draftNotice} role="status"><strong>Локальный черновик</strong><p>{draftNotice}</p></section> : null}
-    {status.kind === "success" && generated ? <section className={styles.success} role="status"><span><Check aria-hidden="true" size={25} /></span><div><h2>Заявка готова</h2><p>{status.message}</p><div className={styles.successActions}><button type="button" onClick={() => triggerDownload(generated.blob, generated.fileName)}><Download aria-hidden="true" size={17} />Скачать заявку</button><button type="button" className={styles.secondaryAction} onClick={() => triggerDownload(generated.blob, generated.compatibleFileName)}>Скачать совместимый .alamin.json</button>{canShareFiles ? <button type="button" className={styles.secondaryAction} onClick={shareGenerated}><Share2 aria-hidden="true" size={17} />Поделиться файлом</button> : null}{ownerTelegram ? <a href={ownerTelegram} target="_blank" rel="noopener noreferrer">Открыть Telegram владельца</a> : null}{ownerContacts.email ? <a href={`mailto:${ownerContacts.email}`}><Mail aria-hidden="true" size={17} />Написать владельцу</a> : null}<button type="button" className={styles.secondaryAction} onClick={startNewApplication}>Начать новую заявку</button></div><small>Размер файла: {(generated.size / 1024 / 1024).toFixed(2)} МиБ. Черновик сохранён — при необходимости исправьте данные и скачайте новый файл.</small></div></section> : null}
+    {draftNotice ? <section className={styles.draftNotice} role="status"><div><strong>Локальный черновик</strong><p>{draftNotice}</p></div>{restoredDraft ? <button type="button" onClick={requestNewApplication}>Начать заново</button> : null}</section> : null}
+    {status.kind === "success" && generated ? <section className={styles.success} role="status"><span><Check aria-hidden="true" size={25} /></span><div><h2>Заявка готова</h2><p>{status.message}</p><div className={styles.successActions}><button type="button" onClick={() => triggerDownload(generated.blob, generated.fileName)}><Download aria-hidden="true" size={17} />Скачать заявку</button><button type="button" className={styles.secondaryAction} onClick={() => triggerDownload(generated.blob, generated.compatibleFileName)}>Скачать совместимый .alamin.json</button>{canShareFiles ? <button type="button" className={styles.secondaryAction} onClick={shareGenerated}><Share2 aria-hidden="true" size={17} />Поделиться файлом</button> : null}{ownerTelegram ? <a href={ownerTelegram} target="_blank" rel="noopener noreferrer">Открыть Telegram владельца</a> : null}{ownerContacts.email ? <a href={`mailto:${ownerContacts.email}`}><Mail aria-hidden="true" size={17} />Написать владельцу</a> : null}<button type="button" className={styles.secondaryAction} onClick={requestNewApplication}>Подать ещё одну заявку</button></div><small>Размер файла: {(generated.size / 1024 / 1024).toFixed(2)} МиБ. Черновик сохранён — при необходимости исправьте данные и скачайте новый файл.</small></div></section> : null}
+    {newApplicationPrompt ? <div className={styles.confirmBackdrop}><section className={styles.confirmDialog} role="alertdialog" aria-modal="true" aria-labelledby="new-application-title" aria-describedby="new-application-description" onKeyDown={(event) => { if (event.key === "Escape") setNewApplicationPrompt(false); }}><h2 id="new-application-title">Начать новую заявку?</h2><p id="new-application-description">Сохранённый черновик будет удалён.</p><div><button ref={cancelResetRef} type="button" onClick={() => setNewApplicationPrompt(false)}>Отмена</button><button type="button" onClick={confirmNewApplication}>Начать заново</button></div></section></div> : null}
     <form ref={formRef} className={styles.form} onSubmit={submit} noValidate={false}>
       <section className={styles.panel}><div className={styles.sectionTitle}><span>01</span><div><h2>О специалисте</h2><p>Основная информация, которую увидят посетители каталога.</p></div></div><div className={styles.grid}>
         <label className={styles.wide}>Имя и фамилия<input name="fullName" required maxLength={160} autoComplete="name" value={fields.fullName} onChange={(event) => updateField("fullName", event.target.value)} /></label>

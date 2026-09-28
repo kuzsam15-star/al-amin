@@ -36,3 +36,5 @@ export function normalizeCatalogSubmissionDraft(value: unknown): CatalogSubmissi
 export function serializeCatalogSubmissionDraft(draft: CatalogSubmissionDraft, savedAt?: string): string;
 export function parseCatalogSubmissionDraft(raw: string | null): CatalogSubmissionDraft | null;
 export function hasMeaningfulCatalogSubmissionDraft(draft: CatalogSubmissionDraft | null): boolean;
+export function syncCatalogSubmissionDraftStorage(storage: Pick<Storage, "setItem" | "removeItem">, draft: CatalogSubmissionDraft): "saved" | "removed";
+export function clearCatalogSubmissionDraftStorage(storage: Pick<Storage, "removeItem">): void;

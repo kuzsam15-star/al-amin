@@ -182,3 +182,16 @@ export function hasMeaningfulCatalogSubmissionDraft(draft) {
     || draft.avatar.zoom !== 1
     || draft.photoWasSelected;
 }
+
+export function syncCatalogSubmissionDraftStorage(storage, draft) {
+  if (hasMeaningfulCatalogSubmissionDraft(draft)) {
+    storage.setItem(catalogSubmissionDraftStorageKey, serializeCatalogSubmissionDraft(draft));
+    return "saved";
+  }
+  storage.removeItem(catalogSubmissionDraftStorageKey);
+  return "removed";
+}
+
+export function clearCatalogSubmissionDraftStorage(storage) {
+  storage.removeItem(catalogSubmissionDraftStorageKey);
+}

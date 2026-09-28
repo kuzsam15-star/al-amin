@@ -61,9 +61,18 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /createAlaminSubmissionPackage/u);
   assert.match(source, /Скачать заявку/u);
   assert.match(source, /catalogSubmissionDraftStorageKey/u);
-  assert.match(source, /window\.localStorage\.setItem/u);
-  assert.match(source, /Начать новую заявку/u);
-  assert.match(source, /type="button"[^>]*onClick=\{startNewApplication\}/u);
+  assert.match(source, /syncCatalogSubmissionDraftStorage\(window\.localStorage, draftValue\)/u);
+  assert.match(source, /Начать заново/u);
+  assert.match(source, /Подать ещё одну заявку/u);
+  assert.match(source, /Начать новую заявку\?/u);
+  assert.match(source, /Сохранённый черновик будет удалён\./u);
+  assert.match(source, /onClick=\{requestNewApplication\}/u);
+  assert.match(source, /onClick=\{confirmNewApplication\}/u);
+  assert.match(source, /resetAutosaveRef\.current = true/u);
+  assert.match(source, /clearCatalogSubmissionDraftStorage\(window\.localStorage\)/u);
+  for (const setter of ["setFields", "setCategoryIds", "setLegacyCategories", "setMissingCategoryRequest", "setHelpTopics", "setWorkOffers", "setPortfolio", "setProfileCrop", "setAvatar", "setCropConfirmed", "setPhoto", "setPhotoWasSelected", "setGenerated", "setStatus"]) {
+    assert.match(source, new RegExp(`${setter}\\(`, "u"));
+  }
   assert.doesNotMatch(source, /name="profileSummary"|Коротко о вас/u);
   assert.match(source, /value=\{fields\.about\}/u);
   assert.doesNotMatch(source, /<h2>С чем вы помогаете<\/h2>|helpTopics\.map/u);
