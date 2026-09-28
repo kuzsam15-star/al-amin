@@ -68,6 +68,11 @@ test("candidate form remains static and has no Auth or Supabase browser runtime"
   assert.match(source, /value=\{fields\.about\}/u);
   assert.doesNotMatch(source, /<h2>С чем вы помогаете<\/h2>|helpTopics\.map/u);
   assert.doesNotMatch(source, /<h2>Портфолио<\/h2>|portfolio\.map/u);
+  const currentPayload = source.slice(source.indexOf("const payload = {"), source.indexOf("setStatus({ kind: \"working\""));
+  assert.match(currentPayload, /profileSummary:\s*""/u);
+  assert.match(currentPayload, /helpTopics:\s*\[\]/u);
+  assert.match(currentPayload, /portfolio:\s*\[\]/u);
+  assert.doesNotMatch(currentPayload, /fields\.profileSummary|helpTopics\.filter|portfolio\.filter/u);
   assert.match(source, /<h2>Услуги<\/h2>/u);
   assert.match(source, /Услуга №\$\{index \+ 1\}/u);
   assert.match(source, /Добавить услугу/u);

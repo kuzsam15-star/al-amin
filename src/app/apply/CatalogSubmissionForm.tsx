@@ -219,13 +219,15 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
       city: fields.city,
       workMode: fields.workMode,
       experienceYears: fields.experienceYears || null,
-      profileSummary: fields.profileSummary,
+      // Legacy-only fields remain importable in old drafts and .alamin files, but
+      // the current candidate UI must never submit values the candidate cannot see.
+      profileSummary: "",
       about: fields.about,
       taxonomyVersion: categoryTaxonomyVersion,
       categoryIds,
       categories: getCategoryLabels(categoryIds),
       missingCategoryRequest: missingCategoryRequest.trim(),
-      helpTopics: helpTopics.filter((item) => item.title.trim()).map((item) => ({ title: item.title, description: item.description || undefined })),
+      helpTopics: [],
       workOffers: workOffers.filter((item) => item.title.trim()).map((item) => ({ title: item.title, mode: item.mode, durationMinutes: item.durationMinutes || null, price: item.price || null, currency: item.price ? item.currency : null })),
       contacts: {
         phone: fields.phone || undefined,
@@ -234,7 +236,7 @@ export function CatalogSubmissionForm({ ownerContacts }: { ownerContacts: OwnerC
         whatsapp: fields.whatsapp || undefined,
         website: normalizeWebsite(fields.website) || undefined,
       },
-      portfolio: portfolio.filter((item) => item.title.trim()).map((item) => ({ title: item.title, description: item.description || undefined, url: normalizeWebsite(item.url) || undefined })),
+      portfolio: [],
       profileCrop,
       avatar,
       photo: { originalName: photo.name, contentType: photo.type, size: photo.size },
